@@ -1,2 +1,0 @@
-rm -f *.UPF ld1* *.out 
-rm -rf WORK PSEUDOPOTENTIALS
