@@ -2,7 +2,7 @@
 
 # Automated checks for cp.x - CC 2009
 #
-. ../examples/environment_variables
+. ../../examples/environment_variables
 #
 # You shouldn't need to modify anything below this line.
 #
@@ -29,8 +29,8 @@
 # taken from examples - not sure it is really needed
 if test "`echo -e`" = "-e" ; then ECHO=echo ; else ECHO="echo -e" ; fi
 #
-ESPRESSO_ROOT=`cd .. ; pwd`
-ESPRESSO_TMPDIR=$ESPRESSO_ROOT/tmp/
+ESPRESSO_ROOT=`cd ../.. ; pwd`
+ESPRESSO_TMPDIR=$ESPRESSO_ROOT/CPV/tmp/
 ESPRESSO_PSEUDO=$ESPRESSO_ROOT/pseudo/
 
 # no need to specify outdir and pseudo_dir in all *.in files
