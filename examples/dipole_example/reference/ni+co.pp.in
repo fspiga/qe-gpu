@@ -1,6 +1,0 @@
-&inputpp
-    prefix='ni+co',
-    outdir='/home/degironc/tmp',
-    filplot = 'ni+co.vpot'
-    plot_num= 11
-/
