@@ -11,6 +11,10 @@
 !=----------------------------------------------------------------------------=!
      USE kinds, ONLY :  DP
 
+#ifdef USE_CUDA
+     USE cudafor
+#endif
+
      IMPLICIT NONE
      SAVE
 
@@ -23,6 +27,18 @@
      COMPLEX(DP) , ALLOCATABLE, TARGET :: &
        psic(:), &      ! additional memory for FFT
        psic_nc(:,:)    ! as above for the noncolinear case
+
+#ifdef USE_CUDA
+     attributes(pinned) :: evc
+     COMPLEX(DP), DEVICE, ALLOCATABLE, TARGET :: &
+       evc_d(:,:)   ! wavefunctions in the PW basis set
+                    ! noncolinear case: first index
+                    ! is a combined PW + spin index
+
+     attributes(pinned) :: psic
+     COMPLEX(DP) , DEVICE, ALLOCATABLE, TARGET :: &
+       psic_d(:), &      ! additional memory for FFT
+#endif
      !
      !
      ! electronic wave functions, CPV code
@@ -45,6 +61,10 @@
        IF( ALLOCATED( psic_nc ) ) DEALLOCATE( psic_nc )
        IF( ALLOCATED( psic ) ) DEALLOCATE( psic )
        IF( ALLOCATED( evc ) ) DEALLOCATE( evc )
+#ifdef USE_CUDA
+       IF( ALLOCATED( psic_d    ) ) DEALLOCATE( psic_d    )
+       IF( ALLOCATED( evc_d     ) ) DEALLOCATE( evc_d     )
+#endif
      END SUBROUTINE deallocate_wavefunctions
 
 !=----------------------------------------------------------------------------=!

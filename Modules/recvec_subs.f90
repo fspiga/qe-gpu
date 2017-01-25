@@ -17,6 +17,10 @@ MODULE recvec_subs
    USE gvect,              ONLY : ig_l2g, g, gg, ngm, ngm_g, gcutm, &
                                   mill,  nl, gstart
    USE gvecs,              ONLY : ngms, gcutms, ngms_g, nls
+#ifdef USE_CUDA
+   USE gvect,              ONLY : nl_d, g_d, gg_d, mill_d
+   USE gvecs,              ONLY : nls_d
+#endif
    USE fft_base,           ONLY : dfftp, dffts
 !
    USE kinds,              ONLY : DP
@@ -290,6 +294,13 @@ CONTAINS
    IF ( gamma_only) CALL index_minusg()
 
    IF( ALLOCATED( ngmpe ) ) DEALLOCATE( ngmpe )
+#ifdef USE_CUDA
+   nl_d = nl
+   nls_d = nls
+   mill_d = mill
+   g_d = g
+   gg_d = gg
+#endif
 
    END SUBROUTINE ggen
    !

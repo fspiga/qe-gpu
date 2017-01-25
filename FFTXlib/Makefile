@@ -6,6 +6,7 @@ include ../make.inc
 #MODFLAGS= $(MOD_FLAG)../iotk/src $(MOD_FLAG).
 
 FFTX = \
+cuda.o \
 task_groups.o \
 scatter_mod.o  \
 fft_fwinv.o  \

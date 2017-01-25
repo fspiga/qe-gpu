@@ -208,6 +208,8 @@ contains
 
 end module nvtx
 
+#ifdef USE_CUDA
+
 module ep_debug
 #ifdef USE_CUDA
   use cudafor
@@ -1255,3 +1257,4 @@ if(cntr > 100) stop
 
 end module ep_debug
 
+#endif
