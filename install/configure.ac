@@ -107,6 +107,9 @@ X_AC_QE_RANLIB()
 # Checking wget or curl...
 X_AC_QE_WGET()
 
+# Checking for GPU support ...
+X_AC_QE_GPU()
+
 # Show dflags before adding $(MANUAL_DFLAGS) and adapt to XLF (if needed)
 if test "$dflags" = "" ; then dflags="$try_dflags" ; fi
 echo setting DFLAGS... $try_dflags
