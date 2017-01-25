@@ -100,6 +100,10 @@ SUBROUTINE start_clock( label )
 #endif
   USE mytime,    ONLY : nclock, clock_label, notrunning, no, maxclock, &
                         t0cpu, t0wall
+
+#ifdef USE_NVTX
+  USE nvtx
+#endif
   !
   IMPLICIT NONE
   !
@@ -131,8 +135,11 @@ SUBROUTINE start_clock( label )
 !            WRITE( stdout, '("start_clock: clock # ",I2," for ",A12, &
 !                           & " already started")' ) n, label_
         ELSE
+#ifdef USE_NVTX
+       CALL nvtxStartRange(label_,n)
+#endif
            t0cpu(n) = scnds()
-                   t0wall(n) = cclock()
+          t0wall(n) = cclock()
         ENDIF
         !
         RETURN
@@ -151,6 +158,9 @@ SUBROUTINE start_clock( label )
      !
      nclock                                     = nclock + 1
      clock_label(nclock)        = label_
+#ifdef USE_NVTX
+       CALL nvtxStartRange(label_,nclock)
+#endif
      t0cpu(nclock)                      = scnds()
      t0wall(nclock)                     = cclock()
      !
@@ -172,6 +182,9 @@ SUBROUTINE stop_clock( label )
 #endif
   USE mytime,    ONLY : no, nclock, clock_label, cputime, walltime, &
                         notrunning, called, t0cpu, t0wall
+#ifdef USE_NVTX
+  USE nvtx
+#endif
   !
   IMPLICIT NONE
   !
@@ -206,6 +219,9 @@ SUBROUTINE stop_clock( label )
            !
         ELSE
            !
+#ifdef USE_NVTX
+          call nvtxEndRange
+#endif
            cputime(n)   = cputime(n) + scnds() - t0cpu(n)
            walltime(n)  = walltime(n) + cclock() - t0wall(n)
            t0cpu(n)             = notrunning
