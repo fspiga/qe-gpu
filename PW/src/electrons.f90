@@ -372,6 +372,11 @@ SUBROUTINE electrons_scf ( printout, exxen )
   !
   USE plugin_variables,     ONLY : plugin_etot
   !
+#ifdef USE_CUDA
+  USE dfunct,               ONLY : newd_gpu
+  USE cudafor
+  USE scf,                  ONLY : rho_core_d, rhog_core_d, vltot_d, vrs_d 
+#endif
   IMPLICIT NONE
   !
   INTEGER, INTENT (IN) :: printout
@@ -397,6 +402,9 @@ SUBROUTINE electrons_scf ( printout, exxen )
       eext=0.0_DP   ! external forces contribution to the total energy
   LOGICAL :: &
       first, exst
+#ifdef USE_CUDA
+   INTEGER :: istat
+#endif
   !
   ! ... auxiliary variables for calculating and storing temporary copies of
   ! ... the charge density and of the HXC-potential
@@ -455,6 +463,13 @@ SUBROUTINE electrons_scf ( printout, exxen )
         GO TO 10
      END IF
      iter = iter + 1
+!#ifdef USE_NVTX
+!     if(idum>2) then
+!       istat = cudaDeviceSynchronize()
+!       istat = cudaThreadExit()
+!       EXIT
+!     endif
+!#endif
      !
      WRITE( stdout, 9010 ) iter, ecutwfc, mixing_beta
      !
@@ -520,7 +535,12 @@ SUBROUTINE electrons_scf ( printout, exxen )
         ! ... sum_band computes new becsum (stored in uspp modules)
         ! ... and a subtly different copy in rho%bec (scf module)
         !
+!#ifdef USE_CUDA
+#if 0
+        CALL sum_band_gpu()
+#else
         CALL sum_band()
+#endif
         !
         ! ... the Harris-Weinert-Foulkes energy is computed here using only
         ! ... quantities obtained from the input density
@@ -620,8 +640,21 @@ SUBROUTINE electrons_scf ( printout, exxen )
            ! ... no convergence yet: calculate new potential from mixed
            ! ... charge density (i.e. the new estimate)
            !
+!#ifdef USE_CUDA
+#if 0
+!TODO: remove these copys
+           rho_core_d = rho_core
+           rhog_core_d = rhog_core
+           v%of_r_d = v%of_r
+           rhoin%of_r_d = rhoin%of_r
+           CALL v_of_rho_gpu( rhoin, rho_core, rho_core_d, rhog_core, rhog_core_d, &
+                          ehart, etxc, vtxc, eth, etotefield, charge, v)
+           !CALL v_of_rho( rhoin, rho_core, rhog_core, &
+           !               ehart, etxc, vtxc, eth, etotefield, charge, v)
+#else
            CALL v_of_rho( rhoin, rho_core, rhog_core, &
                           ehart, etxc, vtxc, eth, etotefield, charge, v)
+#endif
            IF (okpaw) THEN
               CALL PAW_potential(rhoin%bec, ddd_paw, epaw,etot_cmp_paw)
               CALL PAW_symmetrize_ddd(ddd_paw)
@@ -687,7 +720,12 @@ SUBROUTINE electrons_scf ( printout, exxen )
      ! ... term in the nonlocal potential
      ! ... PAW: newd contains PAW updates of NL coefficients
      !
+!#ifdef USE_CUDA
+#if 0
+     CALL newd_gpu()
+#else
      CALL newd()
+#endif
      !
      IF ( lelfield ) en_el =  calc_pol ( )
      !
