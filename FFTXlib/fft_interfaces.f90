@@ -34,7 +34,7 @@ MODULE fft_interfaces
      END SUBROUTINE invfft_x
      !
 #ifdef USE_CUDA
-     SUBROUTINE invfft_x_gpu( grid_type, f, dtgs, howmany )
+     SUBROUTINE invfft_x_gpu( grid_type, f, dfft, dtgs, howmany )
        USE cudafor
        USE fft_types,  ONLY: fft_type_descriptor
        USE task_groups,   ONLY: task_groups_descriptor
@@ -72,7 +72,7 @@ MODULE fft_interfaces
      END SUBROUTINE fwfft_x
      !
 #ifdef USE_CUDA
-     SUBROUTINE fwfft_x_gpu( grid_type, f, dtgs, howmany )
+     SUBROUTINE fwfft_x_gpu( grid_type, f, dfft, dtgs, howmany )
        USE cudafor
        USE fft_types,  ONLY: fft_type_descriptor
        USE task_groups,   ONLY: task_groups_descriptor
