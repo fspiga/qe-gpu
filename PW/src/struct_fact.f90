@@ -16,6 +16,10 @@ subroutine struc_fact (nat, tau, ntyp, ityp, ngm, g, bg, nr1, nr2, &
   !
   USE kinds
   USE constants, ONLY : tpi
+#ifdef USE_CUDA
+  USE gvect,        ONLY : eigts1_d, eigts2_d, eigts3_d
+#endif
+
   implicit none
   !
   !   Here the dummy variables
@@ -91,6 +95,12 @@ subroutine struc_fact (nat, tau, ntyp, ityp, ngm, g, bg, nr1, nr2, &
         eigts3 (n3, na) = CMPLX(cos (arg), - sin (arg) ,kind=DP)
      enddo
   enddo
+
+#ifdef USE_CUDA
+  eigts1_d = eigts1
+  eigts2_d = eigts2
+  eigts3_d = eigts3
+#endif
 
   return
 end subroutine struc_fact
