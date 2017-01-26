@@ -34,6 +34,9 @@ SUBROUTINE setlocal
   USE martyna_tuckerman, ONLY : wg_corr_loc, do_comp_mt
   USE esm,       ONLY : esm_local, esm_bc, do_comp_esm
   USE qmmm,      ONLY : qmmm_add_esf
+#ifdef USE_CUDA
+  USE scf,       ONLY : vltot_d
+#endif
   !
   IMPLICIT NONE
   COMPLEX(DP), ALLOCATABLE :: aux (:), v_corr(:)
@@ -103,6 +106,9 @@ SUBROUTINE setlocal
   CALL plugin_init_potential()
   !
   DEALLOCATE(aux)
+#ifdef USE_CUDA
+  vltot_d = vltot
+#endif
   !
   RETURN
 END SUBROUTINE setlocal
