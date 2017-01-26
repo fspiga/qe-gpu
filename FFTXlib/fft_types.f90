@@ -46,6 +46,9 @@ MODULE fft_types
     INTEGER, ALLOCATABLE :: iss(:)   ! index of the first rho stick on each proc
     INTEGER, ALLOCATABLE :: isind(:) ! for each position in the plane indicate the stick index
     INTEGER, ALLOCATABLE :: ismap(:) ! for each stick in the plane indicate the position
+#ifdef USE_CUDA
+    INTEGER, ALLOCATABLE, DEVICE :: ismap_d(:)
+#endif
     INTEGER, ALLOCATABLE :: iplp(:)  ! indicate which "Y" plane should be FFTed ( potential )
     INTEGER, ALLOCATABLE :: iplw(:)  ! indicate which "Y" plane should be FFTed ( wave func )
     !
@@ -137,6 +140,9 @@ CONTAINS
     ALLOCATE( desc%iss( nproc ) )
     ALLOCATE( desc%isind( nx * ny ) )
     ALLOCATE( desc%ismap( nx * ny ) )
+#ifdef USE_CUDA
+    ALLOCATE( desc%ismap_d( nx * ny ) )
+#endif
     ALLOCATE( desc%iplp( nx ) )
     ALLOCATE( desc%iplw( nx ) )
 
@@ -170,6 +176,9 @@ CONTAINS
     IF ( ALLOCATED( desc%iss ) )    DEALLOCATE( desc%iss )
     IF ( ALLOCATED( desc%isind ) )  DEALLOCATE( desc%isind )
     IF ( ALLOCATED( desc%ismap ) )  DEALLOCATE( desc%ismap )
+#ifdef USE_CUDA
+    IF ( allocated(  desc%ismap_d))  DEALLOCATE( desc%ismap_d)
+#endif
     IF ( ALLOCATED( desc%iplp ) )   DEALLOCATE( desc%iplp )
     IF ( ALLOCATED( desc%iplw ) )   DEALLOCATE( desc%iplw )
 #if defined(__MPI)
@@ -476,6 +485,11 @@ CONTAINS
        desc%nwl  = SUM(ngpw) 
        !
     END IF
+
+#ifdef USE_CUDA
+    ! Copy ismap to GPU
+    desc%ismap_d = desc%ismap
+#endif
 
     RETURN
   END SUBROUTINE fft_type_set

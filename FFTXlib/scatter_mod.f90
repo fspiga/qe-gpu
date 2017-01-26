@@ -1253,7 +1253,7 @@ END SUBROUTINE cscatter_sym_many
 !
 #ifdef USE_CUDA
 !----------------------------------------------------------------------------
-SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp_, npp_, isgn, use_tg )
+SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp_, npp_, isgn, dtgs )
   !
   USE cudafor
   IMPLICIT NONE
@@ -1553,7 +1553,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
 
      DO proc = 1, nprocp
         IF( use_tg_ ) THEN
-           gproc = dfft%nplist(proc)+1
+           gproc = dtgs%nplist(proc)+1
         ELSE
            gproc = proc
         ENDIF
