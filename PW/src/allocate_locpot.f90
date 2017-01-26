@@ -18,6 +18,10 @@ subroutine allocate_locpot
   USE gvect,     ONLY : eigts1, eigts2, eigts3, ngm, ngl
   USE fft_base , ONLY : dfftp
   !
+#ifdef USE_CUDA
+  USE gvect,     ONLY : eigts1_d, eigts2_d, eigts3_d
+#endif
+  !
   implicit none
   !
   allocate (vloc( ngl, ntyp))    
