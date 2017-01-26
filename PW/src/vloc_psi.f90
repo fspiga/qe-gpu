@@ -615,7 +615,6 @@ SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi, psi_d, v, hpsi, hpsi_d)
 #ifdef USE_CUDA
   ALLOCATE( v_d, source=v )
   nls_d = nls
-  igk_d = igk
   psic_sz = REAL( dffts%nr3x*dffts%nr2x*dffts%nr1x )  ![BUG] dffts or dtgs ????????
 #endif
   !
