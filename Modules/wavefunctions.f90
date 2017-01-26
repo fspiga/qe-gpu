@@ -37,7 +37,7 @@
 
      attributes(pinned) :: psic
      COMPLEX(DP) , DEVICE, ALLOCATABLE, TARGET :: &
-       psic_d(:), &      ! additional memory for FFT
+       psic_d(:)         ! additional memory for FFT
 #endif
      !
      !
