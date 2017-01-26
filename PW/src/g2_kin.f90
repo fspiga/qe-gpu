@@ -19,6 +19,9 @@ SUBROUTINE g2_kin ( ik )
   USE gvect,                ONLY : g
   USE gvecw,                ONLY : ecfixed, qcutz, q2sigma
   USE wvfct,                ONLY : g2kin
+#ifdef USE_CUDA
+  USE wvfct,                ONLY : g2kin_d
+#endif
   !
   IMPLICIT NONE
   !
@@ -45,6 +48,9 @@ SUBROUTINE g2_kin ( ik )
      END DO
      !
   END IF
+#ifdef USE_CUDA
+  g2kin_d = g2kin
+#endif
   !
   RETURN
   !

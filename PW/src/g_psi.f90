@@ -15,7 +15,7 @@ subroutine g_psi (lda, n, m, npol, psi, e)
   !    and applies it to m wavefunctions
   !
   USE kinds
-  USE g_psi_mod
+  USE g_psi_mod, ONLY : h_diag, s_diag
   implicit none
   integer :: lda, n, m, npol, ipol
   ! input: the leading dimension of psi
@@ -71,3 +71,96 @@ subroutine g_psi (lda, n, m, npol, psi, e)
   call stop_clock ('g_psi')
   return
 end subroutine g_psi
+
+#ifdef USE_CUDA
+subroutine g_psi_gpu (lda, n, m, npol, psi, psi_d, e, e_d)
+  !-----------------------------------------------------------------------
+  !
+  !    This routine computes an estimate of the inverse Hamiltonian
+  !    and applies it to m wavefunctions
+  !
+  USE kinds
+  USE g_psi_mod, only : h_diag, s_diag, h_diag_d, s_diag_d
+  USE cudafor
+  USE ep_debug, only : compare
+  implicit none
+  integer :: lda, n, m, npol, ipol
+  ! input: the leading dimension of psi
+  ! input: the real dimension of psi
+  ! input: the number of bands
+  ! input: the number of coordinates of psi
+  ! local variable: counter of coordinates of psi
+  real(DP) :: e (m)
+  ! input: the eigenvectors
+  complex(DP) :: psi (lda, npol, m)
+  ! inp/out: the psi vector
+  !
+  real(DP), DEVICE :: e_d (m)
+  ! input: the eigenvectors
+  complex(DP), DEVICE :: psi_d (lda, npol, m)
+  ! inp/out: the psi vector
+
+  !    Local variables
+  !
+  real(DP), parameter :: eps = 1.0d-4
+  ! a small number
+  real(DP) :: x, scala, denm
+  integer :: k, i
+  ! counter on psi functions
+  ! counter on G vectors
+  !
+  call start_clock ('g_psi')
+  !
+#ifdef TEST_NEW_PRECONDITIONING
+  h_diag_d = h_diag
+  s_diag_d = s_diag
+!  e_d = e
+
+  scala = 1.d0
+#if 0
+  do ipol=1,npol
+     do k = 1, m
+        do i = 1, n
+           x = (h_diag(i,ipol) - e(k)*s_diag(i,ipol))*scala
+           denm = 0.5_dp*(1.d0+x+sqrt(1.d0+(x-1)*(x-1.d0)))/scala
+           psi (i, ipol, k) = psi (i, ipol, k) / denm
+        enddo
+     enddo
+  enddo
+#endif
+
+!$cuf kernel do(3) <<<*,*>>>
+  do ipol=1,npol
+     do k = 1, m
+        do i = 1, n
+           x = (h_diag_d(i,ipol) - e_d(k)*s_diag_d(i,ipol))*scala
+           denm = 0.5_dp*(1.d0+x+sqrt(1.d0+(x-1)*(x-1.d0)))/scala
+           psi_d (i, ipol, k) = psi_d (i, ipol, k) / denm
+        enddo
+     enddo
+  enddo
+
+!  call compare( psi, psi_d, "g_psi" )
+#else
+  do ipol=1,npol
+     do k = 1, m
+        do i = 1, n
+           denm = h_diag (i,ipol) - e (k) * s_diag (i,ipol)
+        !
+        ! denm = g2+v(g=0) - e(k)
+        !
+           if (abs (denm) < eps) denm = sign (eps, denm)
+        !
+        ! denm = sign( max( abs(denm),eps ), denm )
+        !
+           psi (i, ipol, k) = psi (i, ipol, k) / denm
+        enddo
+     enddo
+  enddo
+#endif
+
+  call stop_clock ('g_psi')
+  return
+end subroutine g_psi_gpu
+
+#endif
