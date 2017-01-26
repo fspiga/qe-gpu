@@ -30,6 +30,7 @@ MODULE fft_interfaces
        TYPE(fft_type_descriptor), INTENT(IN) :: dfft
        TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
        INTEGER, OPTIONAL, INTENT(IN) :: howmany
+!!!pgi$ ignore_tkr(d) f
        COMPLEX(DP) :: f(:)
      END SUBROUTINE invfft_x
      !
@@ -68,6 +69,7 @@ MODULE fft_interfaces
        TYPE(fft_type_descriptor), INTENT(IN) :: dfft
        TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
        INTEGER, OPTIONAL, INTENT(IN) :: howmany
+!!!!pgi$ ignore_tkr(d) f
        COMPLEX(DP) :: f(:)
      END SUBROUTINE fwfft_x
      !
