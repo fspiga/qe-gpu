@@ -36,6 +36,10 @@ SUBROUTINE init_run()
   USE hdf5_qe, ONLY : initialize_hdf5
   USE wavefunctions_module,ONLY : evc
 #endif
+#ifdef USE_CUDA
+  USE cudafor
+  USE wvfct,              ONLY : et_d, wg_d
+#endif
 
   !
   IMPLICIT NONE
@@ -96,6 +100,11 @@ SUBROUTINE init_run()
   !
   et(:,:) = 0.D0
   wg(:,:) = 0.D0
+#ifdef USE_CUDA
+  ALLOCATE( et_d( nbnd, nkstot ) , wg_d( nbnd, nkstot ) )
+  et_d = 0.D0
+  wg_d = 0.D0
+#endif
   !
   btype(:,:) = 1
   !
