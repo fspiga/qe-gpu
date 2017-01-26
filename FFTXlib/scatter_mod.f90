@@ -1587,6 +1587,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
   RETURN
 
 END SUBROUTINE fft_scatter_gpu
+#endif
 !
 !=----------------------------------------------------------------------=!
    END MODULE scatter_mod
