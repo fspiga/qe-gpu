@@ -19,11 +19,15 @@ SUBROUTINE stop_run( exit_status )
   USE mp_global,          ONLY : mp_global_end
   USE environment,        ONLY : environment_end
   USE io_files,           ONLY : iuntmp, seqopn
+#ifdef USE_CUDA
+  USE cudafor
+#endif
   !
   IMPLICIT NONE
   !
   INTEGER, INTENT(IN) :: exit_status
   LOGICAL             :: exst, opnd, lflag
+  INTEGER :: istat
   !
   lflag = ( exit_status == 0 ) 
   IF ( lflag ) THEN
@@ -48,6 +52,12 @@ SUBROUTINE stop_run( exit_status )
   !
   CALL clean_pw( .TRUE. )
   !
+#ifdef USE_CUDA
+  print *,"calling cudaThreadExit"
+  istat = cudaThreadExit
+  !
+#endif
+
   CALL environment_end( 'PWSCF' )
   !
   CALL mp_global_end ()
