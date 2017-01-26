@@ -218,6 +218,10 @@ SUBROUTINE init_wfc ( ik )
   USE random_numbers,       ONLY : randy
   USE mp_bands,             ONLY : intra_bgrp_comm, inter_bgrp_comm, my_bgrp_id
   USE mp,                   ONLY : mp_sum
+#ifdef USE_CUDA
+  USE cudafor
+  USE wavefunctions_module, ONLY : evc_d
+#endif
   !
   IMPLICIT NONE
   !
@@ -354,7 +358,7 @@ SUBROUTINE init_wfc ( ik )
   evc_d = evc
   etatom_d = etatom
   wfcatom_d = wfcatom
-  CALL rotate_wfc_gpu ( npwx, npw, n_starting_wfc, gstart, &
+  CALL rotate_wfc_gpu ( npwx, ngk(ik), n_starting_wfc, gstart, &
                         nbnd, wfcatom, wfcatom_d, npol, okvan, evc, evc_d, etatom, etatom_d ) 
    evc = evc_d
    etatom = etatom_d
