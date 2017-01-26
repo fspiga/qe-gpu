@@ -45,6 +45,10 @@ MODULE scf
 
   TYPE scf_type
      REAL(DP),   ALLOCATABLE :: of_r(:,:)  ! the charge density in R-space
+#ifdef USE_CUDA
+     REAL(DP),   ALLOCATABLE, DEVICE :: of_r_d(:,:)  ! the charge density in R-space
+     COMPLEX(DP),ALLOCATABLE, DEVICE :: of_g_d(:,:)  ! the charge density in G-space
+#endif
      COMPLEX(DP),ALLOCATABLE :: of_g(:,:)  ! the charge density in G-space
      REAL(DP),   ALLOCATABLE :: kin_r(:,:) ! the kinetic energy density in R-space
      COMPLEX(DP),ALLOCATABLE :: kin_g(:,:) ! the kinetic energy density in G-space
@@ -72,6 +76,18 @@ MODULE scf
        vrs(:,:),       &! the total pot. in real space (smooth grid)
        rho_core(:),    &! the core charge in real space
        kedtau(:,:)      ! position dependent kinetic energy enhancement factor
+#ifdef USE_CUDA
+  REAL(DP), DEVICE, ALLOCATABLE :: &
+       vltot_d(:),       &! the local potential in real space
+       vrs_d(:,:),       &! the total pot. in real space (smooth grid)
+       rho_core_d(:),    &! the core charge in real space
+       kedtau_d(:,:)      ! position dependent kinetic energy enhancement factor
+
+  COMPLEX(DP), ALLOCATABLE :: &
+       rhog_core_d(:)     ! the core charge in reciprocal space
+
+#endif
+
   COMPLEX(DP), ALLOCATABLE :: &
        rhog_core(:)     ! the core charge in reciprocal space
 
@@ -91,6 +107,10 @@ CONTAINS
    LOGICAL,INTENT(IN),OPTIONAL :: do_not_allocate_becsum ! PAW hack
    LOGICAL                     :: allocate_becsum        ! PAW hack
    allocate ( rho%of_r( dfftp%nnr, nspin) )
+#ifdef USE_CUDA
+   allocate ( rho%of_r_d( dfftp%nnr, nspin) )
+   allocate ( rho%of_g_d( ngm, nspin ) )
+#endif
    allocate ( rho%of_g( ngm, nspin ) )
    if (dft_is_meta() .or. lxdm) then
       allocate ( rho%kin_r( dfftp%nnr, nspin) )
@@ -122,6 +142,10 @@ CONTAINS
    TYPE (scf_type) :: rho
 
    if (ALLOCATED(rho%of_r))  deallocate(rho%of_r)
+#ifdef USE_CUDA
+   if (ALLOCATED(rho%of_r_d))  deallocate(rho%of_r_d)
+   if (ALLOCATED(rho%of_g_d))  deallocate(rho%of_g_d)
+#endif
    if (ALLOCATED(rho%of_g))  deallocate(rho%of_g)
    if (ALLOCATED(rho%kin_r)) deallocate(rho%kin_r)
    if (ALLOCATED(rho%kin_g)) deallocate(rho%kin_g)
