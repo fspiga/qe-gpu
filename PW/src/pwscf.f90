@@ -35,13 +35,14 @@ PROGRAM pwscf
 #ifdef USE_CUDA
   USE cudafor
   USE mpiDeviceUtil, ONLY : assignDevice
-  USE zheevd_cudafor,         ONLY : init_eigen_gpu
+!  USE zheevd_cudafor,         ONLY : init_eigen_gpu
 #endif
   IMPLICIT NONE
   CHARACTER(len=256) :: srvaddress
   !! Get the address of the server 
   CHARACTER(len=256) :: get_server_address
   !! Get the address of the server 
+  INTEGER :: dev
   INTEGER :: exit_status
   !! Status at exit
   !
@@ -52,8 +53,8 @@ PROGRAM pwscf
   ! This routine assigns a different GPU to each MPI rank in the same server
   CALL assignDevice( dev )
   print *,"Running on GPU dev = ",dev
-  CALL magmaf_init()  ! This will be removed once zheevd_cudafor works for every size
-  CALL init_eigen_gpu()
+!  CALL magmaf_init()  ! This will be removed once zheevd_cudafor works for every size
+!  CALL init_eigen_gpu()
 #endif
 
   CALL environment_start ( 'PWSCF' )
