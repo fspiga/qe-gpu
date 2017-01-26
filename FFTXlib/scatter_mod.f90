@@ -19,7 +19,18 @@
         USE task_groups, ONLY: task_groups_descriptor
         USE fft_param
 
+#ifdef USE_CUDA
+        USE cudafor
+#endif
+
         IMPLICIT NONE
+
+        INTERFACE fft_scatter
+           MODULE PROCEDURE fft_scatter_cpu
+#ifdef USE_CUDA
+           MODULE PROCEDURE fft_scatter_gpu
+#endif
+        END INTERFACE
 
         INTERFACE gather_grid
            MODULE PROCEDURE gather_real_grid, gather_complex_grid
@@ -49,7 +60,7 @@
 !   with a defined topology, like on bluegene and cray machine
 !
 !-----------------------------------------------------------------------
-SUBROUTINE fft_scatter ( dfft, f_in, nr3x, nxx_, f_aux, ncp_, npp_, isgn, dtgs )
+SUBROUTINE fft_scatter_cpu ( dfft, f_in, nr3x, nxx_, f_aux, ncp_, npp_, isgn, dtgs )
   !-----------------------------------------------------------------------
   !
   ! transpose the fft grid across nodes
@@ -365,7 +376,7 @@ SUBROUTINE fft_scatter ( dfft, f_in, nr3x, nxx_, f_aux, ncp_, npp_, isgn, dtgs )
 
   RETURN
 
-END SUBROUTINE fft_scatter
+END SUBROUTINE fft_scatter_cpu
 !
 #else
 !
@@ -373,7 +384,7 @@ END SUBROUTINE fft_scatter
 !   like infiniband, ethernet, myrinet
 !
 !-----------------------------------------------------------------------
-SUBROUTINE fft_scatter ( dfft, f_in, nr3x, nxx_, f_aux, ncp_, npp_, isgn, dtgs )
+SUBROUTINE fft_scatter_cpu ( dfft, f_in, nr3x, nxx_, f_aux, ncp_, npp_, isgn, dtgs )
   !-----------------------------------------------------------------------
   !
   ! transpose the fft grid across nodes
@@ -730,7 +741,7 @@ SUBROUTINE fft_scatter ( dfft, f_in, nr3x, nxx_, f_aux, ncp_, npp_, isgn, dtgs )
 
   RETURN
 
-END SUBROUTINE fft_scatter
+END SUBROUTINE fft_scatter_cpu
 !
 #endif
 !
@@ -1239,8 +1250,344 @@ SUBROUTINE cscatter_sym_many( dfftp, f_in, f_out, target_ibnd, nbnd, nbnd_proc, 
   RETURN
   !
 END SUBROUTINE cscatter_sym_many
+!
+#ifdef USE_CUDA
+!----------------------------------------------------------------------------
+SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp_, npp_, isgn, use_tg )
+  !
+  USE cudafor
+  IMPLICIT NONE
+  !
+  TYPE (fft_type_descriptor), TARGET, INTENT(in) :: dfft
+  INTEGER, INTENT(in)           :: nr3x, nxx_, isgn, ncp_ (:), npp_ (:)
+  COMPLEX (DP), DEVICE, INTENT(inout)   :: f_in_d (nxx_), f_aux_d (nxx_)
+  COMPLEX (DP), INTENT(inout)   :: f_in (nxx_), f_aux (nxx_)
+  TYPE (task_groups_descriptor), OPTIONAL, INTENT(in) :: dtgs
+!  COMPLEX (DP), allocatable, pinned :: f_in (:), f_aux (:)
+  INTEGER :: cuf_i, cuf_j, nswip
+  INTEGER :: istat
+  INTEGER, POINTER, DEVICE :: p_ismap_d(:)
+#if defined(__MPI)
 
+  INTEGER :: k, offset, proc, ierr, me, nprocp, gproc, gcomm, i, kdest, kfrom
+  INTEGER :: me_p, nppx, mc, j, npp, nnp, ii, it, ip, ioff, sendsiz, ncpx, ipp, nblk, nsiz
+  !
+  LOGICAL :: use_tg_
 
+  p_ismap_d => dfft%ismap_d
+
+  !  Task Groups
+  use_tg_ = .false.
+
+  IF( present( dtgs ) ) use_tg_ = .true.
+
+  me     = dfft%mype + 1
+  !
+  IF( use_tg_ ) THEN
+    !  This is the number of procs. in the plane-wave group
+     nprocp = dtgs%npgrp
+  ELSE
+     nprocp = dfft%nproc
+  ENDIF
+  !
+  CALL start_clock ('fft_scatter')
+  !
+  ncpx = 0
+  nppx = 0
+  IF( use_tg_ ) THEN
+     ncpx   = dtgs%tg_ncpx
+     nppx   = dtgs%tg_nppx
+     gcomm  = dtgs%pgrp_comm
+  ELSE
+     DO proc = 1, nprocp
+        ncpx = max( ncpx, ncp_ ( proc ) )
+        nppx = max( nppx, npp_ ( proc ) )
+     ENDDO
+     IF ( dfft%nproc == 1 ) THEN
+        nppx = dfft%nr3x
+     END IF
+  ENDIF
+  sendsiz = ncpx * nppx
+  !
+
+  ierr = 0
+  IF (isgn.gt.0) THEN
+
+     IF (nprocp==1) GO TO 10
+     !
+     ! "forward" scatter from columns to planes
+     !
+     ! step one: store contiguously the slices
+     !
+     offset = 0
+     !f_aux = (0.d0, 0.d0)
+     DO proc = 1, nprocp
+        IF( use_tg_ ) THEN
+           gproc = dtgs%nplist(proc)+1
+        ELSE
+           gproc = proc
+        ENDIF
+        !
+        kdest = ( proc - 1 ) * sendsiz
+        kfrom = offset
+        !
+#ifdef USE_GPU_MPI
+
+!$cuf kernel do(2) <<<*,*>>>
+        DO k = 1, ncp_ (me)
+           DO i = 1, npp_ ( gproc )
+             f_aux_d( kdest + i + (k-1)*nppx ) = f_in_d( kfrom + i + (k-1)*nr3x )
+           END DO
+        END DO
+
+#else
+        istat = cudaMemcpy2D( f_aux(kdest + 1), nppx, f_in_d(kfrom + 1 ), nr3x, npp_(gproc), ncp_(me), cudaMemcpyDeviceToHost )
+        if( istat ) print *,"ERROR cudaMemcpy2D failed : ",istat
+#endif
+
+        offset = offset + npp_ ( gproc )
+     ENDDO
+     !
+     ! maybe useless; ensures that no garbage is present in the output
+     !
+     !! f_in = 0.0_DP
+     !
+     ! step two: communication
+     !
+     IF( use_tg_ ) THEN
+        gcomm = dtgs%pgrp_comm
+     ELSE
+        gcomm = dfft%comm
+     ENDIF
+
+     CALL start_clock ('a2a_fw')
+#ifdef USE_GPU_MPI
+     istat = cudaDeviceSynchronize()
+     CALL mpi_alltoall (f_aux_d(1), sendsiz, MPI_DOUBLE_COMPLEX, f_in_d(1), sendsiz, MPI_DOUBLE_COMPLEX, gcomm, ierr)
+     istat = cudaDeviceSynchronize()
+#else
+     CALL mpi_alltoall (f_aux(1), sendsiz, MPI_DOUBLE_COMPLEX, f_in(1), sendsiz, MPI_DOUBLE_COMPLEX, gcomm, ierr)
+#endif
+     CALL stop_clock ('a2a_fw')
+
+     IF( abs(ierr) /= 0 ) CALL fftx_error__ ('fft_scatter', 'info<>0', abs(ierr) )
+
+#ifndef USE_GPU_MPI
+        f_in_d(1:sendsiz*dfft%nproc) = f_in(1:sendsiz*dfft%nproc)
+#endif
+
+     !
+10   CONTINUE
+     !
+     f_aux_d = (0.d0, 0.d0)
+     !
+     IF( isgn == 1 ) THEN
+
+        npp = dfft%npp( me )
+        nnp = dfft%nnp
+
+        DO ip = 1, dfft%nproc
+           ioff = dfft%iss( ip )
+           nswip = dfft%nsp( ip )
+!$cuf kernel do(2) <<<*,*>>>
+           DO cuf_j = 1, npp
+              DO cuf_i = 1, nswip
+                 it = ( ip - 1 ) * sendsiz + (cuf_i-1)*nppx
+                 mc = p_ismap_d( cuf_i + ioff )
+                 f_aux_d( mc + ( cuf_j - 1 ) * nnp ) = f_in_d( cuf_j + it )
+              ENDDO
+           ENDDO
+        ENDDO
+
+     ELSE
+
+        IF( use_tg_ ) THEN
+           npp  = dtgs%tg_npp( me )
+           nnp  = dfft%nr1x * dfft%nr2x
+        ELSE
+           npp  = dfft%npp( me )
+           nnp  = dfft%nnp
+        ENDIF
+
+        IF( use_tg_ ) THEN
+           nblk = dfft%nproc / dtgs%nogrp
+           nsiz = dtgs%nogrp
+        ELSE
+           nblk = dfft%nproc
+           nsiz = 1
+        END IF
+        !
+        ip = 1
+        !
+        DO gproc = 1, nblk
+           !
+           ii = 0
+           !
+           DO ipp = 1, nsiz
+              !
+              ioff = dfft%iss( ip )
+              nswip =  dfft%nsw( ip )
+             !
+!$cuf kernel do(2) <<<*,*>>>
+            DO cuf_j = 1, npp
+              DO cuf_i = 1, nswip
+                 !
+                 mc = p_ismap_d( cuf_i + ioff )
+                 !
+                 it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz
+                 !
+                    f_aux_d( mc + ( cuf_j - 1 ) * nnp ) = f_in_d( cuf_j + it )
+                 ENDDO
+                 !
+              ENDDO
+              !
+              ip = ip + 1
+              !
+           ENDDO
+           !
+        ENDDO
+
+     END IF
+  ELSE
+     !
+     !  "backward" scatter from planes to columns
+     !
+     IF( isgn == -1 ) THEN
+
+        npp = dfft%npp( me )
+        nnp = dfft%nnp
+        DO ip = 1, dfft%nproc
+           ioff = dfft%iss( ip )
+           nswip = dfft%nsp( ip )
+!$cuf kernel do(2) <<<*,*>>>
+        DO cuf_j = 1, npp
+           DO cuf_i = 1, nswip
+              mc = p_ismap_d( cuf_i + ioff )
+              it = ( ip - 1 ) * sendsiz + (cuf_i-1)*nppx
+                 f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp )
+              ENDDO
+           ENDDO
+
+        ENDDO
+
+     ELSE
+
+        IF( use_tg_ ) THEN
+           npp  = dtgs%tg_npp( me )
+           nnp  = dfft%nr1x * dfft%nr2x
+        ELSE
+           npp  = dfft%npp( me )
+           nnp  = dfft%nnp
+        ENDIF
+
+        IF( use_tg_ ) THEN
+           nblk = dtgs%nproc / dtgs%nogrp
+           nsiz = dtgs%nogrp
+        ELSE
+           nblk = dfft%nproc
+           nsiz = 1
+        END IF
+        !
+        ip = 1
+        !
+        DO gproc = 1, nblk
+           !
+           ii = 0
+           !
+           DO ipp = 1, nsiz
+              !
+              ioff = dfft%iss( ip )
+              !
+              nswip = dfft%nsw( ip )
+!$cuf kernel do(2) <<<*,*>>>
+              DO cuf_j = 1, npp
+                 DO cuf_i = 1, nswip
+                 !
+                    mc = p_ismap_d( cuf_i + ioff )
+                 !
+                    it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz
+                 !
+                    f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp )
+                 ENDDO
+                 !
+              ENDDO
+              !
+              ip = ip + 1
+              !
+           ENDDO
+           !
+        ENDDO
+     END IF
+
+#ifndef USE_GPU_MPI
+     f_in(1:sendsiz*dfft%nproc) = f_in_d(1:sendsiz*dfft%nproc)
+#endif
+
+     IF( nprocp == 1 ) GO TO 20
+     !
+     !  step two: communication
+     !
+     IF( use_tg_ ) THEN
+        gcomm = dtgs%pgrp_comm
+     ELSE
+        gcomm = dfft%comm
+     ENDIF
+
+     ! CALL mpi_barrier (gcomm, ierr)  ! why barrier? for buggy openmpi over ib
+  CALL start_clock ('a2a_bw')
+#ifdef USE_GPU_MPI
+     istat = cudaDeviceSynchronize()
+     CALL mpi_alltoall (f_in_d(1), sendsiz, MPI_DOUBLE_COMPLEX, f_aux_d(1), sendsiz, MPI_DOUBLE_COMPLEX, gcomm, ierr)
+     istat = cudaDeviceSynchronize()
+#else
+     CALL mpi_alltoall (f_in(1), sendsiz, MPI_DOUBLE_COMPLEX, f_aux(1), sendsiz, MPI_DOUBLE_COMPLEX, gcomm, ierr)
+#endif
+  CALL stop_clock ('a2a_bw')
+     IF( abs(ierr) /= 0 ) CALL fftx_error__ ('fft_scatter', 'info<>0', abs(ierr) )
+     !
+     !  step one: store contiguously the columns
+     !
+     !! f_in = 0.0_DP
+     !
+     offset = 0
+
+     DO proc = 1, nprocp
+        IF( use_tg_ ) THEN
+           gproc = dfft%nplist(proc)+1
+        ELSE
+           gproc = proc
+        ENDIF
+        !
+        kdest = ( proc - 1 ) * sendsiz
+        kfrom = offset
+        !
+#ifdef USE_GPU_MPI
+
+!$cuf kernel do(2) <<<*,*>>>
+        DO k = 1, ncp_ (me)
+           DO i = 1, npp_ ( gproc )
+             f_in_d( kfrom + i + (k-1)*nr3x ) = f_aux_d( kdest + i + (k-1)*nppx )
+           END DO
+        END DO
+
+#else
+        istat = cudaMemcpy2D( f_in_d(kfrom +1 ), nr3x, f_aux(kdest + 1), nppx, npp_(gproc), ncp_(me), cudaMemcpyHostToDevice )
+#endif
+        offset = offset + npp_ ( gproc )
+     ENDDO
+
+20   CONTINUE
+
+  ENDIF
+
+  CALL stop_clock ('fft_scatter')
+
+#endif
+
+  RETURN
+
+END SUBROUTINE fft_scatter_gpu
+!
 !=----------------------------------------------------------------------=!
    END MODULE scatter_mod
 !=----------------------------------------------------------------------=!
