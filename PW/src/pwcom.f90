@@ -35,6 +35,12 @@ MODULE klist
   INTEGER, ALLOCATABLE :: &
        igk_k(:,:),&       ! index of G corresponding to a given index of k+G
        ngk(:)             ! number of plane waves for each k point
+#ifdef USE_CUDA
+  ATTRIBUTES(PINNED) :: igk_k
+  INTEGER, ALLOCATABLE, DEVICE :: &
+       igk_k_d(:,:)       ! index of G corresponding to a given index of k+G on GPU
+       
+#endif
   !
   INTEGER :: &
        nks,               &! number of k points in this pool
@@ -66,6 +72,10 @@ CONTAINS
     
     ALLOCATE ( gk(npwx) )
     igk_k(:,:) = 0
+#ifdef USE_CUDA
+    IF(.NOT.ALLOCATED(igk_k_d)) ALLOCATE ( igk_k_d(npwx,nks))
+    igk_k_d(:,:) = 0
+#endif
     !
     ! ... The following loop must NOT be called more than once in a run
     ! ... or else there will be problems with variable-cell calculations
@@ -80,6 +90,9 @@ CONTAINS
   SUBROUTINE deallocate_igk ( ) 
   IF ( ALLOCATED( ngk ) )        DEALLOCATE( ngk )
   IF ( ALLOCATED( igk_k ) )      DEALLOCATE( igk_k )
+#ifdef USE_CUDA
+  IF (ALLOCATED(igk_k_d)) DEALLOCATE ( igk_k_d)
+#endif
   END SUBROUTINE deallocate_igk
 
 END MODULE klist
@@ -212,6 +225,12 @@ MODULE wvfct
   INTEGER, ALLOCATABLE :: &
        btype(:,:)         ! one if the corresponding state has to be
                           ! converged to full accuracy, zero otherwise
+#ifdef USE_CUDA
+  REAL(DP), DEVICE, ALLOCATABLE :: &
+       et_d(:,:),          &! eigenvalues of the hamiltonian
+       wg_d(:,:),          &! the weight of each k point and band
+       g2kin_d(:)           ! kinetic energy
+#endif
   !
 END MODULE wvfct
 !
@@ -324,6 +343,10 @@ MODULE us
        qrad(:,:,:,:),   &! radial FT of Q functions
        tab(:,:,:),      &! interpolation table for PPs
        tab_at(:,:,:)     ! interpolation table for atomic wfc
+#ifdef USE_CUDA
+  REAL(DP), DEVICE, ALLOCATABLE :: &
+       qrad_d(:,:,:,:) !,         &! radial FT of Q functions
+#endif
   LOGICAL :: spline_ps = .false.
   REAL(DP), ALLOCATABLE :: &
        tab_d2y(:,:,:)    ! for cubic splines
