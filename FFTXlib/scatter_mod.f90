@@ -1251,7 +1251,7 @@ SUBROUTINE cscatter_sym_many( dfftp, f_in, f_out, target_ibnd, nbnd, nbnd_proc, 
   !
 END SUBROUTINE cscatter_sym_many
 !
-#if def USE_CUDA
+#ifdef USE_CUDA
 !----------------------------------------------------------------------------
 SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp_, npp_, isgn, use_tg )
   !
