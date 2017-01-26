@@ -31,7 +31,7 @@ SUBROUTINE allocate_fft
   USE funct,     ONLY: dft_is_meta
 #ifdef USE_CUDA                                               
   USE wavefunctions_module, ONLY : psic_d                     
-  USE scf,        ONLY : vltot_d, vrs_d, rho_core_d, rhog_cor 
+  USE scf,        ONLY : vltot_d, vrs_d, rho_core_d, rhog_core_d
 #endif     
   IMPLICIT NONE
   !
