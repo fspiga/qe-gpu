@@ -29,6 +29,10 @@ SUBROUTINE allocate_fft
       report, i_cons, noncolin, npol
   USE wavefunctions_module, ONLY : psic, psic_nc
   USE funct,     ONLY: dft_is_meta
+#ifdef USE_CUDA                                               
+  USE wavefunctions_module, ONLY : psic_d                     
+  USE scf,        ONLY : vltot_d, vrs_d, rho_core_d, rhog_cor 
+#endif     
   IMPLICIT NONE
   !
   ! First a bunch of checks
@@ -66,6 +70,14 @@ SUBROUTINE allocate_fft
   ALLOCATE( rhog_core( ngm ) )
   ALLOCATE (psic( dfftp%nnr))
   ALLOCATE (vrs( dfftp%nnr, nspin))
+
+#ifdef USE_CUDA                                               
+  ALLOCATE (psic_d, source=psic)                              
+  ALLOCATE (vltot_d( dfftp%nnr))                              
+  ALLOCATE (rho_core_d( dfftp%nnr))                           
+  ALLOCATE (rhog_core_d( ngm ) )                              
+  ALLOCATE (vrs_d( dfftp%nnr, nspin))                         
+#endif  
 
   IF (noncolin) ALLOCATE (psic_nc( dfftp%nnr, npol))
 
