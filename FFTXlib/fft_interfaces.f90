@@ -33,6 +33,21 @@ MODULE fft_interfaces
        COMPLEX(DP) :: f(:)
      END SUBROUTINE invfft_x
      !
+#ifdef USE_CUDA
+     SUBROUTINE invfft_x_gpu( grid_type, f, dtgs, howmany )
+       USE cudafor
+       USE fft_types,  ONLY: fft_type_descriptor
+       USE task_groups,   ONLY: task_groups_descriptor
+       USE fft_param,  ONLY :DP
+       IMPLICIT NONE
+       CHARACTER(LEN=*),  INTENT(IN) :: grid_type
+       TYPE(fft_type_descriptor), INTENT(IN) :: dfft
+       TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
+       INTEGER, OPTIONAL, INTENT(IN) :: howmany
+       COMPLEX(DP), DEVICE :: f(:)
+     END SUBROUTINE invfft_x_gpu
+#endif
+     !
      SUBROUTINE invfft_b( f, dfft, ia )
        USE fft_smallbox_type,  ONLY: fft_box_descriptor
        USE fft_param,  ONLY :DP
@@ -55,6 +70,22 @@ MODULE fft_interfaces
        INTEGER, OPTIONAL, INTENT(IN) :: howmany
        COMPLEX(DP) :: f(:)
      END SUBROUTINE fwfft_x
+     !
+#ifdef USE_CUDA
+     SUBROUTINE fwfft_x_gpu( grid_type, f, dtgs, howmany )
+       USE cudafor
+       USE fft_types,  ONLY: fft_type_descriptor
+       USE task_groups,   ONLY: task_groups_descriptor
+       USE fft_param,  ONLY :DP
+       IMPLICIT NONE
+       CHARACTER(LEN=*), INTENT(IN) :: grid_type
+       TYPE(fft_type_descriptor), INTENT(IN) :: dfft
+       TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
+       INTEGER, OPTIONAL, INTENT(IN) :: howmany
+       COMPLEX(DP), DEVICE :: f(:)
+     END SUBROUTINE fwfft_x_gpu
+#endif
+     !
   END INTERFACE
 
 END MODULE fft_interfaces
