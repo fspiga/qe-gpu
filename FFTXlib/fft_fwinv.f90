@@ -387,9 +387,11 @@ SUBROUTINE invfft_x_gpu( grid_type, f, dfft, dtgs, howmany )
         CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
                         dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , 1)
      ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-        CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                         dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , 1, &
-                         dfft%isind, dfft%iplw )
+        !CALL invfft_x( grid_type, f, dfft, dtgs, howmany )
+        STOP ! - [NOT IMPLEMENTED]
+        !CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
+        !                 dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , 1, &
+        !                 dfft%isind, dfft%iplw )
      END IF
 
   END IF
@@ -495,9 +497,11 @@ SUBROUTINE fwfft_x_gpu( grid_type, f, dfft, dtgs, howmany )
         CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
                         dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , -1)
      ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-        CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                         dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , -1, &
-                         dfft%isind, dfft%iplw )
+        ! CALL fwfft_x_( grid_type, f, dfft, dtgs, howmany )
+        STOP ! - [NOT IMPLEMENTED]
+        !CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
+        !                 dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , -1, &
+        !                 dfft%isind, dfft%iplw )
      END IF
 
   END IF
