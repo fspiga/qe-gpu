@@ -43,6 +43,10 @@ subroutine init_us_1
   USE paw_variables,ONLY : okpaw
   USE mp_bands,     ONLY : intra_bgrp_comm
   USE mp,           ONLY : mp_sum
+#ifdef USE_CUDA
+  USE us,           ONLY : qrad_d
+  USE uspp,         ONLY : nhtolm_d, indv_d, indv_ijkb0_d
+#endif
   !
   implicit none
   !
@@ -409,6 +413,13 @@ subroutine init_us_1
   deallocate (besr)
   deallocate (aux1)
   deallocate (aux)
+
+#ifdef USE_CUDA
+  indv_d = indv
+  nhtolm_d = nhtolm
+  qrad_d = qrad
+  indv_ijkb0_d = indv_ijkb0
+#endif
 
   call stop_clock ('init_us_1')
   return
