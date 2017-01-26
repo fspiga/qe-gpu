@@ -32,6 +32,11 @@ PROGRAM pwscf
   USE read_input,        ONLY : read_input_file
   USE command_line_options, ONLY: input_file_, command_line
   !
+#ifdef USE_CUDA
+  USE cudafor
+  USE mpiDeviceUtil, ONLY : assignDevice
+  USE zheevd_cudafor,         ONLY : init_eigen_gpu
+#endif
   IMPLICIT NONE
   CHARACTER(len=256) :: srvaddress
   !! Get the address of the server 
@@ -42,6 +47,15 @@ PROGRAM pwscf
   !
   !
   CALL mp_startup ( diag_in_band_group = .true. )
+
+#ifdef USE_CUDA
+  ! This routine assigns a different GPU to each MPI rank in the same server
+  CALL assignDevice( dev )
+  print *,"Running on GPU dev = ",dev
+  CALL magmaf_init()  ! This will be removed once zheevd_cudafor works for every size
+  CALL init_eigen_gpu()
+#endif
+
   CALL environment_start ( 'PWSCF' )
   !
   CALL read_input_file ('PW', input_file_ )
