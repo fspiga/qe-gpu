@@ -15,11 +15,14 @@
 ! Nicolas Lacorne, Filippo Spiga, Nicola Varini - Last update Jul 2015     !
 !--------------------------------------------------------------------------!
 
-#if defined(__FFTW)
+#include "fft_defs.h"
+
 
 !=----------------------------------------------------------------------=!
    MODULE fft_scalar
 !=----------------------------------------------------------------------=!
+
+       USE fft_param
 
        USE, intrinsic ::  iso_c_binding
 #ifdef USE_CUDA
@@ -53,11 +56,6 @@
           MODULE PROCEDURE cfft3d_gpu
 #endif
        END INTERFACE
-
-
-! ...   Local Parameter
-
-#include "fft_param.f90"
 
 !=----------------------------------------------------------------------=!
    CONTAINS
@@ -1299,4 +1297,3 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
    END MODULE fft_scalar
 !=----------------------------------------------------------------------=!
 
-#endif
