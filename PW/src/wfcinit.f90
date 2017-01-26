@@ -38,6 +38,9 @@ SUBROUTINE wfcinit()
   USE mp,                   ONLY : mp_bcast
   USE qes_types_module,            ONLY : output_type
   USE qes_libs_module,             ONLY : qes_reset_output
+#ifdef USE_CUDA
+  USE uspp,                 ONLY : vkb_d
+#endif
   !
   IMPLICIT NONE
   !
@@ -165,7 +168,12 @@ SUBROUTINE wfcinit()
      !
      ! ... More Hpsi initialization: nonlocal pseudopotential projectors |beta>
      !
-     IF ( nkb > 0 ) CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
+     IF ( nkb > 0 ) then
+        CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
+#ifdef USE_CUDA
+        vkb_d = vkb
+#endif
+     END IF
      !
      ! ... Needed for LDA+U
      !
@@ -223,6 +231,10 @@ SUBROUTINE init_wfc ( ik )
   !
   COMPLEX(DP), ALLOCATABLE :: wfcatom(:,:,:) ! atomic wfcs for initialization
   !
+#ifdef USE_CUDA
+  REAL(DP), DEVICE, ALLOCATABLE :: etatom_d(:)
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: wfcatom_d(:,:,:)
+#endif
   !
   IF ( starting_wfc(1:6) == 'atomic' ) THEN
      !
@@ -244,6 +256,9 @@ SUBROUTINE init_wfc ( ik )
   END IF
   !
   ALLOCATE( wfcatom( npwx, npol, n_starting_wfc ) )
+#ifdef USE_CUDA
+  ALLOCATE( wfcatom_d( npwx, npol, n_starting_wfc ) )
+#endif
   !
   IF ( starting_wfc(1:6) == 'atomic' ) THEN
      !
@@ -309,10 +324,16 @@ SUBROUTINE init_wfc ( ik )
 
   if (my_bgrp_id > 0) wfcatom(:,:,:) = (0.d0,0.d0)
   call mp_sum(wfcatom,inter_bgrp_comm)
+#ifdef USE_CUDA
+   wfcatom_d = wfcatom
+#endif
   !
   ! ... Diagonalize the Hamiltonian on the basis of atomic wfcs
   !
   ALLOCATE( etatom( n_starting_wfc ) )
+#ifdef USE_CUDA
+  ALLOCATE( etatom_d( n_starting_wfc ) )
+#endif
   !
   ! ... Allocate space for <beta|psi>
   !
@@ -329,8 +350,19 @@ SUBROUTINE init_wfc ( ik )
   ! ... subspace diagonalization (calls Hpsi)
   !
   CALL start_clock( 'wfcinit:wfcrot' )
+#ifdef USE_CUDA
+  evc_d = evc
+  etatom_d = etatom
+  wfcatom_d = wfcatom
+  CALL rotate_wfc_gpu ( npwx, npw, n_starting_wfc, gstart, &
+                        nbnd, wfcatom, wfcatom_d, npol, okvan, evc, evc_d, etatom, etatom_d ) 
+   evc = evc_d
+   etatom = etatom_d
+   wfcatom = wfcatom_d
+#else
   CALL rotate_wfc ( npwx, ngk(ik), n_starting_wfc, gstart, &
                     nbnd, wfcatom, npol, okvan, evc, etatom )
+#endif
   CALL stop_clock( 'wfcinit:wfcrot' )
   !
   lelfield = lelfield_save
@@ -343,6 +375,10 @@ SUBROUTINE init_wfc ( ik )
   CALL deallocate_bec_type ( becp )
   DEALLOCATE( etatom )
   DEALLOCATE( wfcatom )
+#ifdef USE_CUDA
+  DEALLOCATE( etatom_d )
+  DEALLOCATE( wfcatom_d )
+#endif
   !
   RETURN
   !
