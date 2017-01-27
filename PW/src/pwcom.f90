@@ -72,10 +72,6 @@ CONTAINS
     
     ALLOCATE ( gk(npwx) )
     igk_k(:,:) = 0
-#ifdef USE_CUDA
-    IF(.NOT.ALLOCATED(igk_k_d)) ALLOCATE ( igk_k_d(npwx,nks))
-    igk_k_d(:,:) = 0
-#endif
     !
     ! ... The following loop must NOT be called more than once in a run
     ! ... or else there will be problems with variable-cell calculations
@@ -84,7 +80,7 @@ CONTAINS
        CALL gk_sort( xk(1,ik), ngm, g, gcutw, ngk(ik), igk_k(1,ik), gk )
     END DO
 #ifdef USE_CUDA
-    igk_k_d = igk_k
+    IF(.NOT.ALLOCATED(igk_k_d)) ALLOCATE ( igk_k_d, source=igk_k)
 #endif
     DEALLOCATE ( gk )
     !
