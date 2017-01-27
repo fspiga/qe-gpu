@@ -1384,6 +1384,7 @@ SUBROUTINE sum_band_gpu()
   ! ... Here we add the Ultrasoft contribution to the charge
   !
   CALL addusdens_gpu(rho%of_r_d(:,:))
+  rho%of_r(:,:)= rho%of_r_d(:,:)
   !
   IF( okvan )  THEN
      ! bgrp_parallelization is done here but not in subsequent routines
@@ -1713,6 +1714,7 @@ SUBROUTINE sum_band_gpu()
        !
        ! ... k-points version
        !
+       use cudafor
        USE mp_bands,     ONLY : me_bgrp
        USE mp,           ONLY : mp_sum, mp_get_comm_null
        !
@@ -1948,7 +1950,7 @@ SUBROUTINE sum_band_gpu()
                    DO j = 1, npw
                      psic_d( nls_d( igk_k_d(j,ik) ) ) = evc_d( j, ibnd )
                    ENDDO                   !
-                   CALL invfft ('Wave', psic, dffts)
+                   CALL invfft ('Wave', psic_d, dffts)
                    !
                    ! ... increment the charge density ...
                    !
