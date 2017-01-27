@@ -26,6 +26,8 @@ MODULE fft_parallel
    USE fft_param
    IMPLICIT NONE
 
+   SAVE
+
 #ifdef USE_CUDA
   COMPLEX(DP), PINNED, ALLOCATABLE :: f_h(:), aux_h(:)
   COMPLEX(DP), DEVICE, ALLOCATABLE :: aux_d(:)
@@ -38,7 +40,6 @@ MODULE fft_parallel
 #endif
    END INTERFACE
 
-   SAVE
 !
 CONTAINS
 !
@@ -342,7 +343,6 @@ SUBROUTINE tg_cft3s_gpu( f_d, dfft, isgn, dtgs )
   INTEGER                    :: me_p, istat
   INTEGER                    :: n1, n2, n3, nx1, nx2, nx3
   COMPLEX(DP), ALLOCATABLE   :: yf(:)
-  COMPLEX(DP), DEVICE, ALLOCATABLE :: aux_d( : )
   INTEGER                    :: planes( dfft%nr1x )
   LOGICAL                    :: use_tg
   !
@@ -365,7 +365,6 @@ SUBROUTINE tg_cft3s_gpu( f_d, dfft, isgn, dtgs )
      !ALLOCATE( aux( dtgs%nogrp * dtgs%tg_nnr ) )
      !ALLOCATE( YF ( dtgs%nogrp * dtgs%tg_nnr ) )
   ELSE
-     
      IF( ALLOCATED( f_h   ) .and. SIZE( f_h   ) < dfft%nnr ) DEALLOCATE( f_h   )
      IF( ALLOCATED( aux_h ) .and. SIZE( aux_h ) < dfft%nnr ) DEALLOCATE( aux_h )
      IF( ALLOCATED( aux_d ) .and. SIZE( aux_d ) < dfft%nnr ) DEALLOCATE( aux_d )
@@ -373,8 +372,6 @@ SUBROUTINE tg_cft3s_gpu( f_d, dfft, isgn, dtgs )
      IF( .not. ALLOCATED( f_h   ) ) ALLOCATE( f_h  ( dfft%nnr ) )
      IF( .not. ALLOCATED( aux_h ) ) ALLOCATE( aux_h( dfft%nnr ) )
      IF( .not. ALLOCATED( aux_d ) ) ALLOCATE( aux_d( dfft%nnr ) )
-
-     !ALLOCATE( aux( dfft%nnr ) )
   ENDIF
   !
   me_p = dfft%mype + 1
