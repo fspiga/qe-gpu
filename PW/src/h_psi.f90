@@ -312,6 +312,9 @@ SUBROUTINE h_psi_gpu( lda, n, m, psi, psi_d, hpsi, hpsi_d )
   ! 3. there is more than one band, otherwise there is nothing to parallelize
   !
   IF (use_bgrp_in_hpsi .AND. .NOT. exx_is_active() .AND. m > 1) THEN
+     print *,"NOT IMPLIMENTED YET!!!!!!!!!!!!!"
+     call flush(6)
+     STOP
      ! use band parallelization here
      hpsi(:,:) = (0.d0,0.d0)
      CALL set_bgrp_indices(m,m_start,m_end)
@@ -321,7 +324,7 @@ SUBROUTINE h_psi_gpu( lda, n, m, psi, psi_d, hpsi, hpsi_d )
      CALL mp_sum(hpsi,inter_bgrp_comm)
   ELSE
      ! don't use band parallelization here
-     CALL h_psi_( lda, n, m, psi, hpsi )
+      call h_psi_gpu_( lda, n, m, psi, psi_d, hpsi, hpsi_d )
   END IF
 
   CALL stop_clock( 'h_psi_bgrp' )
