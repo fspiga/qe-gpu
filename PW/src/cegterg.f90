@@ -52,6 +52,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
   USE cudafor
   USE cublas,        ONLY : cublasZgemm, cublasDdot
   USE ep_debug, ONLY : compare, MPI_Wtime
+  USE cdiaghg_compute_gpu_module, ONLY : cdiaghg_gpu
 #endif
   !
   IMPLICIT NONE
