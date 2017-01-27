@@ -31,6 +31,12 @@ subroutine allocate_locpot
   allocate( eigts2(-dfftp%nr2:dfftp%nr2,nat) )
   allocate( eigts3(-dfftp%nr3:dfftp%nr3,nat) )
 
+#ifdef USE_CUDA
+  allocate( eigts1_d(-dfftp%nr1:dfftp%nr1,nat) )
+  allocate( eigts2_d(-dfftp%nr2:dfftp%nr2,nat) )
+  allocate( eigts3_d(-dfftp%nr3:dfftp%nr3,nat) )
+#endif
+
   return
 end subroutine allocate_locpot
 
