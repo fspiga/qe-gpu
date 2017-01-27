@@ -83,6 +83,9 @@ CONTAINS
     DO ik = 1, nks
        CALL gk_sort( xk(1,ik), ngm, g, gcutw, ngk(ik), igk_k(1,ik), gk )
     END DO
+#ifdef USE_CUDA
+    igk_k_d = igk_k
+#endif
     DEALLOCATE ( gk )
     !
   END SUBROUTINE init_igk
