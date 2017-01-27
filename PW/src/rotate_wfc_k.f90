@@ -116,6 +116,7 @@ SUBROUTINE rotate_wfc_k_gpu( npwx, npw, nstart, nbnd, npol, psi, psi_d, overlap,
   USE mp,            ONLY : mp_sum
   USE cudafor
   USE cublas,        ONLY : cublasZgemm
+  USE cdiaghg_compute_gpu_module, ONLY : cdiaghg_gpu
   !
   IMPLICIT NONE
   !
