@@ -1220,7 +1220,7 @@ END SUBROUTINE add_becsum_so
 
 !------------------------------------------------------------------------------
 
-#ifdef USE_CUDE
+#ifdef USE_CUDA
 !----------------------------------------------------------------------------
 SUBROUTINE sum_band_gpu()
   !----------------------------------------------------------------------------
@@ -1704,7 +1704,7 @@ SUBROUTINE sum_band_gpu()
        !
        RETURN
        !
-     END SUBROUTINE sum_band_gamma
+     END SUBROUTINE sum_band_gpu_gamma
      !
      !
      !-----------------------------------------------------------------------
@@ -2047,6 +2047,29 @@ SUBROUTINE sum_band_gpu()
    END SUBROUTINE sum_band_gpu_k
      !
      !
+SUBROUTINE get_rho(rho_loc, nrxxs_loc, w1_loc, psic_loc)
+
+        IMPLICIT NONE
+
+        INTEGER :: nrxxs_loc
+        REAL(DP) :: rho_loc(nrxxs_loc)
+        REAL(DP) :: w1_loc
+        COMPLEX(DP) :: psic_loc(nrxxs_loc)
+
+        INTEGER :: ir
+
+!$omp parallel do
+        DO ir = 1, nrxxs_loc
+           !
+           rho_loc(ir) = rho_loc(ir) + &
+                         w1_loc * ( DBLE( psic_loc(ir) )**2 + &
+                                   AIMAG( psic_loc(ir) )**2 )
+           !
+        END DO
+!$omp end parallel do
+
+     END SUBROUTINE get_rho
+
      SUBROUTINE get_rho_gpu(rho_loc, nrxxs_loc, w1_loc, psic_loc)
 
         IMPLICIT NONE

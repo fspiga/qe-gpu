@@ -535,8 +535,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
         ! ... sum_band computes new becsum (stored in uspp modules)
         ! ... and a subtly different copy in rho%bec (scf module)
         !
-!#ifdef USE_CUDA
-#if 0
+#ifdef USE_CUDA
         CALL sum_band_gpu()
 #else
         CALL sum_band()
