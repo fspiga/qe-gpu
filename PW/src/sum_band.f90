@@ -2131,21 +2131,21 @@ SUBROUTINE sum_band_gpu()
 END SUBROUTINE sum_band_gpu
 
 ! In principle this can go away .......
-SUBROUTINE MycublasDgemm ( transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc )
-
-   USE kinds, ONLY : DP
-   USE cudafor
-   USE cublas, ONLY : cublasDgemm
-   IMPLICIT NONE
-   CHARACTER, INTENT(IN) :: transA, transB
-   INTEGER, INTENT(IN) :: m, n, k, lda, ldb, ldc
-   REAL(DP), INTENT(IN) :: alpha, beta
-   REAL(DP), DEVICE, INTENT(IN) :: A, B
-   REAL(DP), DEVICE, INTENT(INOUT) :: C
-
-   call cublasDgemm( transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc )
-
-END SUBROUTINE MycublasDgemm
+!SUBROUTINE MycublasDgemm ( transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc )
+!
+!   USE kinds, ONLY : DP
+!   USE cudafor
+!   USE cublas, ONLY : cublasDgemm
+!   IMPLICIT NONE
+!   CHARACTER, INTENT(IN) :: transA, transB
+!   INTEGER, INTENT(IN) :: m, n, k, lda, ldb, ldc
+!   REAL(DP), INTENT(IN) :: alpha, beta
+!   REAL(DP), DEVICE, INTENT(IN) :: A, B
+!   REAL(DP), DEVICE, INTENT(INOUT) :: C
+!
+!   call cublasDgemm( transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc )
+!
+!END SUBROUTINE MycublasDgemm
 
 !----------------------------------------------------------------------------
 SUBROUTINE sum_bec_gpu ( ik, current_spin, ibnd_start, ibnd_end, this_bgrp_nbnd )
@@ -2317,7 +2317,7 @@ SUBROUTINE sum_bec_gpu ( ik, current_spin, ibnd_start, ibnd_end, this_bgrp_nbnd 
                  !
                  ! only the real part is computed
                  !
-                 CALL MycublasDgemm ( 'C', 'N', nh(np), nh(np),        2*this_bgrp_nbnd, &
+                 CALL cublasDgemm ( 'C', 'N', nh(np), nh(np),        2*this_bgrp_nbnd, &
                       1.0_dp, auxk1_d, 2*this_bgrp_nbnd, auxk2_d, 2*this_bgrp_nbnd, &
                       0.0_dp, aux_gk_d, nh(np) )
                  !

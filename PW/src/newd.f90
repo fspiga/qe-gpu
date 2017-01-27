@@ -200,6 +200,9 @@ SUBROUTINE newq_gpu(vr,vr_d,deeq,deeq_d,skip_vltot)
                                    eigts1_d, eigts2_d, eigts3_d, nl_d
   USE wavefunctions_module, ONLY : psic_d
   USE scf,                  ONLY : vltot_d
+  !
+  USE cublas, ONLY : cublasDgemm
+  !
   IMPLICIT NONE
   !
   !
@@ -336,7 +339,7 @@ SUBROUTINE newq_gpu(vr,vr_d,deeq,deeq_d,skip_vltot)
               END IF
            END DO
 
-           CALL MycublasDgemm( 'C', 'N', nij, nab, 2*ngm, fact, qgm_d, 2*ngm, aux_d, &
+           CALL cublasDgemm( 'C', 'N', nij, nab, 2*ngm, fact, qgm_d, 2*ngm, aux_d, &
                     2*ngm, 0.0_dp, deeaux_d, nij )
            IF ( gamma_only .AND. gstart == 2 ) print *,"gamma_only qstart==2 not supported yet!!!!"
 

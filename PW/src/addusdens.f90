@@ -502,6 +502,8 @@ SUBROUTINE addusdens_g_gpu(rho)
   USE ylmr2_gpu
   USE qvan2_gpu_m
   !
+  USE cublas
+  !
   IMPLICIT NONE
   !
   REAL(kind=dp), DEVICE, INTENT(inout) :: rho(dfftp%nnr,nspin_mag)
@@ -579,7 +581,7 @@ SUBROUTINE addusdens_g_gpu(rho)
 
         DO is = 1, nspin_mag
            ! sum over atoms
-           CALL MycublasDgemm( 'N', 'T', 2*ngm, nij, nab, 1.0_dp, skk, 2*ngm, &
+           CALL cublasDgemm( 'N', 'T', 2*ngm, nij, nab, 1.0_dp, skk, 2*ngm, &
                 tbecsum(1,1,is), nij, 0.0_dp, aux2, 2*ngm )
 
            ! sum over lm indices of Q_{lm}
