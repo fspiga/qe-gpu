@@ -487,10 +487,6 @@ SUBROUTINE h_psi_gpu_( lda, n, m, psi, psi_d, hpsi, hpsi_d )
   ! ... Here we add the kinetic energy (k+G)^2 psi
   !
 
-
-     IF ( noncolin ) THEN
-        hpsi (lda+1:lda+n, ibnd) = hpsi(lda+1:lda+n,ibnd) + g2kin (1:n) * psi (lda+1:lda+n, ibnd)
-
 !$cuf kernel do(2) <<<*,*>>>
   DO j = 1, m
     DO i = 1, n 
