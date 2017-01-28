@@ -524,7 +524,7 @@ CONTAINS
        bec%k(:,:)=(0.0D0,0.0D0)
 #ifdef USE_CUDA
        ALLOCATE( bec%k_d(nkb, nbnd_siz ) )
-       bec%k = (0.0D0, 0.0D0)
+       bec%k_d = (0.0D0, 0.0D0)
 #endif
        !
     ENDIF
@@ -568,7 +568,7 @@ CONTAINS
     ELSE
        CALL zcopy(nkb*nbnd, bec%k, 1, bec1%k, 1)
 #ifdef USE_CUDA
-       bec1%k_d = bec1%k
+       bec1%k_d = bec%k
 #endif
     ENDIF
 
