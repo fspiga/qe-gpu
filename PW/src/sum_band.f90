@@ -2397,6 +2397,7 @@ SUBROUTINE sum_bec_gpu ( ik, current_spin, ibnd_start, ibnd_end, this_bgrp_nbnd 
   !
   IF ( noncolin ) DEALLOCATE ( becsum_nc )
   !
+  becsum = becsum_d
   CALL stop_clock( 'sum_band:becsum' )
   !
 END SUBROUTINE sum_bec_gpu
