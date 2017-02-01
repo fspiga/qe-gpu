@@ -2084,7 +2084,6 @@ SUBROUTINE get_rho(rho_loc, nrxxs_loc, w1_loc, psic_loc)
         INTEGER :: ir
 
 !$cuf kernel do(1) <<<*,*>>>
-!$omp parallel do
         DO ir = 1, nrxxs_loc
            !
            rho_loc(ir) = rho_loc(ir) + &
@@ -2092,7 +2091,6 @@ SUBROUTINE get_rho(rho_loc, nrxxs_loc, w1_loc, psic_loc)
                                    AIMAG( psic_loc(ir) )**2 )
            !
         END DO
-!$omp end parallel do
 
      END SUBROUTINE get_rho_gpu
 

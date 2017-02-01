@@ -42,7 +42,7 @@ TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 # MANUAL_DFLAGS  = additional precompilation option(s), if desired
 #                  BEWARE: it does not work for IBM xlf! Manually edit FDFLAGS
 MANUAL_DFLAGS  =
-DFLAGS         =  -D__OPENMP -D__PGI -D__FFTW -D__MPI -DUSE_CUDA
+DFLAGS         =  -D__OPENMP -D__PGI -D__FFTW -D__MPI -DUSE_CUDA -DUSE_NVTX
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
 # IFLAGS = how to locate directories with *.h or *.f90 file to be included
@@ -100,7 +100,7 @@ FFLAGS_NOMAIN   = -Mnomain
 
 LD             = mpif90
 LDFLAGS        = -mp -pgf90libs -Mcuda=cc35,cuda8.0,madconst -Mlarge_arrays
-LD_LIBS        = -Mcudalib=cufft,cublas -L/home/fs395/scratch/QE/QE-5.3.0_NVIDIA/magma-2.0.2_K20/lib -lmagma /home/fs395/scratch/QE/QE-5.3.0_NVIDIA/lib_jdr_K20/lib_jdr.a
+LD_LIBS        = -Mcudalib=cufft,cublas -L/home/fs395/scratch/QE/QE-5.3.0_NVIDIA/magma-2.0.2_K20/lib -lmagma /home/fs395/scratch/QE/QE-5.3.0_NVIDIA/lib_jdr_K20/lib_jdr.a -L${CUDA_INSTALL_PATH}/lib64 -lnvToolsExt
 
 # External Libraries (if any) : blas, lapack, fft, MPI
 
