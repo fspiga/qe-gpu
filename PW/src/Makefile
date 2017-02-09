@@ -3,7 +3,7 @@
 include ../../make.inc
 
 # location of needed modules and included files (if any)
-MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib
+MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib $(MOD_FLAG)/home/alant/EP/QE/lib_jdr
 
 PWOBJS = \
 pwscf.o 
@@ -40,6 +40,7 @@ bp_strings.o \
 buffers.o \
 c_bands.o \
 c_phase_field.o \
+cpu_gpu_interface.o \
 orbm_kubo.o \
 ccgdiagg.o \
 cdiagh.o \

@@ -1128,7 +1128,7 @@ call flush(6)
      notcnv = COUNT( .NOT. conv(:) )
      !it_timer = MPI_Wtime() - it_timer
 
-     !print *,"kter: ",kter," notcnv: ",notcnv," nbase: ",nbase !,it_timer,"sec"
+     print *,"kter: ",kter," notcnv: ",notcnv," nbase: ",nbase !,it_timer,"sec"
  
      !
 #ifdef USE_CUDA

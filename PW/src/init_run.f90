@@ -26,7 +26,11 @@ SUBROUTINE init_run()
   USE funct,              ONLY : dft_is_hybrid
   USE recvec_subs,        ONLY : ggen
   USE wannier_new,        ONLY : use_wannier    
+#ifdef USE_CUDA
+  USE dfunct,             ONLY : newd_gpu
+#else
   USE dfunct,             ONLY : newd
+#endif
   USE esm,                ONLY : do_comp_esm, esm_init
   USE mp_bands,           ONLY : intra_bgrp_comm, inter_bgrp_comm, nbgrp, root_bgrp_id
   USE mp,                 ONLY : mp_bcast
@@ -119,7 +123,12 @@ SUBROUTINE init_run()
   !
   CALL potinit()
   !
+#ifdef USE_CUDA
+  CALL newd_gpu()
+#else
   CALL newd()
+#endif
+
 #if defined(__HDF5)
   ! calls h5open_f mandatory in any application using hdf5
   CALL initialize_hdf5()

@@ -100,6 +100,7 @@ SUBROUTINE h_psi_( lda, n, m, psi, hpsi )
   USE fft_base, ONLY : dffts, dtgs
   USE exx,      ONLY : use_ace, vexx, vexxace_gamma, vexxace_k
   USE funct,    ONLY : exx_is_active
+  USE cpu_gpu_interface, ONLY : add_vuspsi, vloc_psi_k
   !
   IMPLICIT NONE
   !
@@ -185,7 +186,7 @@ SUBROUTINE h_psi_( lda, n, m, psi, hpsi )
         !
      ELSE
         !
-        CALL vloc_psi_k ( lda, n, m, psi, vrs(1,current_spin), hpsi )
+        CALL vloc_psi_k ( lda, n, m, psi, vrs(:,current_spin), hpsi )
         !
      END IF  
      !
@@ -371,7 +372,9 @@ SUBROUTINE h_psi_gpu_( lda, n, m, psi, psi_d, hpsi, hpsi_d )
 !CUDA
   USE wvfct,    ONLY : g2kin_d
   USE uspp,     ONLY : vkb_d
+  USE scf,      ONLY : vrs_d
   USE cudafor
+  USE cpu_gpu_interface, ONLY : add_vuspsi, vloc_psi_k
   !
   IMPLICIT NONE
   !
@@ -465,7 +468,8 @@ SUBROUTINE h_psi_gpu_( lda, n, m, psi, psi_d, hpsi, hpsi_d )
      ELSE
         !
         !CALL vloc_psi_k ( lda, n, m, psi, vrs(1,current_spin), hpsi )
-        CALL vloc_psi_k_gpu ( lda, n, m, psi, psi_d, vrs(1,current_spin), hpsi, hpsi_d )
+        vrs_d(:,current_spin) = vrs(:,current_spin)
+        CALL vloc_psi_k ( lda, n, m, psi_d, vrs_d(:,current_spin), hpsi_d )
         !
      END IF  
      !
@@ -478,7 +482,7 @@ SUBROUTINE h_psi_gpu_( lda, n, m, psi, psi_d, hpsi, hpsi_d )
      CALL calbec ( n, vkb, vkb_d, psi, psi_d, becp, m )
      CALL stop_clock( 'h_psi:calbec' )
 !     CALL add_vuspsi( lda, n, m, hpsi )
-     CALL add_vuspsi_gpu( lda, n, m, hpsi, hpsi_d )
+     CALL add_vuspsi( lda, n, m, hpsi_d )
      !
   END IF
   !  

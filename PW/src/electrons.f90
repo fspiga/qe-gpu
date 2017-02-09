@@ -1,4 +1,4 @@
-!
+/
 ! Copyright (C) 2001-2016 Quantum ESPRESSO group
 ! This file is distributed under the terms of the
 ! GNU General Public License. See the file `License'
@@ -719,8 +719,8 @@ SUBROUTINE electrons_scf ( printout, exxen )
      ! ... term in the nonlocal potential
      ! ... PAW: newd contains PAW updates of NL coefficients
      !
-!#ifdef USE_CUDA
-#if 0
+#ifdef USE_CUDA
+!#if 0
      CALL newd_gpu()
 #else
      CALL newd()

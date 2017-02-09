@@ -375,7 +375,7 @@ SUBROUTINE newq_gpu(vr,vr_d,deeq,deeq_d,skip_vltot)
   DEALLOCATE( qmod_d, ylmk0_d, vaux_d )
   deeq = deeq_d
   CALL mp_sum( deeq( :, :, :, 1:nspin_mag ), intra_bgrp_comm )
-  deeq_d = deeq
+  !deeq_d = deeq
   !
 END SUBROUTINE newq_gpu
 
@@ -496,6 +496,8 @@ SUBROUTINE newd_gpu( )
   !
   IF (lda_plus_U .AND. (U_projection == 'pseudo')) CALL add_vhub_to_deeq(deeq)
   !
+  deeq_d = deeq
+
   CALL stop_clock( 'newd' )
   !
   RETURN
@@ -658,6 +660,9 @@ SUBROUTINE newd( )
   USE realus,        ONLY : newq_r
   USE control_flags, ONLY : tqr
   USE ldaU,          ONLY : lda_plus_U, U_projection
+#ifdef USE_CUDA
+  USE uspp,          ONLY : deeq_d
+#endif
   !
   IMPLICIT NONE
   !
@@ -753,6 +758,10 @@ SUBROUTINE newd( )
   !
   IF (lda_plus_U .AND. (U_projection == 'pseudo')) CALL add_vhub_to_deeq(deeq)
   !
+#ifdef USE_CUDA
+  print *,"in newd CPU, copy deeq to GPU!!!!"
+  deeq_d = deeq
+#endif
   CALL stop_clock( 'newd' )
   !
   RETURN

@@ -754,6 +754,7 @@ h_psi.o : ../../Modules/recvec.o
 h_psi.o : ../../Modules/uspp.o
 h_psi.o : ../../Modules/wavefunctions.o
 h_psi.o : bp_mod.o
+h_psi.o : cpu_gpu_interface.o
 h_psi.o : exx.o
 h_psi.o : ldaU.o
 h_psi.o : pwcom.o
@@ -1117,6 +1118,7 @@ newd.o : ../../Modules/noncol.o
 newd.o : ../../Modules/recvec.o
 newd.o : ../../Modules/uspp.o
 newd.o : ../../Modules/wavefunctions.o
+newd.o : addusdens.o
 newd.o : ldaU.o
 newd.o : pwcom.o
 newd.o : realus.o

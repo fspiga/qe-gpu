@@ -191,7 +191,7 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
 END SUBROUTINE vloc_psi_gamma
 !
 !-----------------------------------------------------------------------
-SUBROUTINE vloc_psi_k(lda, n, m, psi, v, hpsi)
+SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
   !-----------------------------------------------------------------------
   !
   ! Calculation of Vloc*psi using dual-space technique - k-points
@@ -342,7 +342,7 @@ SUBROUTINE vloc_psi_k(lda, n, m, psi, v, hpsi)
   CALL stop_clock ('vloc_psi')
   !
   RETURN
-END SUBROUTINE vloc_psi_k
+END SUBROUTINE vloc_psi_k_cpu
 !
 !-----------------------------------------------------------------------
 SUBROUTINE vloc_psi_nc (lda, n, m, psi, v, hpsi)
@@ -534,7 +534,7 @@ END SUBROUTINE vloc_psi_nc
 !
 #ifdef USE_CUDA
 !-----------------------------------------------------------------------
-SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi, psi_d, v, hpsi, hpsi_d)
+SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi_d, v_d, hpsi_d)
   !-----------------------------------------------------------------------
   !
   ! Calculation of Vloc*psi using dual-space technique - k-points
@@ -562,13 +562,14 @@ SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi, psi_d, v, hpsi, hpsi_d)
   IMPLICIT NONE
   !
   INTEGER, INTENT(in) :: lda, n, m
-  COMPLEX(DP), INTENT(in)   :: psi (lda, m)
-  COMPLEX(DP), INTENT(inout):: hpsi (lda, m)
-  REAL(DP), INTENT(in) :: v(dffts%nnr)
+!  COMPLEX(DP), INTENT(in)   :: psi (lda, m)
+!  COMPLEX(DP), INTENT(inout):: hpsi (lda, m)
+!  REAL(DP), INTENT(in) :: v(dffts%nnr)
   !
 #ifdef USE_CUDA
   COMPLEX(DP), DEVICE, INTENT(in)   :: psi_d (lda, m)
   COMPLEX(DP), DEVICE, INTENT(inout):: hpsi_d (lda, m)
+  REAL(DP), DEVICE, INTENT(in) :: v_d(dffts%nnr)
 #endif
   !
   INTEGER :: ibnd, j, incr
@@ -580,7 +581,7 @@ SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi, psi_d, v, hpsi, hpsi_d)
   INTEGER :: v_siz, idx, ioff
   !
 #ifdef USE_CUDA
-  REAL(DP), DEVICE, ALLOCATABLE, DIMENSION(:) :: v_d
+!  REAL(DP), DEVICE, ALLOCATABLE, DIMENSION(:) :: v_d
   REAL(DP) :: psic_sz
   INTEGER, SAVE :: mycounter=0,ierror,istat
 #endif
@@ -599,21 +600,11 @@ SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi, psi_d, v, hpsi, hpsi_d)
   !
   IF( use_tg ) THEN
      !
-     CALL start_clock ('vloc_psi:tg_gather')
-     v_siz =  dtgs%tg_nnr * dtgs%nogrp
-     !
-     ALLOCATE( tg_v   ( v_siz ) )
-     ALLOCATE( tg_psic( v_siz ) )
-     !
-     CALL tg_gather( dffts, dtgs, v, tg_v )
-     CALL stop_clock ('vloc_psi:tg_gather')
-
-     incr = dtgs%nogrp
      !
   ENDIF
 
 #ifdef USE_CUDA
-  ALLOCATE( v_d, source=v )
+!  ALLOCATE( v_d, source=v )
   nls_d = nls
   psic_sz = REAL( dffts%nr3x*dffts%nr2x*dffts%nr1x )  ![BUG] dffts or dtgs ????????
 #endif
@@ -623,25 +614,6 @@ SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi, psi_d, v, hpsi, hpsi_d)
   DO ibnd = 1, m, incr
      !
      IF( use_tg ) THEN
-        !
-        tg_psic = (0.d0, 0.d0)
-        ioff   = 0
-        !
-        DO idx = 1, dtgs%nogrp
-
-           IF( idx + ibnd - 1 <= m ) THEN
-!$omp parallel do
-              DO j = 1, n
-                 tg_psic(nls (igk_k(j,current_k))+ioff) =  psi(j,idx+ibnd-1)
-              ENDDO
-!$omp end parallel do
-           ENDIF
-
-           ioff = ioff + dtgs%tg_nnr
-
-        ENDDO
-        !
-        CALL  invfft ('Wave', tg_psic, dffts, dtgs)
         !
      ELSE
         !
@@ -669,13 +641,6 @@ SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi, psi_d, v, hpsi, hpsi_d)
      !
      IF( use_tg ) THEN
         !
-!$omp parallel do
-        DO j = 1, dffts%nr1x*dffts%nr2x*dtgs%tg_npp( me_bgrp + 1 )
-           tg_psic (j) = tg_psic (j) * tg_v(j)
-        ENDDO
-!$omp end parallel do
-        !
-        CALL fwfft ('Wave',  tg_psic, dffts, dtgs)
         !
      ELSE
         !
@@ -703,23 +668,6 @@ SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi, psi_d, v, hpsi, hpsi_d)
      !
      IF( use_tg ) THEN
         !
-        ioff   = 0
-        !
-        DO idx = 1, dtgs%nogrp
-           !
-           IF( idx + ibnd - 1 <= m ) THEN
-!$omp parallel do
-              DO j = 1, n
-                 hpsi (j, ibnd+idx-1) = hpsi (j, ibnd+idx-1) + &
-                    tg_psic( nls(igk_k(j,current_k)) + ioff )
-              ENDDO
-!$omp end parallel do
-           ENDIF
-           !
-           ioff = ioff + dffts%nr3x * dffts%nsw( me_bgrp + 1 )
-           !
-        ENDDO
-        !
      ELSE
 #ifdef USE_CUDA
 !$cuf kernel do(1) <<<*,*>>>
@@ -739,13 +687,11 @@ SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi, psi_d, v, hpsi, hpsi_d)
   !
   IF( use_tg ) THEN
      !
-     DEALLOCATE( tg_psic )
-     DEALLOCATE( tg_v )
      !
   ENDIF
 
 #ifdef USE_CUDA
-  DEALLOCATE( v_d )
+!  DEALLOCATE( v_d )
 #endif
 
 #ifdef TRACK_FLOPS
