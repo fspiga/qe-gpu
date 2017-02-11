@@ -15,6 +15,7 @@ SUBROUTINE rotate_wfc_k( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
   USE kinds,         ONLY : DP
   USE mp_bands,      ONLY : intra_bgrp_comm
   USE mp,            ONLY : mp_sum
+  USE cpu_gpu_interface
   !
   IMPLICIT NONE
   !
@@ -117,6 +118,7 @@ SUBROUTINE rotate_wfc_k_gpu( npwx, npw, nstart, nbnd, npol, psi, psi_d, overlap,
   USE cudafor
   USE cublas,        ONLY : cublasZgemm
   USE cdiaghg_compute_gpu_module, ONLY : cdiaghg_gpu
+  USE cpu_gpu_interface
   !
   IMPLICIT NONE
   !
@@ -182,7 +184,7 @@ SUBROUTINE rotate_wfc_k_gpu( npwx, npw, nstart, nbnd, npol, psi, psi_d, overlap,
   !
   ! ...      H_ij = <psi_i| H |psi_j>     S_ij = <psi_i| S |psi_j>
   !
-  CALL h_psi_gpu( npwx, npw, nstart, psi, psi_d, aux, aux_d )
+  CALL h_psi( npwx, npw, nstart, psi_d, aux_d )
   !
   !call ZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx,  aux, kdmx, ( 0.D0, 0.D0 ), hc, nstart )
   call cublasZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi_d, kdmx,  aux_d, kdmx, ( 0.D0, 0.D0 ), hc_d, nstart )
@@ -267,6 +269,7 @@ SUBROUTINE protate_wfc_k( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
   USE descriptors,      ONLY : descla_init, la_descriptor
   USE parallel_toolkit, ONLY : zsqmher
   USE mp,               ONLY : mp_bcast, mp_root_sum, mp_sum, mp_barrier
+  USE cpu_gpu_interface
   !
   IMPLICIT NONE
   !

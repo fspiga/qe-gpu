@@ -15,6 +15,9 @@ subroutine set_vrs (vrs, vltot, vr, kedtau, kedtaur,nrxx, nspin, doublegrid)
   USE kinds
   USE funct, only : dft_is_meta
   USE fft_base, only : dffts 
+#ifdef USE_CUDA
+  USE scf, only : vrs_d 
+#endif
   implicit none
 
   integer :: nspin, nrxx
@@ -32,7 +35,10 @@ subroutine set_vrs (vrs, vltot, vr, kedtau, kedtaur,nrxx, nspin, doublegrid)
   CALL sum_vrs( nrxx, nspin, vltot, vr, vrs )
   !
   CALL interpolate_vrs( nrxx, nspin, doublegrid, kedtau, kedtaur, vrs )
-  ! 
+  !
+#ifdef USE_CUDA
+  vrs_d = vrs
+#endif 
   return
 
 end subroutine set_vrs

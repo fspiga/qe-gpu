@@ -42,8 +42,24 @@ MODULE cpu_gpu_interface
         REAL(DP) :: v(:)
         ATTRIBUTES( DEVICE ) :: psi, v, hpsi
      END SUBROUTINE vloc_psi_k_gpu
-
   END INTERFACE
+
+  INTERFACE h_psi
+     SUBROUTINE h_psi_cpu( lda, n, m, psi, hpsi  )
+        USE kinds, ONLY: DP
+        INTEGER  :: lda, n, m
+!pgi$ ignore_tkr(r) psi,hpsi
+        COMPLEX(DP) :: psi(*), hpsi(*)
+     END SUBROUTINE h_psi_cpu
+
+     SUBROUTINE h_psi_gpu( lda, n, m, psi, hpsi  )
+        USE kinds, ONLY: DP
+        INTEGER  :: lda, n, m
+!pgi$ ignore_tkr(r) psi,hpsi
+        COMPLEX(DP) :: psi(*), hpsi(*)
+        ATTRIBUTES( DEVICE ) :: psi, hpsi
+     END SUBROUTINE h_psi_gpu
+   END INTERFACE
 
 !=----------------------------------------------------------------------=!
 END MODULE cpu_gpu_interface

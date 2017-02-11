@@ -48,6 +48,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
   USE kinds,         ONLY : DP
   USE mp_bands,      ONLY : intra_bgrp_comm, inter_bgrp_comm, root_bgrp_id, nbgrp, my_bgrp_id
   USE mp,            ONLY : mp_sum, mp_bcast
+  USE cpu_gpu_interface
 #ifdef USE_CUDA
   USE cudafor
   USE cublas,        ONLY : cublasZgemm, cublasDdot
@@ -308,7 +309,7 @@ call flush(6)
     end do
   end do
 
-  CALL h_psi_gpu( npwx, npw, nvec, psi, psi_d, hpsi, hpsi_d )
+  CALL h_psi( npwx, npw, nvec, psi_d, hpsi_d )
 #ifdef COMPARE
   hpsi = ZERO
   psi  = ZERO
@@ -902,7 +903,7 @@ call flush(6)
      !
 #ifdef USE_CUDA
 
-  CALL h_psi_gpu( npwx, npw, notcnv, psi(1,1,nb1), psi_d(1,1,nb1), hpsi(1,1,nb1), hpsi_d(1,1,nb1) )
+  CALL h_psi( npwx, npw, notcnv, psi_d(:,:,nb1), hpsi_d(:,:,nb1) )
 #ifdef COMPARE
      CALL h_psi( npwx, npw, notcnv, psi(1,1,nb1), hpsi(1,1,nb1) )
      call compare(hpsi, hpsi_d, "12 hpsi")
@@ -1417,6 +1418,7 @@ SUBROUTINE pcegterg( npw, npwx, nvec, nvecx, npol, evc, ethr, &
   USE descriptors,      ONLY : la_descriptor, descla_init , descla_local_dims
   USE parallel_toolkit, ONLY : zsqmred, zsqmher, zsqmdst
   USE mp,               ONLY : mp_bcast, mp_root_sum, mp_sum, mp_barrier
+  USE cpu_gpu_interface
   !
   IMPLICIT NONE
   !

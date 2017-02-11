@@ -709,6 +709,7 @@ h_1psi.o : ../../Modules/control_flags.o
 h_1psi.o : ../../Modules/kind.o
 h_1psi.o : ../../Modules/noncol.o
 h_1psi.o : bp_mod.o
+h_1psi.o : cpu_gpu_interface.o
 h_1psi.o : realus.o
 h_epsi_her_apply.o : ../../Modules/becmod.o
 h_epsi_her_apply.o : ../../Modules/cell_base.o
@@ -1168,6 +1169,7 @@ orbm_kubo.o : ../../Modules/recvec.o
 orbm_kubo.o : ../../Modules/uspp.o
 orbm_kubo.o : bp_mod.o
 orbm_kubo.o : buffers.o
+orbm_kubo.o : cpu_gpu_interface.o
 orbm_kubo.o : pwcom.o
 orbm_kubo.o : scf_mod.o
 orbm_kubo.o : start_k.o
@@ -1669,6 +1671,7 @@ regterg.o : ../../Modules/kind.o
 regterg.o : ../../Modules/mp.o
 regterg.o : ../../Modules/mp_bands.o
 regterg.o : ../../Modules/mp_diag.o
+regterg.o : cpu_gpu_interface.o
 remove_atomic_rho.o : ../../Modules/fft_base.o
 remove_atomic_rho.o : ../../Modules/io_files.o
 remove_atomic_rho.o : ../../Modules/io_global.o
@@ -1692,6 +1695,7 @@ rho2zeta.o : ../../Modules/io_global.o
 rho2zeta.o : ../../Modules/kind.o
 rotate_wfc.o : ../../Modules/control_flags.o
 rotate_wfc.o : ../../Modules/kind.o
+rotate_wfc.o : cpu_gpu_interface.o
 rotate_wfc_gamma.o : ../../LAXlib/la_types.o
 rotate_wfc_gamma.o : ../../LAXlib/ptoolkit.o
 rotate_wfc_gamma.o : ../../Modules/control_flags.o
@@ -1699,6 +1703,7 @@ rotate_wfc_gamma.o : ../../Modules/kind.o
 rotate_wfc_gamma.o : ../../Modules/mp.o
 rotate_wfc_gamma.o : ../../Modules/mp_bands.o
 rotate_wfc_gamma.o : ../../Modules/mp_diag.o
+rotate_wfc_gamma.o : cpu_gpu_interface.o
 rotate_wfc_k.o : ../../LAXlib/la_types.o
 rotate_wfc_k.o : ../../LAXlib/ptoolkit.o
 rotate_wfc_k.o : ../../Modules/kind.o
@@ -1706,6 +1711,7 @@ rotate_wfc_k.o : ../../Modules/mp.o
 rotate_wfc_k.o : ../../Modules/mp_bands.o
 rotate_wfc_k.o : ../../Modules/mp_diag.o
 rotate_wfc_k.o : cdiaghg.o
+rotate_wfc_k.o : cpu_gpu_interface.o
 run_driver.o : ../../Modules/cell_base.o
 run_driver.o : ../../Modules/check_stop.o
 run_driver.o : ../../Modules/control_flags.o

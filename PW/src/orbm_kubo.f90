@@ -52,6 +52,7 @@ SUBROUTINE orbm_kubo()
   USE gvecs,                ONLY : doublegrid
   USE mp_pools,             ONLY : intra_pool_comm
   USE mp_world,             ONLY : world_comm
+  USE cpu_gpu_interface
 
   !  --- Avoid implicit definitions ---
   IMPLICIT NONE

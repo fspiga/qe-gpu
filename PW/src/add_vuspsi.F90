@@ -32,14 +32,14 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
   USE control_flags, ONLY: gamma_only
   USE noncollin_module
 #ifdef USE_GPU
-  USE uspp,          ONLY: vkb=>vkb_d, nkb, deeq=>deeq_d, deeq_nc, indv_ijkb0
-  USE cublas
   USE cudafor
+  USE cublas
+  USE uspp,          ONLY: vkb=>vkb_d, nkb, deeq=>deeq_d, deeq_nc, indv_ijkb0
 #else
   USE uspp,          ONLY: vkb, nkb, deeq, deeq_nc, indv_ijkb0
 #endif
-  USE uspp_param,    ONLY: nh, nhm
   USE becmod,        ONLY: bec_type, becp
+  USE uspp_param,    ONLY: nh, nhm
   !
   IMPLICIT NONE
   !
@@ -201,15 +201,15 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
        !
        ! see add_vuspsi_gamma for comments
        !
-#ifdef USE_GPU
-       USE cudafor
-       USE cublas
-#endif
        IMPLICIT NONE
        COMPLEX(DP), ALLOCATABLE :: ps (:,:), deeaux (:,:)
+       COMPLEX(DP), POINTER :: becp_k(:,:)
        INTEGER :: ierr, j, k
 #ifdef USE_GPU
-       ATTRIBUTES( DEVICE ) :: ps, deeaux
+       ATTRIBUTES( DEVICE ) :: ps, deeaux,becp_k
+       becp_k => becp%k_d
+#else
+       becp_k => becp%k
 #endif
        !
        IF ( nkb == 0 ) RETURN
@@ -244,16 +244,9 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
 ! add openmp here
 #endif
 
-#ifndef USE_GPU
                 CALL ZGEMM('N','N', nh(nt), m, nh(nt), (1.0_dp,0.0_dp), &
-                           deeaux, nh(nt), becp%k(indv_ijkb0(na)+1,1), nkb, &
+                           deeaux, nh(nt), becp_k(indv_ijkb0(na)+1,1), nkb, &
                           (0.0_dp, 0.0_dp), ps(indv_ijkb0(na)+1,1), nkb )
-#else
-
-                CALL cublasZGEMM('N','N', nh(nt), m, nh(nt), (1.0_dp,0.0_dp), &
-                           deeaux, nh(nt), becp%k_d(indv_ijkb0(na)+1,1), nkb, &
-                          (0.0_dp, 0.0_dp), ps(indv_ijkb0(na)+1,1), nkb )
-#endif
                 !
              END IF
              !
@@ -262,13 +255,8 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
           !
        END DO
        !
-#ifndef USE_GPU
        CALL ZGEMM( 'N', 'N', n, m, nkb, ( 1.D0, 0.D0 ) , vkb, &
                    lda, ps, nkb, ( 1.D0, 0.D0 ) , hpsi, lda )
-#else
-       CALL cublasZGEMM( 'N', 'N', n, m, nkb, ( 1.D0, 0.D0 ) , vkb, &
-                   lda, ps, nkb, ( 1.D0, 0.D0 ) , hpsi, lda )
-#endif
        !
        DEALLOCATE (ps)
        !

@@ -26,6 +26,7 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
   USE io_global,     ONLY : stdout
   USE mp_bands,      ONLY : intra_bgrp_comm, inter_bgrp_comm, root_bgrp_id, nbgrp, my_bgrp_id
   USE mp,            ONLY : mp_sum, mp_bcast
+  USE cpu_gpu_interface
   !
   IMPLICIT NONE
   !
@@ -497,6 +498,7 @@ SUBROUTINE pregterg( npw, npwx, nvec, nvecx, evc, ethr, &
   USE descriptors,      ONLY : la_descriptor, descla_init, descla_local_dims
   USE parallel_toolkit, ONLY : dsqmdst, dsqmcll, dsqmred, dsqmsym
   USE mp,               ONLY : mp_bcast, mp_root_sum, mp_sum
+  USE cpu_gpu_interface
   !
   IMPLICIT NONE
   !

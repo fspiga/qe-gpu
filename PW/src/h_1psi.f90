@@ -23,6 +23,7 @@ SUBROUTINE h_1psi( lda, n, psi, hpsi, spsi )
   USE realus, ONLY : real_space, &
                      invfft_orbital_gamma, fwfft_orbital_gamma, s_psir_gamma, &
                      invfft_orbital_k, fwfft_orbital_k, s_psir_k
+  USE cpu_gpu_interface
   !
   IMPLICIT NONE
   !

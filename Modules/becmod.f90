@@ -134,7 +134,7 @@ CONTAINS
   !-----------------------------------------------------------------------
 #ifdef USE_CUDA
 
-  SUBROUTINE calbec_bec_type_gpu ( npw, beta, beta_d, psi, psi_d, betapsi, nbnd )
+  SUBROUTINE calbec_bec_type_gpu ( npw, beta, psi, betapsi, nbnd )
     !-----------------------------------------------------------------------
     !_
     USE mp_bands, ONLY: intra_bgrp_comm
@@ -144,8 +144,7 @@ CONTAINS
     COMPLEX (DP), INTENT (in) :: beta(:,:), psi(:,:)
     TYPE (bec_type), INTENT (inout) :: betapsi ! NB: must be INOUT otherwise
                                                !  the allocatd array is lost
-
-    COMPLEX (DP), DEVICE, INTENT (in) :: beta_d(:,:), psi_d(:,:)
+    ATTRIBUTES( DEVICE ) :: beta, psi
 
     INTEGER, INTENT (in) :: npw
     INTEGER, OPTIONAL :: nbnd
@@ -161,6 +160,7 @@ CONTAINS
         local_nbnd = size ( psi, 2)
     ENDIF
 
+#if 0
     IF ( gamma_only ) THEN
        !
        IF( betapsi%comm == mp_get_comm_null() ) THEN
@@ -193,9 +193,12 @@ CONTAINS
        !
     ELSE
        !
-       CALL  calbec_k_gpu ( npw, beta, beta_d, psi, psi_d, betapsi%k, betapsi%k_d, local_nbnd )
+#endif
+       CALL  calbec_k_gpu ( npw, beta, psi, betapsi%k_d, local_nbnd )
+#if 0
        !
     ENDIF
+#endif
     !
     RETURN
     !
@@ -340,7 +343,7 @@ CONTAINS
   END SUBROUTINE calbec_k
   !
 #ifdef USE_CUDA
-  SUBROUTINE calbec_k_gpu ( npw, beta, beta_d, psi, psi_d, betapsi, betapsi_d, nbnd )
+  SUBROUTINE calbec_k_gpu ( npw, beta, psi, betapsi, nbnd )
     !-----------------------------------------------------------------------
     !
     ! ... matrix times matrix with summation index (k=1,npw) running on
@@ -353,9 +356,7 @@ CONTAINS
     IMPLICIT NONE
     COMPLEX (DP), INTENT (in) :: beta(:,:), psi(:,:)
     COMPLEX (DP), INTENT (out) :: betapsi(:,:)
-
-    COMPLEX (DP), DEVICE, INTENT (in) :: beta_d(:,:), psi_d(:,:)
-    COMPLEX (DP), DEVICE, INTENT (out) :: betapsi_d(:,:) 
+    ATTRIBUTES(DEVICE) :: beta, psi, betapsi
 
     INTEGER, INTENT (in) :: npw
     INTEGER, OPTIONAL :: nbnd
@@ -383,17 +384,17 @@ CONTAINS
     IF ( nkb /= size (betapsi,1) .or. m > size (betapsi, 2) ) &
       CALL errore ('calbec', 'size mismatch', 3)
     !
-    IF ( npw == 0 ) betapsi_d(:,:)=(0.0_DP,0.0_DP)
+    IF ( npw == 0 ) betapsi(:,:)=(0.0_DP,0.0_DP)
 
-    CALL cublasZgemm( 'C', 'N', nkb, m, npw, (1.0_DP,0.0_DP), &
-                 beta_d, npwx, psi_d, npwx, (0.0_DP,0.0_DP), betapsi_d, nkb )
+    CALL ZGEMM( 'C', 'N', nkb, m, npw, (1.0_DP,0.0_DP), &
+                 beta, npwx, psi, npwx, (0.0_DP,0.0_DP), betapsi, nkb )
 
 
     !
-    betapsi( :, 1:m ) = betapsi_d( :, 1:m )
+    !betapsi( :, 1:m ) = betapsi_d( :, 1:m )
     CALL mp_sum( betapsi( :, 1:m ), intra_bgrp_comm )
     !
-    betapsi_d( :, 1:m ) = betapsi( :, 1:m )
+    !betapsi_d( :, 1:m ) = betapsi( :, 1:m )
     !
     CALL stop_clock( 'calbec' )
     !

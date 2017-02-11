@@ -19,6 +19,7 @@ SUBROUTINE rotate_wfc_gamma( npwx, npw, nstart, gstart, nbnd, &
   USE control_flags, ONLY : gamma_only 
   USE mp_bands,      ONLY : intra_bgrp_comm
   USE mp,            ONLY : mp_sum 
+  USE cpu_gpu_interface
   !
   IMPLICIT NONE
   !
@@ -129,7 +130,7 @@ SUBROUTINE protate_wfc_gamma( npwx, npw, nstart, gstart, nbnd, psi, overlap, evc
   USE descriptors,      ONLY : la_descriptor, descla_init
   USE parallel_toolkit, ONLY : dsqmsym
   USE mp,               ONLY : mp_bcast, mp_root_sum, mp_sum, mp_barrier
-
+  USE cpu_gpu_interface
   !
   IMPLICIT NONE
   !

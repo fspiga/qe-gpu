@@ -2225,7 +2225,7 @@ SUBROUTINE sum_bec_gpu ( ik, current_spin, ibnd_start, ibnd_end, this_bgrp_nbnd 
   npw = ngk(ik)
   IF ( .NOT. real_space ) THEN
      ! calbec computes becp = <vkb_i|psi_j>
-     CALL calbec( npw, vkb, vkb_d, evc, evc_d, becp )
+     CALL calbec( npw, vkb_d, evc_d, becp )
   ELSE
      if (gamma_only) then
         do ibnd = ibnd_start, ibnd_end, 2

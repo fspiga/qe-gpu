@@ -714,6 +714,9 @@ SUBROUTINE electrons_scf ( printout, exxen )
      !
      CALL interpolate_vrs( dfftp%nnr, nspin, doublegrid, kedtau, v%kin_r, vrs )
      !
+#ifdef USE_CUDA
+     vrs_d = vrs
+#endif
      ! ... in the US case we have to recompute the self-consistent
      ! ... term in the nonlocal potential
      ! ... PAW: newd contains PAW updates of NL coefficients
@@ -843,7 +846,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
      ! ... uncomment the following line if you wish to monitor the evolution
      ! ... of the force calculation during self-consistency
      !
-     !CALL forces()
+     CALL forces()
      !
      ! ... it can be very useful to track internal clocks during
      ! ... self-consistency for benchmarking purposes

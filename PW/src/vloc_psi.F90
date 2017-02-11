@@ -6,6 +6,13 @@
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
 !
+#ifdef USE_GPU
+#define MY_ROUTINE(x)  x##_gpu
+#else
+#define MY_ROUTINE(x)  x##_cpu
+#endif
+
+#ifndef USE_GPU
 !-----------------------------------------------------------------------
 SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
   !-----------------------------------------------------------------------
@@ -190,22 +197,33 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
   RETURN
 END SUBROUTINE vloc_psi_gamma
 !
+#endif
 !-----------------------------------------------------------------------
-SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
+SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
   !-----------------------------------------------------------------------
   !
   ! Calculation of Vloc*psi using dual-space technique - k-points
   !
   USE parallel_include
   USE kinds, ONLY : DP
-  USE gvecs, ONLY : nls, nlsm
   USE wvfct, ONLY : current_k
-  USE klist, ONLY : igk_k
   USE mp_bands,      ONLY : me_bgrp
   USE fft_base,      ONLY : dffts, dtgs
   USE fft_parallel,  ONLY : tg_gather
   USE fft_interfaces,ONLY : fwfft, invfft
+#ifdef USE_GPU
+  USE cudafor
+  USE gvecs, ONLY : nls=>nls_d, nlsm
+  USE klist, ONLY : igk_k=>igk_k_d
+  USE wavefunctions_module,  ONLY: psic=>psic_d
+#else
+  USE gvecs, ONLY : nls, nlsm
+  USE klist, ONLY : igk_k
   USE wavefunctions_module,  ONLY: psic
+#endif
+#ifdef TRACK_FLOPS
+  USE flops_tracker, ONLY : fft_ops
+#endif
   !
   IMPLICIT NONE
   !
@@ -213,6 +231,9 @@ SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
   COMPLEX(DP), INTENT(in)   :: psi (lda, m)
   COMPLEX(DP), INTENT(inout):: hpsi (lda, m)
   REAL(DP), INTENT(in) :: v(dffts%nnr)
+#ifdef USE_GPU
+  ATTRIBUTES( DEVICE ) :: psi, hpsi, v
+#endif
   !
   INTEGER :: ibnd, j, incr
   !
@@ -222,12 +243,21 @@ SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
   COMPLEX(DP), ALLOCATABLE :: tg_psic(:)
   INTEGER :: v_siz, idx, ioff
   !
+#ifdef TRACK_FLOPS
+  REAL(DP) :: fft_flops, fft_ops_start, fft_ops_end, fft_time
+  !
+  fft_ops_start = fft_ops
+  fft_time = MPI_Wtime()
+  !
+#endif
+  !
   CALL start_clock ('vloc_psi')
   use_tg = dtgs%have_task_groups 
   !
   incr = 1
   !
   IF( use_tg ) THEN
+#ifndef USE_GPU
      !
      CALL start_clock ('vloc_psi:tg_gather')
      v_siz =  dtgs%tg_nnr * dtgs%nogrp
@@ -240,6 +270,9 @@ SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
 
      incr = dtgs%nogrp
      !
+#else
+     print *,"USE_TG not implemented!!!"; call flush(6); STOP
+#endif
   ENDIF
   !
   ! the local potential V_Loc psi. First bring psi to real space
@@ -247,6 +280,7 @@ SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
   DO ibnd = 1, m, incr
      !
      IF( use_tg ) THEN
+#ifndef USE_GPU
         !
         tg_psic = (0.d0, 0.d0)
         ioff   = 0
@@ -267,10 +301,23 @@ SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
         !
         CALL  invfft ('Wave', tg_psic, dffts, dtgs)
         !
+#endif
      ELSE
         !
         psic(:) = (0.d0, 0.d0)
-        psic (nls (igk_k(1:n,current_k))) = psi(1:n, ibnd)
+
+#ifndef USE_GPU
+!$omp parallel do
+#else
+!$cuf kernel do(1) <<<*,*>>>
+#endif
+        DO j = 1, n
+          psic( nls( igk_k(j,current_k) ) ) = psi( j, ibnd )
+        ENDDO
+#ifndef USE_GPU
+!$omp end parallel do
+#endif
+
         !
         CALL invfft ('Wave', psic, dffts)
         !
@@ -281,6 +328,7 @@ SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
      !   back to reciprocal space
      !
      IF( use_tg ) THEN
+#ifndef USE_GPU
         !
 !$omp parallel do
         DO j = 1, dffts%nr1x*dffts%nr2x*dtgs%tg_npp( me_bgrp + 1 )
@@ -290,13 +338,20 @@ SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
         !
         CALL fwfft ('Wave',  tg_psic, dffts, dtgs)
         !
+#endif
      ELSE
         !
+#ifndef USE_GPU
 !$omp parallel do
+#else
+!$cuf kernel do(1) <<<*,*>>>
+#endif
         DO j = 1, dffts%nnr
            psic (j) = psic (j) * v(j)
         ENDDO
+#ifndef USE_GPU
 !$omp end parallel do
+#endif
         !
         CALL fwfft ('Wave', psic, dffts)
         !
@@ -305,6 +360,7 @@ SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
      !   addition to the total product
      !
      IF( use_tg ) THEN
+#ifndef USE_GPU
         !
         ioff   = 0
         !
@@ -323,27 +379,43 @@ SUBROUTINE vloc_psi_k_cpu(lda, n, m, psi, v, hpsi)
            !
         ENDDO
         !
+#endif
      ELSE
+#ifndef USE_GPU
 !$omp parallel do
+#else
+!$cuf kernel do(1) <<<*,*>>>
+#endif
         DO j = 1, n
            hpsi (j, ibnd)   = hpsi (j, ibnd)   + psic (nls(igk_k(j,current_k)))
         ENDDO
+#ifndef USE_GPU
 !$omp end parallel do
+#endif
      ENDIF
      !
   ENDDO
   !
   IF( use_tg ) THEN
+#ifndef USE_GPU
      !
      DEALLOCATE( tg_psic )
      DEALLOCATE( tg_v )
      !
+#endif
   ENDIF
+#ifdef TRACK_FLOPS
+  fft_time = MPI_Wtime() - fft_time
+  fft_ops_end = fft_ops
+  fft_flops = (fft_ops_end - fft_ops_start)/fft_time
+  print *,"vloc_psi in",fft_time," FFT GFLOPS: ",fft_flops*1.d-9*REAL( dffts%nproc )
+#endif
   CALL stop_clock ('vloc_psi')
   !
   RETURN
-END SUBROUTINE vloc_psi_k_cpu
+END SUBROUTINE MY_ROUTINE(vloc_psi_k)
 !
+#ifndef USE_GPU
 !-----------------------------------------------------------------------
 SUBROUTINE vloc_psi_nc (lda, n, m, psi, v, hpsi)
   !-----------------------------------------------------------------------
@@ -531,179 +603,5 @@ SUBROUTINE vloc_psi_nc (lda, n, m, psi, v, hpsi)
   !
   RETURN
 END SUBROUTINE vloc_psi_nc
-!
-#ifdef USE_CUDA
-!-----------------------------------------------------------------------
-SUBROUTINE vloc_psi_k_gpu(lda, n, m, psi_d, v_d, hpsi_d)
-  !-----------------------------------------------------------------------
-  !
-  ! Calculation of Vloc*psi using dual-space technique - k-points
-  !
-  USE parallel_include
-  USE kinds, ONLY : DP
-  USE gvecs, ONLY : nls, nlsm
-  USE wvfct, ONLY : current_k
-  USE klist, ONLY : igk_k
-  USE mp_bands,      ONLY : me_bgrp
-  USE fft_base,      ONLY : dffts, dtgs
-  USE fft_parallel,  ONLY : tg_gather
-  USE fft_interfaces,ONLY : fwfft, invfft
-  USE wavefunctions_module,  ONLY: psic
-#ifdef USE_CUDA
-  USE cudafor
-  USE wavefunctions_module,  ONLY: psic_d
-  USE gvecs, ONLY : nls_d
-  USE klist, ONLY : igk_k_d
-#endif
-#ifdef TRACK_FLOPS
-  USE flops_tracker, ONLY : fft_ops
-#endif
-  !
-  IMPLICIT NONE
-  !
-  INTEGER, INTENT(in) :: lda, n, m
-!  COMPLEX(DP), INTENT(in)   :: psi (lda, m)
-!  COMPLEX(DP), INTENT(inout):: hpsi (lda, m)
-!  REAL(DP), INTENT(in) :: v(dffts%nnr)
-  !
-#ifdef USE_CUDA
-  COMPLEX(DP), DEVICE, INTENT(in)   :: psi_d (lda, m)
-  COMPLEX(DP), DEVICE, INTENT(inout):: hpsi_d (lda, m)
-  REAL(DP), DEVICE, INTENT(in) :: v_d(dffts%nnr)
-#endif
-  !
-  INTEGER :: ibnd, j, incr
-  !
-  LOGICAL :: use_tg
-  ! Task Groups
-  REAL(DP),    ALLOCATABLE :: tg_v(:)
-  COMPLEX(DP), ALLOCATABLE :: tg_psic(:)
-  INTEGER :: v_siz, idx, ioff
-  !
-#ifdef USE_CUDA
-!  REAL(DP), DEVICE, ALLOCATABLE, DIMENSION(:) :: v_d
-  REAL(DP) :: psic_sz
-  INTEGER, SAVE :: mycounter=0,ierror,istat
-#endif
-  !
-#ifdef TRACK_FLOPS
-  REAL(DP) :: fft_flops, fft_ops_start, fft_ops_end, fft_time
-  !
-  fft_ops_start = fft_ops
-  fft_time = MPI_Wtime()
-#endif
-  !
-  CALL start_clock ('vloc_psi')
-  use_tg = dtgs%have_task_groups 
-  !
-  incr = 1
-  !
-  IF( use_tg ) THEN
-     !
-     !
-  ENDIF
-
-#ifdef USE_CUDA
-!  ALLOCATE( v_d, source=v )
-  nls_d = nls
-  psic_sz = REAL( dffts%nr3x*dffts%nr2x*dffts%nr1x )  ![BUG] dffts or dtgs ????????
-#endif
-  !
-  ! the local potential V_Loc psi. First bring psi to real space
-  !
-  DO ibnd = 1, m, incr
-     !
-     IF( use_tg ) THEN
-        !
-     ELSE
-        !
-#ifdef USE_CUDA
-        psic_d(:) = (0.d0, 0.d0)
-!$cuf kernel do(1) <<<*,*>>>
-        DO j = 1, n
-          psic_d( nls_d( igk_k_d(j,current_k) ) ) = psi_d( j, ibnd )
-        ENDDO
-        !
-        CALL invfft ('Wave', psic_d, dffts)
-        !
-#else
-        psic(:) = (0.d0, 0.d0)
-        psic (nls (igk_k(1:n,current_k))) = psi(1:n, ibnd)
-        !
-        CALL invfft ('Wave', psic, dffts)
-        !
-#endif
-     ENDIF
-     !
-     !   fft to real space
-     !   product with the potential v on the smooth grid
-     !   back to reciprocal space
-     !
-     IF( use_tg ) THEN
-        !
-        !
-     ELSE
-        !
-#ifdef USE_CUDA
-!$cuf kernel do(1) <<<*,*>>> 
-        DO j = 1, dffts%nnr
-           psic_d(j) = psic_d(j) * v_d(j)
-        ENDDO
-        !
-        CALL fwfft ('Wave', psic_d, dffts)
-        !
-#else
-!$omp parallel do
-        DO j = 1, dffts%nnr
-           psic (j) = psic (j) * v(j)
-        ENDDO
-!$omp end parallel do
-        !
-        CALL fwfft ('Wave', psic, dffts)
-        !
-#endif
-     ENDIF
-     !
-     !   addition to the total product
-     !
-     IF( use_tg ) THEN
-        !
-     ELSE
-#ifdef USE_CUDA
-!$cuf kernel do(1) <<<*,*>>>
-        DO j = 1, n
-           hpsi_d(j, ibnd)   = hpsi_d(j, ibnd)   + psic_d(nls_d(igk_k_d(j,current_k)))
-        ENDDO
-#else
-!$omp parallel do
-        DO j = 1, n
-           hpsi (j, ibnd)   = hpsi (j, ibnd)   + psic (nls(igk_k(j,current_k)))
-        ENDDO
-!$omp end parallel do
-#endif
-     ENDIF
-     !
-  ENDDO
-  !
-  IF( use_tg ) THEN
-     !
-     !
-  ENDIF
-
-#ifdef USE_CUDA
-!  DEALLOCATE( v_d )
-#endif
-
-#ifdef TRACK_FLOPS
-  fft_time = MPI_Wtime() - fft_time
-  fft_ops_end = fft_ops
-  fft_flops = (fft_ops_end - fft_ops_start)/fft_time
-  print *,"vloc_psi in",fft_time," FFT GFLOPS: ",fft_flops*1.d-9*REAL( dffts%nproc )
-#endif
-
-  CALL stop_clock ('vloc_psi')
-  !
-  RETURN
-END SUBROUTINE vloc_psi_k_gpu
 !
 #endif
