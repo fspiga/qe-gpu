@@ -643,6 +643,8 @@ SUBROUTINE extrapolate_wfcs( wfc_extr )
   USE mp_images,            ONLY : intra_image_comm
   USE mp,                   ONLY : mp_barrier
   !
+  USE cpu_gpu_interface,    ONLY : s_psi
+
   IMPLICIT NONE
   !
   INTEGER, INTENT(IN) :: wfc_extr

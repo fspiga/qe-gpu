@@ -40,6 +40,8 @@ SUBROUTINE force_hub(forceh)
    USE io_files,             ONLY : nwordwfc, iunwfc
    USE buffers,              ONLY : get_buffer
 
+   USE cpu_gpu_interface,    ONLY : s_psi
+
    IMPLICIT NONE
    REAL (DP) :: forceh(3,nat)  ! output: the Hubbard forces
 

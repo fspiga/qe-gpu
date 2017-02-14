@@ -61,6 +61,24 @@ MODULE cpu_gpu_interface
      END SUBROUTINE h_psi_gpu
    END INTERFACE
 
+  INTERFACE s_psi
+     SUBROUTINE s_psi_cpu( lda, n, m, psi, spsi  )
+        USE kinds, ONLY: DP
+        INTEGER  :: lda, n, m
+!pgi$ ignore_tkr(r) psi,spsi
+        COMPLEX(DP) :: psi(*), spsi(*)
+     END SUBROUTINE s_psi_cpu
+
+     SUBROUTINE s_psi_gpu( lda, n, m, psi, spsi  )
+        USE kinds, ONLY: DP
+        INTEGER  :: lda, n, m
+!pgi$ ignore_tkr(r) psi,spsi
+        COMPLEX(DP) :: psi(*), spsi(*)
+        ATTRIBUTES( DEVICE ) :: psi, spsi
+     END SUBROUTINE s_psi_gpu
+   END INTERFACE
+
+
 !=----------------------------------------------------------------------=!
 END MODULE cpu_gpu_interface
 !=----------------------------------------------------------------------=!

@@ -200,7 +200,7 @@ SUBROUTINE rotate_wfc_k_gpu( npwx, npw, nstart, nbnd, npol, psi, psi_d, overlap,
   !
   IF ( overlap ) THEN
      !
-     CALL s_psi_gpu( npwx, npw, nstart, psi, psi_d, aux, aux_d )
+     CALL s_psi( npwx, npw, nstart, psi_d, aux_d )
      !
      !CALL ZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx,  aux, kdmx, ( 0.D0, 0.D0 ), sc, nstart )
      CALL cublasZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi_d, kdmx,  aux_d, kdmx, ( 0.D0, 0.D0 ), sc_d, nstart )

@@ -29,6 +29,7 @@ SUBROUTINE orthoUwfc
                          bec_type, becp, calbec
   USE control_flags,    ONLY : gamma_only
   USE noncollin_module, ONLY : noncolin, npol
+  USE cpu_gpu_interface, ONLY : s_psi
   ! 
   IMPLICIT NONE
   !
@@ -131,6 +132,7 @@ SUBROUTINE orthoatwfc (orthogonalize_wfc)
                          bec_type, becp, calbec
   USE control_flags,    ONLY : gamma_only
   USE noncollin_module, ONLY : noncolin, npol
+  USE cpu_gpu_interface, ONLY : s_psi
   ! 
   IMPLICIT NONE
   !

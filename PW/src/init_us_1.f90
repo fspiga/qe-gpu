@@ -45,7 +45,7 @@ subroutine init_us_1
   USE mp,           ONLY : mp_sum
 #ifdef USE_CUDA
   USE us,           ONLY : qrad_d
-  USE uspp,         ONLY : nhtolm_d, indv_d, indv_ijkb0_d
+  USE uspp,         ONLY : nhtolm_d, indv_d, indv_ijkb0_d, qq_d
 #endif
   !
   implicit none
@@ -419,6 +419,7 @@ subroutine init_us_1
   nhtolm_d = nhtolm
   qrad_d = qrad
   indv_ijkb0_d = indv_ijkb0
+  qq_d = qq
 #endif
 
   call stop_clock ('init_us_1')

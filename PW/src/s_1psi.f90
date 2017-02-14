@@ -21,6 +21,7 @@ SUBROUTINE s_1psi( npwx, n, psi, spsi )
               invfft_orbital_gamma, fwfft_orbital_gamma, calbec_rs_gamma, s_psir_gamma, &
               invfft_orbital_k, fwfft_orbital_k, calbec_rs_k, s_psir_k
   USE wvfct,  ONLY: nbnd
+  USE cpu_gpu_interface, ONLY : s_psi
   !
   IMPLICIT NONE
   !

@@ -1810,6 +1810,7 @@ set_rhoc.o : scf_mod.o
 set_vrs.o : ../../Modules/fft_base.o
 set_vrs.o : ../../Modules/funct.o
 set_vrs.o : ../../Modules/kind.o
+set_vrs.o : scf_mod.o
 setlocal.o : ../../FFTXlib/fft_interfaces.o
 setlocal.o : ../../Modules/cell_base.o
 setlocal.o : ../../Modules/constants.o

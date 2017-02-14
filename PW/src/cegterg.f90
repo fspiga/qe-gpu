@@ -346,7 +346,7 @@ call flush(6)
   IF ( uspp ) THEN
 #ifdef USE_CUDA
 !    call compare(spsi, spsi_d, "spsi")
-    CALL s_psi_gpu( npwx, npw, nvec, psi, psi_d, spsi, spsi_d )
+    CALL s_psi( npwx, npw, nvec, psi_d, spsi_d )
 !    spsi = spsi_d
 #ifdef COMPARE
     CALL s_psi( npwx, npw, nvec, psi, spsi )
@@ -914,7 +914,7 @@ call flush(6)
      !
   IF ( uspp ) THEN
 #ifdef USE_CUDA
-    CALL s_psi_gpu( npwx, npw, notcnv, psi(1,1,nb1), psi_d(1,1,nb1), spsi(1,1,nb1), spsi_d(1,1,nb1) )
+    CALL s_psi( npwx, npw, notcnv, psi_d(1,1,nb1), spsi_d(1,1,nb1) )
 #ifdef COMPARE
     CALL s_psi( npwx, npw, notcnv, psi(1,1,nb1), spsi(1,1,nb1) )
     call compare(spsi, spsi_d, "13 spsi")
