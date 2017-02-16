@@ -53,7 +53,6 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
   USE cudafor
   USE cublas,        ONLY : cublasZgemm, cublasDdot
   USE ep_debug, ONLY : compare, MPI_Wtime
-  USE cdiaghg_compute_gpu_module, ONLY : cdiaghg_gpu
 #endif
   !
   IMPLICIT NONE
@@ -509,13 +508,8 @@ call flush(6)
      ew_d = ew
      vc_d = vc
 #else
-     CALL cdiaghg_gpu( nbase, nvec, hc, hc_d, sc, sc_d, nvecx, ew, ew_d, vc, vc_d )
+     CALL cdiaghg( nbase, nvec, hc_d, sc_d, nvecx, ew_d, vc_d )
 #endif
-!     hc = hc_d
-!     sc = sc_d
-!     CALL cdiaghg( nbase, nvec, hc, sc, nvecx, ew, vc )
-!     vc_d = vc
-!     ew_d = ew
 
 !$cuf kernel do(1) <<<*,*>>>
      DO i = 1, nvec
@@ -1066,7 +1060,7 @@ call flush(6)
      ew_d = ew
      vc_d = vc
 #else
-     CALL cdiaghg_gpu( nbase, nvec, hc, hc_d, sc, sc_d, nvecx, ew, ew_d, vc, vc_d )
+     CALL cdiaghg( nbase, nvec, hc_d, sc_d, nvecx, ew_d, vc_d )
 #endif
 !hc = hc_d
 !sc = sc_d

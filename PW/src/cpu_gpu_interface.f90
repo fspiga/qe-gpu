@@ -78,6 +78,24 @@ MODULE cpu_gpu_interface
      END SUBROUTINE s_psi_gpu
    END INTERFACE
 
+   INTERFACE cdiaghg
+      SUBROUTINE cdiaghg_cpu( n, m, h, s, ldh, e, v )
+         USE kinds,            ONLY : DP
+         INTEGER, INTENT(IN) :: n, m, ldh
+         COMPLEX(DP), INTENT(INOUT) :: h(:,:), s(:,:)
+         REAL(DP), INTENT(OUT) :: e(:)
+         COMPLEX(DP), INTENT(OUT) :: v(:,:)
+      END SUBROUTINE cdiaghg_cpu
+
+      SUBROUTINE cdiaghg_gpu( n, m, h, s, ldh, e, v )
+         USE kinds,            ONLY : DP
+         INTEGER, INTENT(IN) :: n, m, ldh
+         COMPLEX(DP), INTENT(INOUT) :: h(:,:), s(:,:)
+         REAL(DP), INTENT(OUT) :: e(:)
+         COMPLEX(DP), INTENT(OUT) :: v(:,:)
+         ATTRIBUTES( DEVICE ) :: h, s, e, v
+      END SUBROUTINE cdiaghg_gpu
+   END INTERFACE
 
 !=----------------------------------------------------------------------=!
 END MODULE cpu_gpu_interface

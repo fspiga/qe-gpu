@@ -117,7 +117,6 @@ SUBROUTINE rotate_wfc_k_gpu( npwx, npw, nstart, nbnd, npol, psi, psi_d, overlap,
   USE mp,            ONLY : mp_sum
   USE cudafor
   USE cublas,        ONLY : cublasZgemm
-  USE cdiaghg_compute_gpu_module, ONLY : cdiaghg_gpu
   USE cpu_gpu_interface
   !
   IMPLICIT NONE
@@ -223,7 +222,7 @@ SUBROUTINE rotate_wfc_k_gpu( npwx, npw, nstart, nbnd, npol, psi, psi_d, overlap,
   !
   ! ... Diagonalize
   !
-  CALL cdiaghg_gpu( nstart, nbnd, hc, hc_d, sc, sc_d, nstart, en, en_d, vc, vc_d )
+  CALL cdiaghg( nstart, nbnd, hc_d, sc_d, nstart, en_d, vc_d )
   !
   e(:) = en_d(1:nbnd)
   e_d = e
