@@ -20,6 +20,7 @@ SUBROUTINE rotate_wfc &
   !
   USE kinds,         ONLY : DP
   USE control_flags, ONLY : use_para_diag, gamma_only
+  USE cpu_gpu_interface, ONLY : rotate_wfc_k
   !
   IMPLICIT NONE
   !
@@ -94,6 +95,7 @@ SUBROUTINE rotate_wfc_gpu &
   !
   USE kinds,         ONLY : DP
   USE control_flags, ONLY : use_para_diag, gamma_only
+  USE cpu_gpu_interface, ONLY : rotate_wfc_k
   !
   IMPLICIT NONE
   !
@@ -153,8 +155,8 @@ SUBROUTINE rotate_wfc_gpu &
         !
      ELSE
         !
-        CALL rotate_wfc_k_gpu &
-            ( npwx, npw, nstart, nbnd, npol, psi, psi_d, overlap, evc, evc_d, e, e_d )
+        CALL rotate_wfc_k &
+            ( npwx, npw, nstart, nbnd, npol, psi_d, overlap, evc_d, e_d )
         !
      END IF
      !

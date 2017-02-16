@@ -97,6 +97,24 @@ MODULE cpu_gpu_interface
       END SUBROUTINE cdiaghg_gpu
    END INTERFACE
 
+   INTERFACE rotate_wfc_k
+      SUBROUTINE rotate_wfc_k_cpu( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
+         USE kinds,            ONLY : DP
+         INTEGER :: npw, npwx, nstart, nbnd, npol
+         LOGICAL :: overlap
+         COMPLEX(DP) :: psi(:,:), evc(:,:)
+         REAL(DP) :: e(nbnd)
+      END SUBROUTINE rotate_wfc_k_cpu
+
+      SUBROUTINE rotate_wfc_k_gpu( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
+         USE kinds,            ONLY : DP
+         INTEGER :: npw, npwx, nstart, nbnd, npol
+         LOGICAL :: overlap
+         COMPLEX(DP) :: psi(:,:), evc(:,:)
+         REAL(DP) :: e(nbnd)
+         ATTRIBUTES( DEVICE ) :: psi, evc, e
+      END SUBROUTINE rotate_wfc_k_gpu
+   END INTERFACE
 !=----------------------------------------------------------------------=!
 END MODULE cpu_gpu_interface
 !=----------------------------------------------------------------------=!

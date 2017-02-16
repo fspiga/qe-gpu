@@ -1,13 +1,18 @@
-!
+   !
 ! Copyright (C) 2001-2007 Quantum ESPRESSO group
 ! This file is distributed under the terms of the
 ! GNU General Public License. See the file `License'
 ! in the root directory of the present distribution,
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
+#ifdef USE_GPU
+#define MY_ROUTINE(x)  x##_gpu
+#else
+#define MY_ROUTINE(x)  x##_cpu
+#endif
 !
 !----------------------------------------------------------------------------
-SUBROUTINE rotate_wfc_k( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
+SUBROUTINE MY_ROUTINE( rotate_wfc_k )( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
   !----------------------------------------------------------------------------
   !
   ! ... Serial version of rotate_wfc for colinear, k-point calculations
@@ -16,6 +21,10 @@ SUBROUTINE rotate_wfc_k( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
   USE mp_bands,      ONLY : intra_bgrp_comm
   USE mp,            ONLY : mp_sum
   USE cpu_gpu_interface
+#ifdef USE_GPU
+  USE cudafor
+  USE cublas
+#endif
   !
   IMPLICIT NONE
   !
@@ -33,12 +42,18 @@ SUBROUTINE rotate_wfc_k( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
     ! input and output eigenvectors (may overlap)
   REAL(DP) :: e(nbnd)
     ! eigenvalues
+#ifdef USE_GPU
+  ATTRIBUTES( DEVICE ) :: psi, evc, e
+#endif
   !
   ! ... local variables
   !
-  INTEGER :: kdim, kdmx
+  INTEGER :: kdim, kdmx, i, j
   COMPLEX(DP), ALLOCATABLE :: aux(:,:), hc(:,:), sc(:,:), vc(:,:)
   REAL(DP),    ALLOCATABLE :: en(:)
+#ifdef USE_GPU
+  ATTRIBUTES( DEVICE ) :: aux, hc, sc, vc, en
+#endif
   !
   IF ( npol == 1 ) THEN
      !
@@ -87,13 +102,26 @@ SUBROUTINE rotate_wfc_k( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
   !
   CALL cdiaghg( nstart, nbnd, hc, sc, nstart, en, vc )
   !
-  e(:) = en(1:nbnd)
+#ifdef USE_GPU
+!$cuf kernel do(1) <<<*,*>>>
+#endif
+  DO i=1,nbnd
+    e(i) = en(i)
+  END DO
+
   !
   ! ...  update the basis set
   !  
   CALL ZGEMM( 'N', 'N', kdim, nbnd, nstart, ( 1.D0, 0.D0 ), psi, kdmx, vc, nstart, ( 0.D0, 0.D0 ), aux, kdmx )
-  !     
-  evc(:,:) = aux(:,1:nbnd)
+  !   
+#ifdef USE_GPU
+!$cuf kernel do(1) <<<*,*>>>
+#endif
+  DO i=1, nbnd
+     DO j=1, kdmx
+       evc(j,i) = aux(j,i)
+     END DO
+  END DO
   !
   DEALLOCATE( en )
   DEALLOCATE( vc )
@@ -103,157 +131,9 @@ SUBROUTINE rotate_wfc_k( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
   !
   RETURN
   !
-END SUBROUTINE rotate_wfc_k
+END SUBROUTINE MY_ROUTINE( rotate_wfc_k )
 !
-#ifdef USE_CUDA
-!----------------------------------------------------------------------------
-SUBROUTINE rotate_wfc_k_gpu( npwx, npw, nstart, nbnd, npol, psi, psi_d, overlap, evc, evc_d, e, e_d )
-  !----------------------------------------------------------------------------
-  !
-  ! ... Serial version of rotate_wfc for colinear, k-point calculations
-  !
-  USE kinds,         ONLY : DP
-  USE mp_bands,      ONLY : intra_bgrp_comm
-  USE mp,            ONLY : mp_sum
-  USE cudafor
-  USE cublas,        ONLY : cublasZgemm
-  USE cpu_gpu_interface
-  !
-  IMPLICIT NONE
-  !
-  ! ... I/O variables
-  !
-  INTEGER, INTENT(IN) :: npw, npwx, nstart, nbnd, npol
-    ! dimension of the matrix to be diagonalized
-    ! leading dimension of matrix psi, as declared in the calling pgm unit
-    ! input number of states
-    ! output number of states
-    ! number of spin polarizations
-  LOGICAL :: overlap
-    ! if .FALSE. : S|psi> not needed
-  COMPLEX(DP) :: psi(npwx*npol,nstart), evc(npwx*npol,nbnd)
-    ! input and output eigenvectors (may overlap)
-  REAL(DP) :: e(nbnd)
-    ! eigenvalues
-
-  COMPLEX(DP), DEVICE :: psi_d(npwx*npol,nstart), evc_d(npwx*npol,nbnd)
-    ! input and output eigenvectors (may overlap)
-  REAL(DP), DEVICE :: e_d(nbnd)
-    ! eigenvalues
-
-  !
-  ! ... local variables
-  !
-  INTEGER :: kdim, kdmx
-  COMPLEX(DP), ALLOCATABLE :: aux(:,:), hc(:,:), sc(:,:), vc(:,:)
-  REAL(DP),    ALLOCATABLE :: en(:)
-  !
-  COMPLEX(DP), ALLOCATABLE, DEVICE :: aux_d(:,:), hc_d(:,:), sc_d(:,:), vc_d(:,:)
-  REAL(DP),    ALLOCATABLE, DEVICE :: en_d(:)
-
-  !ATTRIBUTES( DEVICE ) :: psi, evc, e, aux, hc, sc, vc, en
-  !
-  IF ( npol == 1 ) THEN
-     !
-     kdim = npw
-     kdmx = npwx
-     !
-  ELSE
-     !
-     kdim = npwx*npol
-     kdmx = npwx*npol
-     !
-  END IF
-  !
-
-  ALLOCATE( aux(kdmx, nstart ) )    
-  ALLOCATE( hc( nstart, nstart) )    
-  ALLOCATE( sc( nstart, nstart) )    
-  ALLOCATE( vc( nstart, nstart) )    
-  ALLOCATE( en( nstart ) )
-
-  ALLOCATE( aux_d(kdmx, nstart ) )
-  ALLOCATE( hc_d( nstart, nstart) )
-  ALLOCATE( sc_d( nstart, nstart) )
-  ALLOCATE( vc_d( nstart, nstart) )
-  ALLOCATE( en_d( nstart ) )
-
-  !
-  ! ... Set up the Hamiltonian and Overlap matrix on the subspace :
-  !
-  ! ...      H_ij = <psi_i| H |psi_j>     S_ij = <psi_i| S |psi_j>
-  !
-  CALL h_psi( npwx, npw, nstart, psi_d, aux_d )
-  !
-  !call ZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx,  aux, kdmx, ( 0.D0, 0.D0 ), hc, nstart )
-  call cublasZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi_d, kdmx,  aux_d, kdmx, ( 0.D0, 0.D0 ), hc_d, nstart )
-  !
-!#ifndef USE_GPU_MPI
-#if 1
-  hc = hc_d            
-  CALL mp_sum(  hc , intra_bgrp_comm )
-  hc_d = hc
-#else
-  CALL mp_sum( hc_d, intra_bgrp_comm )
-#endif
-  !
-  IF ( overlap ) THEN
-     !
-     CALL s_psi( npwx, npw, nstart, psi_d, aux_d )
-     !
-     !CALL ZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx,  aux, kdmx, ( 0.D0, 0.D0 ), sc, nstart )
-     CALL cublasZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi_d, kdmx,  aux_d, kdmx, ( 0.D0, 0.D0 ), sc_d, nstart )
-     !
-  ELSE
-     !
-     !CALL ZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx, psi, kdmx, ( 0.D0, 0.D0 ), sc, nstart )
-     CALL cublasZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi_d, kdmx, psi_d, kdmx, ( 0.D0, 0.D0 ), sc_d, nstart )
-     !  
-  END IF
-  !
-!#ifndef USE_GPU_MPI
-#if 1
-  sc = sc_d
-  CALL mp_sum(  sc , intra_bgrp_comm )
-  sc_d = sc
-#else
-  CALL mp_sum( sc_d, intra_bgrp_comm )
-#endif
-  !
-  ! ... Diagonalize
-  !
-  CALL cdiaghg( nstart, nbnd, hc_d, sc_d, nstart, en_d, vc_d )
-  !
-  e(:) = en_d(1:nbnd)
-  e_d = e
-  !
-  ! ...  update the basis set
-  !  
-  !CALL ZGEMM( 'N', 'N', kdim, nbnd, nstart, ( 1.D0, 0.D0 ), psi, kdmx, vc, nstart, ( 0.D0, 0.D0 ), aux, kdmx )
-  CALL cublasZGEMM( 'N', 'N', kdim, nbnd, nstart, ( 1.D0, 0.D0 ), psi_d, kdmx, vc_d, nstart, ( 0.D0, 0.D0 ), aux_d, kdmx )
-  !     
-  evc(:,:) = aux_d(:,1:nbnd)
-  evc_d = evc
-  !
-  DEALLOCATE( en )
-  DEALLOCATE( vc )
-  DEALLOCATE( sc )
-  DEALLOCATE( hc )
-  DEALLOCATE( aux )
-
-  DEALLOCATE( en_d )
-  DEALLOCATE( vc_d )
-  DEALLOCATE( sc_d )
-  DEALLOCATE( hc_d )
-  DEALLOCATE( aux_d )
-
-  !
-  RETURN
-  !
-END SUBROUTINE rotate_wfc_k_gpu
-!
-#endif
-!
+#ifndef USE_GPU
 !----------------------------------------------------------------------------
 SUBROUTINE protate_wfc_k( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
   !----------------------------------------------------------------------------
@@ -508,3 +388,5 @@ CONTAINS
   END SUBROUTINE refresh_evc
 
 END SUBROUTINE protate_wfc_k
+
+#endif
