@@ -211,6 +211,7 @@ c_bands.o : ../../Modules/wavefunctions.o
 c_bands.o : atomic_wfc_mod.o
 c_bands.o : bp_mod.o
 c_bands.o : buffers.o
+c_bands.o : cpu_gpu_interface.o
 c_bands.o : g_psi_mod.o
 c_bands.o : ldaU.o
 c_bands.o : pwcom.o
@@ -2264,6 +2265,7 @@ wfcinit.o : ../../Modules/wavefunctions.o
 wfcinit.o : atomic_wfc_mod.o
 wfcinit.o : bp_mod.o
 wfcinit.o : buffers.o
+wfcinit.o : cpu_gpu_interface.o
 wfcinit.o : ldaU.o
 wfcinit.o : pw_restart.o
 wfcinit.o : pw_restart_new.o

@@ -115,6 +115,28 @@ MODULE cpu_gpu_interface
          ATTRIBUTES( DEVICE ) :: psi, evc, e
       END SUBROUTINE rotate_wfc_k_gpu
    END INTERFACE
+
+   INTERFACE rotate_wfc
+      SUBROUTINE rotate_wfc_cpu( npwx, npw, nstart, gstart, nbnd, psi, npol, overlap, evc, e )
+         USE kinds,            ONLY : DP
+         INTEGER :: npw, npwx, nstart, nbnd, gstart, npol
+         LOGICAL :: overlap
+!pgi$ ignore_tkr(r) psi,evc,e
+         COMPLEX(DP) :: psi(*), evc(*)
+         REAL(DP) :: e(*)
+      END SUBROUTINE rotate_wfc_cpu
+
+      SUBROUTINE rotate_wfc_gpu( npwx, npw, nstart, gstart, nbnd, psi, npol, overlap, evc, e )
+         USE kinds,            ONLY : DP
+         INTEGER :: npw, npwx, nstart, nbnd, gstart, npol
+         LOGICAL :: overlap
+!pgi$ ignore_tkr(r) psi,evc,e
+         COMPLEX(DP) :: psi(*), evc(*)
+         REAL(DP) :: e(*)
+         ATTRIBUTES( DEVICE ) :: psi, evc, e
+      END SUBROUTINE rotate_wfc_gpu
+   END INTERFACE
+
 !=----------------------------------------------------------------------=!
 END MODULE cpu_gpu_interface
 !=----------------------------------------------------------------------=!

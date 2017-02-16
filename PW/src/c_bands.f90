@@ -191,6 +191,7 @@ SUBROUTINE diag_bands( iter, ik, avg_iter )
                                    set_bgrp_indices, my_bgrp_id, nbgrp
   USE mp,                   ONLY : mp_sum, mp_bcast
   USE nvtx
+  USE cpu_gpu_interface,    ONLY : rotate_wfc
   !
   IMPLICIT NONE
   !

@@ -222,6 +222,7 @@ SUBROUTINE init_wfc ( ik )
   USE cudafor
   USE wavefunctions_module, ONLY : evc_d
 #endif
+  USE cpu_gpu_interface,    ONLY : rotate_wfc
   !
   IMPLICIT NONE
   !
@@ -358,8 +359,8 @@ SUBROUTINE init_wfc ( ik )
   evc_d = evc
   etatom_d = etatom
   wfcatom_d = wfcatom
-  CALL rotate_wfc_gpu ( npwx, ngk(ik), n_starting_wfc, gstart, &
-                        nbnd, wfcatom, wfcatom_d, npol, okvan, evc, evc_d, etatom, etatom_d ) 
+  CALL rotate_wfc ( npwx, ngk(ik), n_starting_wfc, gstart, &
+                        nbnd, wfcatom_d, npol, okvan, evc_d, etatom_d ) 
    evc = evc_d
    etatom = etatom_d
    wfcatom = wfcatom_d
