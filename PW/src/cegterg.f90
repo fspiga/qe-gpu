@@ -32,7 +32,6 @@ SUBROUTINE myDdot( n, A, res )
   !
 END SUBROUTINE myDdot
 !
-!#define COMPARE
 !----------------------------------------------------------------------------
 SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
                     uspp, e, e_d, btype, notcnv, lrot, dav_iter )
@@ -51,8 +50,8 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
   USE cpu_gpu_interface
 #ifdef USE_CUDA
   USE cudafor
-  USE cublas,        ONLY : cublasZgemm, cublasDdot
-  USE ep_debug, ONLY : compare, MPI_Wtime
+  USE cublas!,        ONLY : cublasZgemm, cublasDdot
+!  USE ep_debug, ONLY : compare, MPI_Wtime
 #endif
   !
   IMPLICIT NONE
@@ -116,7 +115,10 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
   REAL(DP) :: empty_ethr
     ! threshold for empty bands
   !
+#ifndef USE_CUDA
   REAL(DP), EXTERNAL :: ddot
+#endif
+
 #ifdef USE_CUDA
   attributes(pinned) :: vc
   COMPLEX(DP), DEVICE, ALLOCATABLE :: hc_d(:,:), sc_d(:,:), vc_d(:,:), vc_temp_d(:,:)
@@ -287,9 +289,6 @@ call flush(6)
   IF ( uspp ) then
 #ifdef USE_CUDA
     spsi_d = ZERO
-#ifdef COMPARE
-    spsi = ZERO
-#endif
 #else
     spsi = ZERO
 #endif
@@ -309,14 +308,6 @@ call flush(6)
   end do
 
   CALL h_psi( npwx, npw, nvec, psi_d, hpsi_d )
-#ifdef COMPARE
-  hpsi = ZERO
-  psi  = ZERO
-  psi(:,:,1:nvec) = evc(:,:,1:nvec)
-
-  CALL h_psi( npwx, npw, nvec, psi, hpsi )
-  call compare(hpsi,hpsi_d,"1 h_psi")
-#endif
 #else
 
   hpsi = ZERO
@@ -347,10 +338,6 @@ call flush(6)
 !    call compare(spsi, spsi_d, "spsi")
     CALL s_psi( npwx, npw, nvec, psi_d, spsi_d )
 !    spsi = spsi_d
-#ifdef COMPARE
-    CALL s_psi( npwx, npw, nvec, psi, spsi )
-    call compare(spsi, spsi_d, "2 spsi")
-#endif
 #else
     CALL s_psi( npwx, npw, nvec, psi, spsi )
 #endif
@@ -364,12 +351,6 @@ call flush(6)
   sc_d(:,:) = ZERO
   vc_d(:,:) = ZERO
   ew_d(:) = 0.d0
-#ifdef COMPARE
-  hc(:,:) = ZERO
-  sc(:,:) = ZERO
-  vc(:,:) = ZERO
-  ew(:) = 0.d0
-#endif
 #else
   hc(:,:) = ZERO
   sc(:,:) = ZERO
@@ -378,26 +359,12 @@ call flush(6)
 #endif
   !
 #ifdef USE_CUDA
-#ifdef COMPARE
-  CALL compare( hc, hc_d, "3in_hc")
-#endif
-  CALL cublasZgemm( 'C', 'N', nbase, nbase, kdim, ONE, &
+  CALL ZGEMM( 'C', 'N', nbase, nbase, kdim, ONE, &
               psi_d, kdmx, hpsi_d, kdmx, ZERO, hc_d, nvecx )
 
   comm_h_c( :, 1:nbase ) = hc_d( :, 1:nbase )
   CALL mp_sum( comm_h_c( :, 1:nbase ), intra_bgrp_comm )
   hc_d( :, 1:nbase ) = comm_h_c( :, 1:nbase )
-#ifdef COMPARE
-  CALL compare( psi, psi_d, "3in_psi")
-  CALL compare( hpsi, hpsi_d, "3in_hpsi")
-  !CALL compare( hc, hc_d, "3in_hc")
-  CALL ZGEMM( 'C', 'N', nbase, nbase, kdim, ONE, &
-              psi, kdmx, hpsi, kdmx, ZERO, hc, nvecx )
-
-  CALL mp_sum( hc( :, 1:nbase ), intra_bgrp_comm )
-
-  call compare(hc, hc_d, "3 hc")
-#endif
 #else
   CALL ZGEMM( 'C', 'N', nbase, nbase, kdim, ONE, &
               psi, kdmx, hpsi, kdmx, ZERO, hc, nvecx )
@@ -422,23 +389,6 @@ call flush(6)
  comm_h_c(:,1:nbase) = sc_d(:,1:nbase)
  CALL mp_sum( comm_h_c( :, 1:nbase ), intra_bgrp_comm )
  sc_d(:,1:nbase) = comm_h_c(:,1:nbase)
-#ifdef COMPARE
-  IF ( uspp ) THEN
-     !
-     CALL ZGEMM( 'C', 'N', nbase, nbase, kdim, ONE, &
-                 psi, kdmx, spsi, kdmx, ZERO, sc, nvecx )
-     !     
-  ELSE
-     !
-     CALL ZGEMM( 'C', 'N', nbase, nbase, kdim, ONE, &
-                 psi, kdmx, psi, kdmx, ZERO, sc, nvecx )
-     !
-  END IF
-
- CALL mp_sum( sc( :, 1:nbase ), intra_bgrp_comm )
-
- CALL compare(sc, sc_d, "4 sc")
-#endif
 #else
   !
   IF ( uspp ) THEN
@@ -470,18 +420,6 @@ call flush(6)
         vc_d(i,i) = ONE
         !
      END DO
-#ifdef COMPARE
-     DO n = 1, nbase
-        !
-        e(n) = REAL( hc(n,n) )
-        !
-        vc(n,n) = ONE
-        !
-     END DO
-
-     call compare(e, e_d, "e")
-     call compare(vc, vc_d, "vc")
-#endif
 #else
 
      DO n = 1, nbase
@@ -516,17 +454,6 @@ call flush(6)
         e_d(i) = ew_d(i)
      END DO
 
-#ifdef COMPARE
-
-     CALL cdiaghg( nbase, nvec, hc, sc, nvecx, ew, vc )
-     !
-     e(1:nvec) = ew(1:nvec)
-
-     call compare(e, e_d, "e")
-     call compare(vc, vc_d, "vc")
-     vc = vc_d
-
-#endif
 #else
 
      CALL cdiaghg( nbase, nvec, hc, sc, nvecx, ew, vc )
@@ -579,42 +506,6 @@ call flush(6)
           end if
        end do
     end do
-#ifdef COMPARE
-     np = 0
-     DO n = 1, nvec
-        !
-        IF ( .NOT. conv(n) ) THEN
-           !
-           ! ... this root not yet converged ... 
-           !
-           np = np + 1
-           !
-           ! ... reorder eigenvectors so that coefficients for unconverged
-           ! ... roots come first. This allows to use quick matrix-matrix 
-           ! ... multiplications to set a new basis vector (see below)
-           !
-           IF ( np /= n ) then
-              vc(:,np) = vc(:,n)
-#if 0
-!$cuf kernel do(1) <<<*,*>>>
-      Do k=lbound(vc,1),ubound(vc,1)
-        vc_d(k,np) = vc_d(k,n)
-      END DO
-#endif
-           END IF
-           !
-           ! ... for use in g_psi
-           !
-           ew(nbase+np) = e(n)
-           !
-        END IF
-        !
-     END DO
-
-
-    !call compare(vc, vc_d, "5 vc packed")
-    call compare(ew, ew_d, "6 ew packed")
-#endif
 #else
 
      DO n = 1, nvec
@@ -634,12 +525,6 @@ call flush(6)
 
            IF ( np /= n ) then
               vc(:,np) = vc(:,n)
-#if 0
-!$cuf kernel do(1) <<<*,*>>>
-      Do k=lbound(vc,1),ubound(vc,1)
-        vc_d(k,np) = vc_d(k,n)
-      END DO
-#endif
            END IF
            !
            ! ... for use in g_psi
@@ -668,22 +553,6 @@ call flush(6)
         !
      END IF
 
-#ifdef COMPARE
-     IF ( uspp ) THEN
-        !
-        CALL ZGEMM( 'N', 'N', kdim, notcnv, nbase, ONE, spsi, &
-                    kdmx, vc, nvecx, ZERO, psi(1,1,nb1), kdmx )
-        !     
-     ELSE
-        !
-        CALL ZGEMM( 'N', 'N', kdim, notcnv, nbase, ONE, psi, &
-                    kdmx, vc, nvecx, ZERO, psi(1,1,nb1), kdmx )
-        !
-     END IF
-
-
-     call compare(psi, psi_d, "7 psi zgemm")
-#endif
 #else
      IF ( uspp ) THEN
         !
@@ -708,15 +577,6 @@ call flush(6)
        end do
     end do
 
-#ifdef COMPARE
-     DO np = 1, notcnv
-        !
-        psi(:,:,nbase+np) = - ew(nbase+np)*psi(:,:,nbase+np)
-        !
-     END DO
-
-     call compare(psi, psi_d, "8 psi scale")
-#endif
 #else
      DO np = 1, notcnv
         !
@@ -728,11 +588,6 @@ call flush(6)
 #ifdef USE_CUDA
      CALL cublasZgemm( 'N', 'N', kdim, notcnv, nbase, ONE, hpsi_d, &
                  kdmx, vc_d, nvecx, ONE, psi_d(1,1,nb1), kdmx )
-#ifdef COMPARE
-     CALL ZGEMM( 'N', 'N', kdim, notcnv, nbase, ONE, hpsi, &
-                 kdmx, vc, nvecx, ONE, psi(1,1,nb1), kdmx )
-    call compare( psi, psi_d, "9 psi2 zgemm")
-#endif
 #else
      CALL ZGEMM( 'N', 'N', kdim, notcnv, nbase, ONE, hpsi, &
                  kdmx, vc, nvecx, ONE, psi(1,1,nb1), kdmx )
@@ -743,15 +598,10 @@ call flush(6)
      ! ... approximate inverse iteration
      !
 #ifdef USE_CUDA
-     CALL g_psi_gpu( npwx, npw, notcnv, npol, psi(1,1,nb1), psi_d(1,1,nb1), ew(nb1), ew_d(nb1) )
-#ifdef COMPARE
-     CALL g_psi( npwx, npw, notcnv, npol, psi(1,1,nb1), ew(nb1) )
-     call compare(psi, psi_d, "10 g_psi")
-#endif
+     CALL g_psi_gpu( npwx, npw, notcnv, npol, psi_d(1,1,nb1), ew_d(nb1) )
 #else
 
      CALL g_psi( npwx, npw, notcnv, npol, psi(1,1,nb1), ew(nb1) )
-
 #endif
 
 #ifdef USE_CUDA
@@ -803,37 +653,6 @@ call flush(6)
      !ew(1:notcnv) = comm_h_r(1:notcnv)
      CALL mp_sum( ew( 1:notcnv ), intra_bgrp_comm )
      ew_d(1:notcnv) = ew(1:notcnv)
-#ifdef COMPARE
-     !
-     ! ... "normalize" correction vectors psi(:,nb1:nbase+notcnv) in
-     ! ... order to improve numerical stability of subspace diagonalization
-     ! ... (cdiaghg) ew is used as work array :
-     !
-     ! ...         ew = <psi_i|psi_i>,  i = nbase + 1, nbase + notcnv
-     !
-     DO n = 1, notcnv
-        !
-        nbn = nbase + n
-        !
-        IF ( npol == 1 ) THEN
-           !
-           ew(n) = ddot( 2*npw, psi(1,1,nbn), 1, psi(1,1,nbn), 1 )
-           !
-        ELSE
-           !
-           ew(n) = ddot( 2*npw, psi(1,1,nbn), 1, psi(1,1,nbn), 1 ) + &
-                   ddot( 2*npw, psi(1,2,nbn), 1, psi(1,2,nbn), 1 )
-           !
-        END IF
-        !
-     END DO
-
-     !
-     CALL mp_sum( ew( 1:notcnv ), intra_bgrp_comm )
-     !
-     call compare( ew, ew_d, "ew DOT" )
-#endif
-
 #else
      !
      ! ... "normalize" correction vectors psi(:,nb1:nbase+notcnv) in
@@ -875,14 +694,6 @@ call flush(6)
           end do
        end do
     end do
-#ifdef COMPARE
-     DO n = 1, notcnv
-        !
-        psi(:,:,nbase+n) = psi(:,:,nbase+n) / SQRT( ew(n) )
-        !
-     END DO
-     call compare(psi, psi_d, "11 psi scale")
-#endif
 #else
      DO n = 1, notcnv
         !
@@ -898,10 +709,6 @@ call flush(6)
 #ifdef USE_CUDA
 
   CALL h_psi( npwx, npw, notcnv, psi_d(:,:,nb1), hpsi_d(:,:,nb1) )
-#ifdef COMPARE
-     CALL h_psi( npwx, npw, notcnv, psi(1,1,nb1), hpsi(1,1,nb1) )
-     call compare(hpsi, hpsi_d, "12 hpsi")
-#endif
 #else
      CALL h_psi( npwx, npw, notcnv, psi(1,1,nb1), hpsi(1,1,nb1) )
 #endif
@@ -909,10 +716,6 @@ call flush(6)
   IF ( uspp ) THEN
 #ifdef USE_CUDA
     CALL s_psi( npwx, npw, notcnv, psi_d(1,1,nb1), spsi_d(1,1,nb1) )
-#ifdef COMPARE
-    CALL s_psi( npwx, npw, notcnv, psi(1,1,nb1), spsi(1,1,nb1) )
-    call compare(spsi, spsi_d, "13 spsi")
-#endif
 #else
     CALL s_psi( npwx, npw, notcnv, psi(1,1,nb1), spsi(1,1,nb1) )
 #endif
@@ -931,14 +734,6 @@ call flush(6)
      CALL mp_sum( comm_h_c( :, nb1:nb1+notcnv-1 ), intra_bgrp_comm )
      !
       hc_d( :, nb1:nb1+notcnv-1 ) =  comm_h_c( :, nb1:nb1+notcnv-1 )
-#ifdef COMPARE
-     CALL ZGEMM( 'C', 'N', nbase+notcnv, notcnv, kdim, ONE, psi, &
-                 kdmx, hpsi(1,1,nb1), kdmx, ZERO, hc(1,nb1), nvecx )
-
-     CALL mp_sum( hc( :, nb1:nb1+notcnv-1 ), intra_bgrp_comm )
-
-     call compare( hc, hc_d, "14 hc update" )
-#endif
 #else
      CALL ZGEMM( 'C', 'N', nbase+notcnv, notcnv, kdim, ONE, psi, &
                  kdmx, hpsi(1,1,nb1), kdmx, ZERO, hc(1,nb1), nvecx )
@@ -964,22 +759,6 @@ call flush(6)
      CALL mp_sum( comm_h_c( :, nb1:nb1+notcnv-1 ), intra_bgrp_comm )
      !
      sc_d( :, nb1:nb1+notcnv-1 ) = comm_h_c( :, nb1:nb1+notcnv-1 )
-#ifdef COMPARE
-     IF ( uspp ) THEN
-        !
-        CALL ZGEMM( 'C', 'N', nbase+notcnv, notcnv, kdim, ONE, psi, &
-                    kdmx, spsi(1,1,nb1), kdmx, ZERO, sc(1,nb1), nvecx )
-        !     
-     ELSE
-        !
-        CALL ZGEMM( 'C', 'N', nbase+notcnv, notcnv, kdim, ONE, psi, &
-                    kdmx, psi(1,1,nb1), kdmx, ZERO, sc(1,nb1), nvecx )
-        !
-     END IF
-     CALL mp_sum( sc( :, nb1:nb1+notcnv-1 ), intra_bgrp_comm )
-
-     call compare( sc, sc_d, "15 sc update" )
-#endif
 #else
      IF ( uspp ) THEN
         !
@@ -1009,26 +788,6 @@ call flush(6)
            sc_d(j,i) = CONJG( sc_d(i,j) )
         end do
     end do
-#ifdef COMPARE
-     DO n = 1, nbase
-        !
-        ! ... the diagonal of hc and sc must be strictly real 
-        !
-        hc(n,n) = CMPLX( REAL( hc(n,n) ), 0.D0 ,kind=DP)
-        sc(n,n) = CMPLX( REAL( sc(n,n) ), 0.D0 ,kind=DP)
-        !
-        DO m = n + 1, nbase
-           !
-           hc(m,n) = CONJG( hc(n,m) )
-           sc(m,n) = CONJG( sc(n,m) )
-           !
-        END DO
-        !
-     END DO
-
-     call compare(hc, hc_d, "16 hc d+conj")
-     call compare(sc, sc_d, "17 sc d+conj")
-#endif
 #else
      DO n = 1, nbase
         !
@@ -1062,30 +821,12 @@ call flush(6)
 #else
      CALL cdiaghg( nbase, nvec, hc_d, sc_d, nvecx, ew_d, vc_d )
 #endif
-!hc = hc_d
-!sc = sc_d
-!     CALL cdiaghg( nbase, nvec, hc, sc, nvecx, ew, vc )
-!vc_d = vc
-!ew_d = ew
-!hc_d = hc
-!sc_d = sc
-!     ew = ew_d
-!     e = e_d
-!     hc = hc_d
-!     sc = sc_d
-#ifdef COMPARE
-     CALL cdiaghg( nbase, nvec, hc, sc, nvecx, ew, vc )
-     call compare(ew, ew_d, "18 ew cdiag")
-     !call compare(vc, vc_d, "19 vc cdiag")
-#endif
 #else
      CALL cdiaghg( nbase, nvec, hc, sc, nvecx, ew, vc )
 #endif
 #ifdef USE_CUDA
-#ifndef COMPARE
      ew = ew_d
      e = e_d
-#endif
 #endif
      !
      ! ... test for convergence
@@ -1131,10 +872,6 @@ call flush(6)
     Do i=1,nvec
       e_d(i) = ew_d(i)
     end do
-#ifdef COMPARE
-     e(1:nvec) = ew(1:nvec)
-    call compare(e, e_d, "20 e")
-#endif
 #else
      e(1:nvec) = ew(1:nvec)
 #endif
@@ -1154,16 +891,9 @@ call flush(6)
 #ifdef USE_CUDA
         CALL cublasZgemm( 'N', 'N', kdim, nvec, nbase, ONE, &
                     psi_d, kdmx, vc_d, nvecx, ZERO, evc_d, kdmx )
-#ifdef COMPARE
-        CALL ZGEMM( 'N', 'N', kdim, nvec, nbase, ONE, &
-                    psi, kdmx, vc, nvecx, ZERO, evc, kdmx )
-
-        call compare( evc, evc_d, "21 evc last zgemm")
-#endif
 #else
         CALL ZGEMM( 'N', 'N', kdim, nvec, nbase, ONE, &
                     psi, kdmx, vc, nvecx, ZERO, evc, kdmx )
-
 #endif
         !
         IF ( notcnv == 0 ) THEN
@@ -1198,10 +928,6 @@ call flush(6)
         end do
       end do
     end do
-#ifdef COMPARE
-        psi(:,:,1:nvec) = evc(:,:,1:nvec)
- call compare(psi, psi_d, "21 psi=evc")
-#endif
 #else
         psi(:,:,1:nvec) = evc(:,:,1:nvec)
 #endif
@@ -1211,12 +937,6 @@ call flush(6)
 #ifdef USE_CUDA
            CALL cublasZgemm( 'N', 'N', kdim, nvec, nbase, ONE, spsi_d, &
                        kdmx, vc_d, nvecx, ZERO, psi_d(1,1,nvec+1), kdmx )
-#ifdef COMPARE
-           CALL ZGEMM( 'N', 'N', kdim, nvec, nbase, ONE, spsi, &
-                       kdmx, vc, nvecx, ZERO, psi(1,1,nvec+1), kdmx )
-
-           call compare(psi, psi_d, "22 psi srefresh") 
-#endif
 #else
            CALL ZGEMM( 'N', 'N', kdim, nvec, nbase, ONE, spsi, &
                        kdmx, vc, nvecx, ZERO, psi(1,1,nvec+1), kdmx )
@@ -1231,10 +951,6 @@ call flush(6)
         end do
       end do
     end do
-#ifdef COMPARE
-           spsi(:,:,1:nvec) = psi(:,:,nvec+1:nvec+nvec)
-    call compare(spsi, spsi_d, "23 spsi=psi")
-#endif
 #else
            spsi(:,:,1:nvec) = psi(:,:,nvec+1:nvec+nvec)
 #endif
@@ -1244,12 +960,6 @@ call flush(6)
 #ifdef USE_CUDA
         CALL cublasZgemm( 'N', 'N', kdim, nvec, nbase, ONE, hpsi_d, &
                     kdmx, vc_d, nvecx, ZERO, psi_d(1,1,nvec+1), kdmx )
-#ifdef COMPARE
-        CALL ZGEMM( 'N', 'N', kdim, nvec, nbase, ONE, hpsi, &
-                    kdmx, vc, nvecx, ZERO, psi(1,1,nvec+1), kdmx )
-
-        call compare( psi, psi_d, "24 psi hrefresh")
-#endif
 #else
         CALL ZGEMM( 'N', 'N', kdim, nvec, nbase, ONE, hpsi, &
                     kdmx, vc, nvecx, ZERO, psi(1,1,nvec+1), kdmx )
@@ -1264,10 +974,6 @@ call flush(6)
         end do
       end do
     end do
-#ifdef COMPARE
-        hpsi(:,:,1:nvec) = psi(:,:,nvec+1:nvec+nvec)
-    call compare(hpsi, hpsi_d, "25 hpsi=psi")
-#endif
 #else
         hpsi(:,:,1:nvec) = psi(:,:,nvec+1:nvec+nvec)
 #endif
@@ -1281,14 +987,6 @@ call flush(6)
         hc_d(:,1:nbase) = ZERO
         sc_d(:,1:nbase) = ZERO
         vc_d(:,1:nbase) = ZERO
-#ifdef COMPARE
-        hc(:,1:nbase) = ZERO
-        sc(:,1:nbase) = ZERO
-        vc(:,1:nbase) = ZERO
-  call compare(hc, hc_d, "zero hc")
-  call compare(sc, sc_d, "zero sc")
-  call compare(vc, vc_d, "zero vc")
-#endif
 #else
         hc(:,1:nbase) = ZERO
         sc(:,1:nbase) = ZERO
@@ -1306,21 +1004,6 @@ call flush(6)
            vc_d(i,i) = ONE
            !
         END DO
-#ifdef COMPARE
-        DO n = 1, nbase
-           !
-!           hc(n,n) = REAL( e(n) )
-           hc(n,n) = CMPLX( e(n), 0.0_DP ,kind=DP)
-           !
-           sc(n,n) = ONE
-           vc(n,n) = ONE
-           !
-        END DO
-
-    call compare( hc, hc_d, "26 hc refresh" )
-    call compare( sc, sc_d, "27 sc refresh" )
-    call compare( vc, vc_d, "28 vc refresh" )
-#endif
 #else
         DO n = 1, nbase
            !
@@ -1342,10 +1025,8 @@ call flush(6)
 
   !copy outputs to CPU (not sure if this is needed)
 #ifdef USE_CUDA
-#ifndef COMPARE
   evc = evc_d
   e = e_d
-#endif
 #endif
 
   DEALLOCATE( conv )
