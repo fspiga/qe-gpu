@@ -841,7 +841,7 @@ call flush(6)
         !
      END WHERE
 
-! TODO: Do we need convergence test on GPU? LEave off for now
+! TODO: Do we need convergence test on GPU? Leave off for now
 !#ifdef USE_CUDA
 #if 0
     !$cuf kernel do(1) <<<*,*>>>
@@ -863,9 +863,9 @@ call flush(6)
      !
      notcnv = COUNT( .NOT. conv(:) )
      !it_timer = MPI_Wtime() - it_timer
-
+#ifdef __CUDA_DEBUG
      print *,"kter: ",kter," notcnv: ",notcnv," nbase: ",nbase !,it_timer,"sec"
- 
+#endif
      !
 #ifdef USE_CUDA
     !$cuf kernel do(1) <<<*,*>>>
