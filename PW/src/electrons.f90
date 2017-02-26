@@ -846,7 +846,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
      ! ... uncomment the following line if you wish to monitor the evolution
      ! ... of the force calculation during self-consistency
      !
-     CALL forces()
+     !CALL forces()
      !
      ! ... it can be very useful to track internal clocks during
      ! ... self-consistency for benchmarking purposes
