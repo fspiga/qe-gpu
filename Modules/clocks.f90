@@ -136,7 +136,15 @@ SUBROUTINE start_clock( label )
 !                           & " already started")' ) n, label_
         ELSE
 #ifdef USE_NVTX
-       CALL nvtxStartRange(label_,n)
+#ifdef NO_FFT_NVTX
+  if(label_(1:3) == 'a2a' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+    !nothing
+  else
+     CALL nvtxStartRange(label_,n)
+  endif
+#else
+     CALL nvtxStartRange(label_,n)
+#endif
 #endif
            t0cpu(n) = scnds()
           t0wall(n) = cclock()
@@ -159,7 +167,15 @@ SUBROUTINE start_clock( label )
      nclock                                     = nclock + 1
      clock_label(nclock)        = label_
 #ifdef USE_NVTX
-       CALL nvtxStartRange(label_,nclock)
+#ifdef NO_FFT_NVTX
+  if(label_(1:3) == 'a2a' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+    !nothing
+  else
+     CALL nvtxStartRange(label_,nclock)
+  endif
+#else
+     CALL nvtxStartRange(label_,nclock)
+#endif
 #endif
      t0cpu(nclock)                      = scnds()
      t0wall(nclock)                     = cclock()
@@ -220,7 +236,15 @@ SUBROUTINE stop_clock( label )
         ELSE
            !
 #ifdef USE_NVTX
+#ifdef NO_FFT_NVTX
+  if(label_(1:3) == 'a2a' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+    !nothing
+  else
           call nvtxEndRange
+  endif
+#else
+          call nvtxEndRange
+#endif
 #endif
            cputime(n)   = cputime(n) + scnds() - t0cpu(n)
            walltime(n)  = walltime(n) + cclock() - t0wall(n)
