@@ -11,6 +11,7 @@
 #define ZERO ( 0.D0, 0.D0 )
 #define ONE  ( 1.D0, 0.D0 )
 !
+#ifdef USE_CUDA
 SUBROUTINE myDdot( n, A, res )
   !
   use kinds, ONLY : DP
@@ -31,6 +32,7 @@ SUBROUTINE myDdot( n, A, res )
   return
   !
 END SUBROUTINE myDdot
+#endif
 !
 !----------------------------------------------------------------------------
 SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
@@ -70,6 +72,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
   REAL(DP), DEVICE, INTENT(OUT) :: e_d(nvec)
 #else
   COMPLEX(DP), OPTIONAL :: evc_d(:)
+  REAL(DP), OPTIONAL :: e_d(:)
 #endif
     !  evc_d contains the refined estimates of the eigenvectors  
   REAL(DP), INTENT(IN) :: ethr
@@ -119,6 +122,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
   REAL(DP), EXTERNAL :: ddot
 #endif
 
+  INTEGER :: conv_idx(nvec)
 #ifdef USE_CUDA
   attributes(pinned) :: vc
   COMPLEX(DP), DEVICE, ALLOCATABLE :: hc_d(:,:), sc_d(:,:), vc_d(:,:), vc_temp_d(:,:)
@@ -127,7 +131,6 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
   REAL(DP), DEVICE, ALLOCATABLE :: ew_d(:)
   REAL(DP), PINNED, ALLOCATABLE :: comm_h_r(:)
   LOGICAL, DEVICE, ALLOCATABLE :: conv_d(:)
-  INTEGER :: conv_idx(nvec)
   INTEGER, DEVICE :: conv_idx_d(nvec)
   INTEGER :: istat, i, j, k
   INTEGER(KIND=8) :: freeMem,totalMem
@@ -241,33 +244,33 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
   IF( ierr /= 0 ) &
      CALL errore( ' cegterg ',' cannot allocate comm_h_c ', ABS(ierr) )
 
-#if 0
-      istat=CudaMemGetInfo(freeMem,totalMem)
-      rTotalMem = totalMem/(10.**6)
-      rFreeMem = freeMem/(10.**6);            MinFreeMem = rFreeMem; MaxFreeMem = rFreeMem
-      rUsedMem = (totalMem-freeMem)/(10.**6); MaxUsedMem = rUsedMem; MinUsedMem = rUsedMem
-write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory used: ",minUsedMem," - ",maxUsedMem," / ",rTotalMem," MBytes"
-write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
-print *," "
-call flush(6)
-print *,"psi_d: ",npwx,npol,nvecx
-call flush(6)
-#endif
+!#if 0
+!      istat=CudaMemGetInfo(freeMem,totalMem)
+!      rTotalMem = totalMem/(10.**6)
+!      rFreeMem = freeMem/(10.**6);            MinFreeMem = rFreeMem; MaxFreeMem = rFreeMem
+!      rUsedMem = (totalMem-freeMem)/(10.**6); MaxUsedMem = rUsedMem; MinUsedMem = rUsedMem
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory used: ",minUsedMem," - ",maxUsedMem," / ",rTotalMem," MBytes"
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
+!print *," "
+!call flush(6)
+!print *,"psi_d: ",npwx,npol,nvecx
+!call flush(6)
+!#endif
 
   ALLOCATE(  psi_d( npwx, npol, nvecx ), STAT=ierr )
   IF( ierr /= 0 ) &
      CALL errore( ' cegterg ',' cannot allocate psi_d ', ABS(ierr) )
 
-#if 0
-      istat=CudaMemGetInfo(freeMem,totalMem)
-      rTotalMem = totalMem/(10.**6)
-      rFreeMem = freeMem/(10.**6);            MinFreeMem = rFreeMem; MaxFreeMem = rFreeMem
-      rUsedMem = (totalMem-freeMem)/(10.**6); MaxUsedMem = rUsedMem; MinUsedMem = rUsedMem
-write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory used: ",minUsedMem," - ",maxUsedMem," / ",rTotalMem," MBytes"
-write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
-print *," "
-call flush(6)
-#endif
+!#if 0
+!      istat=CudaMemGetInfo(freeMem,totalMem)
+!      rTotalMem = totalMem/(10.**6)
+!      rFreeMem = freeMem/(10.**6);            MinFreeMem = rFreeMem; MaxFreeMem = rFreeMem
+!      rUsedMem = (totalMem-freeMem)/(10.**6); MaxUsedMem = rUsedMem; MinUsedMem = rUsedMem
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory used: ",minUsedMem," - ",maxUsedMem," / ",rTotalMem," MBytes"
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
+!print *," "
+!call flush(6)
+!#endif
 
   ALLOCATE( hpsi_d( npwx, npol, nvecx ), STAT=ierr )
   IF( ierr /= 0 ) &
@@ -281,7 +284,6 @@ call flush(6)
 !write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
 !print *," "
 !call flush(6)
-
 #endif
 
 

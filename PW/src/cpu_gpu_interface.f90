@@ -5,11 +5,12 @@
 ! in the root directory of the present distribution,
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
-#ifdef USE_CUDA
 !=----------------------------------------------------------------------=!
 MODULE cpu_gpu_interface
 !=----------------------------------------------------------------------=!
+#ifdef USE_CUDA
   USE cudafor
+#endif
   IMPLICIT NONE
 
   INTERFACE add_vuspsi
@@ -19,12 +20,14 @@ MODULE cpu_gpu_interface
         COMPLEX(DP) :: hpsi(:,:)
      END SUBROUTINE add_vuspsi_cpu
 
+#ifdef USE_CUDA
      SUBROUTINE add_vuspsi_gpu( lda, n, m, hpsi )
         USE kinds, ONLY: DP
         INTEGER  :: lda, n, m
         COMPLEX(DP) :: hpsi(:,:)
         ATTRIBUTES( DEVICE ) :: hpsi
      END SUBROUTINE add_vuspsi_gpu
+#endif
   END INTERFACE
 
   INTERFACE vloc_psi_k
@@ -35,6 +38,7 @@ MODULE cpu_gpu_interface
         REAL(DP) :: v(:)
      END SUBROUTINE vloc_psi_k_cpu
 
+#ifdef USE_CUDA
      SUBROUTINE vloc_psi_k_gpu( lda, n, m, psi, v, hpsi  )
         USE kinds, ONLY: DP
         INTEGER  :: lda, n, m
@@ -42,6 +46,7 @@ MODULE cpu_gpu_interface
         REAL(DP) :: v(:)
         ATTRIBUTES( DEVICE ) :: psi, v, hpsi
      END SUBROUTINE vloc_psi_k_gpu
+#endif
   END INTERFACE
 
   INTERFACE h_psi
@@ -52,6 +57,7 @@ MODULE cpu_gpu_interface
         COMPLEX(DP) :: psi(*), hpsi(*)
      END SUBROUTINE h_psi_cpu
 
+#ifdef USE_CUDA
      SUBROUTINE h_psi_gpu( lda, n, m, psi, hpsi  )
         USE kinds, ONLY: DP
         INTEGER  :: lda, n, m
@@ -59,6 +65,7 @@ MODULE cpu_gpu_interface
         COMPLEX(DP) :: psi(*), hpsi(*)
         ATTRIBUTES( DEVICE ) :: psi, hpsi
      END SUBROUTINE h_psi_gpu
+#endif
    END INTERFACE
 
   INTERFACE s_psi
@@ -69,6 +76,7 @@ MODULE cpu_gpu_interface
         COMPLEX(DP) :: psi(*), spsi(*)
      END SUBROUTINE s_psi_cpu
 
+#ifdef USE_CUDA
      SUBROUTINE s_psi_gpu( lda, n, m, psi, spsi  )
         USE kinds, ONLY: DP
         INTEGER  :: lda, n, m
@@ -76,6 +84,7 @@ MODULE cpu_gpu_interface
         COMPLEX(DP) :: psi(*), spsi(*)
         ATTRIBUTES( DEVICE ) :: psi, spsi
      END SUBROUTINE s_psi_gpu
+#endif
    END INTERFACE
 
   INTERFACE g_psi
@@ -87,6 +96,7 @@ MODULE cpu_gpu_interface
         REAL(DP) :: e(*)
      END SUBROUTINE g_psi_cpu
 
+#ifdef USE_CUDA
      SUBROUTINE g_psi_gpu( lda, n, m, npol, psi, e  )
         USE kinds, ONLY: DP
         INTEGER  :: lda, n, m, npol
@@ -95,7 +105,9 @@ MODULE cpu_gpu_interface
         REAL(DP) :: e(*)
         ATTRIBUTES( DEVICE ) :: psi, e
      END SUBROUTINE g_psi_gpu
+#endif
    END INTERFACE
+
 
    INTERFACE cdiaghg
       SUBROUTINE cdiaghg_cpu( n, m, h, s, ldh, e, v )
@@ -106,6 +118,7 @@ MODULE cpu_gpu_interface
          COMPLEX(DP), INTENT(OUT) :: v(:,:)
       END SUBROUTINE cdiaghg_cpu
 
+#ifdef USE_CUDA
       SUBROUTINE cdiaghg_gpu( n, m, h, s, ldh, e, v )
          USE kinds,            ONLY : DP
          INTEGER, INTENT(IN) :: n, m, ldh
@@ -114,6 +127,7 @@ MODULE cpu_gpu_interface
          COMPLEX(DP), INTENT(OUT) :: v(:,:)
          ATTRIBUTES( DEVICE ) :: h, s, e, v
       END SUBROUTINE cdiaghg_gpu
+#endif
    END INTERFACE
 
    INTERFACE rotate_wfc_k
@@ -125,6 +139,7 @@ MODULE cpu_gpu_interface
          REAL(DP) :: e(nbnd)
       END SUBROUTINE rotate_wfc_k_cpu
 
+#ifdef USE_CUDA
       SUBROUTINE rotate_wfc_k_gpu( npwx, npw, nstart, nbnd, npol, psi, overlap, evc, e )
          USE kinds,            ONLY : DP
          INTEGER :: npw, npwx, nstart, nbnd, npol
@@ -133,6 +148,7 @@ MODULE cpu_gpu_interface
          REAL(DP) :: e(nbnd)
          ATTRIBUTES( DEVICE ) :: psi, evc, e
       END SUBROUTINE rotate_wfc_k_gpu
+#endif
    END INTERFACE
 
    INTERFACE rotate_wfc
@@ -145,6 +161,7 @@ MODULE cpu_gpu_interface
          REAL(DP) :: e(*)
       END SUBROUTINE rotate_wfc_cpu
 
+#ifdef USE_CUDA
       SUBROUTINE rotate_wfc_gpu( npwx, npw, nstart, gstart, nbnd, psi, npol, overlap, evc, e )
          USE kinds,            ONLY : DP
          INTEGER :: npw, npwx, nstart, nbnd, gstart, npol
@@ -154,9 +171,9 @@ MODULE cpu_gpu_interface
          REAL(DP) :: e(*)
          ATTRIBUTES( DEVICE ) :: psi, evc, e
       END SUBROUTINE rotate_wfc_gpu
+#endif
    END INTERFACE
 
 !=----------------------------------------------------------------------=!
 END MODULE cpu_gpu_interface
 !=----------------------------------------------------------------------=!
-#endif

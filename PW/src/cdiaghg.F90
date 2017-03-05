@@ -15,7 +15,9 @@
 #define MY_ROUTINE(x)  x##_cpu
 !MODULE ONLY COMPILED ONCE ( IN CPU PATH )
 module zhegvx_module
+#ifdef USE_CUDA
   use cudafor
+#endif
   use kinds, ONLY : DP
   !
   IMPLICIT NONE
