@@ -59,7 +59,7 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   USE cudafor
   USE cublas
   USE zheevd_jdr,       ONLY : zheevd_gpu
-  USE zhegvx_module,    ONLY : h_temp=>h_temp_d, s_temp=>s_temp_d, hdiag=>hdiag_d, sdiag=>sdiag_d
+  USE zhegvx_module,    ONLY : h_temp,h_temp_d, s_temp,s_temp_d, hdiag,hdiag_d, sdiag,sdiag_d
   USE zhegvx_module,    ONLY : e_h, v_h, rwork_d, work_d, Z, jdr_min_size
 #else
   USE zhegvx_module,    ONLY : h_temp, s_temp, hdiag, sdiag
@@ -86,7 +86,9 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   INTEGER                  :: lwork, lrwork, liwork, nb, mm, info, i, j
   INTEGER                  :: max_lwork, max_lrwork, max_liwork
 #ifdef USE_GPU
-  INTEGER  :: cuf_i, ii, istat
+  INTEGER  :: cuf_i, ii, istat, cpu_path
+  REAL(DP) :: rFreeMem,rNeedMem
+  INTEGER(KIND=8) :: freeMem,totalMem,needMem
 #endif
     ! mm = number of calculated eigenvectors
   REAL(DP)                 :: abstol
@@ -112,14 +114,40 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
      ! ... save the diagonal of input S (it will be overwritten)
      !
 #ifdef USE_GPU
-     nb = 64
-     lwork  = max(2*n + n*n, n + n*nb)
-     lrwork = 1 + 5*n + 2*n*n
-     liwork = 3 + 5*n
-     max_lwork  = 2*(max(2*ldh + ldh*ldh, ldh + ldh*nb))
-     max_lrwork = 2*(1 + 5*ldh + 2*ldh*ldh)
-     max_liwork = 2*(3 + 5*ldh)
-#else
+  nb = 64
+  lwork  = max(2*n + n*n, n + n*nb)
+  lrwork = 1 + 5*n + 2*n*n
+  liwork = 3 + 5*n
+  max_lwork  = 2*(max(2*ldh + ldh*ldh, ldh + ldh*nb))
+  max_lrwork = 2*(1 + 5*ldh + 2*ldh*ldh)
+  max_liwork = 2*(3 + 5*ldh)
+
+  cpu_path=0
+
+  istat=CudaMemGetInfo(freeMem,totalMem)
+  rFreeMem = freeMem/(10.**6)
+  needMem = 8*2*ldh + 16*2*ldh*ldh + 16*max_lwork + 8*max_lrwork
+  if(allocated(sdiag_d)) needMem = needMem - 8*size(sdiag_d)
+  if(allocated(hdiag_d)) needMem = needMem - 8*size(hdiag_d)
+  if(allocated(h_temp_d)) needMem = needMem - 16*size(h_temp_d)
+  if(allocated(s_temp_d)) needMem = needMem - 16*size(s_temp_d)
+  if(allocated(work_d)) needMem = needMem - 16*size(work_d)
+  if(allocated(rwork_d)) needMem = needMem - 8*size(rwork_d)
+  rNeedMem = needMem/(10.**6)
+
+  if(rNeedMem > rFreeMem) then
+    write(*,"(A16,F8.1,A16,F8.1,A26)") "ZHEGVX: GPU has",rFreeMem,"MB available / ",rNeedMem,"MB required --> using CPU"
+    cpu_path=1
+  endif
+
+  if(cpu_path==1) then
+    if(allocated(hdiag_d)) deallocate(hdiag_d)
+    if(allocated(sdiag_d)) deallocate(sdiag_d)
+    if(allocated(h_temp_d)) deallocate(h_temp_d)
+    if(allocated(s_temp_d)) deallocate(s_temp_d)
+    if(allocated(work_d)) deallocate(work_d)
+    if(allocated(rwork_d)) deallocate(rwork_d)
+#endif
      nb = ILAENV( 1, 'ZHETRD', 'U', n, -1, -1, -1 )
      lwork = max(2*n, (nb+1)*n)
      lrwork = 7*n
@@ -128,44 +156,59 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
      max_lwork = 2*max(2*ldh, (nb+1)*ldh)
      max_lrwork = 2*7*ldh
      max_liwork = 2*5*ldh
+#ifdef USE_GPU
+  endif
 #endif
 
-  IF(first_time_zhegvx) THEN
-     ALLOCATE( work( max_lwork ) )
-     ALLOCATE( rwork( max_lrwork ) )
-     ALLOCATE( iwork( max_liwork ) )
-     ALLOCATE( ifail( ldh ) )
-     ALLOCATE( sdiag( ldh ) )
-     ALLOCATE( hdiag( ldh ) )
-     ALLOCATE( h_temp(ldh,ldh) )
-     ALLOCATE( s_temp(ldh,ldh) )
+  IF( ALLOCATED( work   ) .and. SIZE( work   ) < 2*lwork  ) DEALLOCATE( work   )
+  IF( ALLOCATED( rwork  ) .and. SIZE( rwork  ) < 2*lrwork ) DEALLOCATE( rwork  )
+  IF( ALLOCATED( iwork  ) .and. SIZE( iwork  ) < 2*liwork ) DEALLOCATE( iwork  )
+  IF( ALLOCATED( ifail  ) .and. SIZE( ifail  ) < 2*n      ) DEALLOCATE( ifail  )
+  IF( ALLOCATED( hdiag  ) .and. SIZE( hdiag  ) < 2*n      ) DEALLOCATE( hdiag  )
+  IF( ALLOCATED( sdiag  ) .and. SIZE( sdiag  ) < 2*n      ) DEALLOCATE( sdiag  )
+  IF( ALLOCATED( h_temp ) .and. SIZE( h_temp ) < 2*n*n    ) DEALLOCATE( h_temp )
+  IF( ALLOCATED( s_temp ) .and. SIZE( s_temp ) < 2*n*n    ) DEALLOCATE( s_temp )
+
+  IF( .not. ALLOCATED( work   ) ) ALLOCATE( work( max_lwork )   )
+  IF( .not. ALLOCATED( rwork  ) ) ALLOCATE( rwork( max_lrwork )  )
+  IF( .not. ALLOCATED( iwork  ) ) ALLOCATE( iwork( max_liwork )  )
+  IF( .not. ALLOCATED( ifail  ) ) ALLOCATE( ifail( ldh )  )
+  IF( .not. ALLOCATED( hdiag  ) ) ALLOCATE( hdiag( ldh )  )
+  IF( .not. ALLOCATED( sdiag  ) ) ALLOCATE( sdiag( ldh )  )
+  IF( .not. ALLOCATED( h_temp ) ) ALLOCATE( h_temp(ldh,ldh) )
+  IF( .not. ALLOCATED( s_temp ) ) ALLOCATE( s_temp(ldh,ldh) )
+
 #ifdef USE_GPU
-     ALLOCATE( work_d( max_lwork ) )
-     ALLOCATE( rwork_d( max_lrwork ) )
-     ALLOCATE( Z(ldh,ldh) )
+  IF( cpu_path==0 ) THEN
+     IF( ALLOCATED( work_d   ) .and. SIZE( work_d   ) < 2*lwork  ) DEALLOCATE( work_d   )
+     IF( ALLOCATED( rwork_d  ) .and. SIZE( rwork_d  ) < 2*lrwork ) DEALLOCATE( rwork_d  )
+     IF( ALLOCATED( hdiag_d  ) .and. SIZE( hdiag_d  ) < 2*n      ) DEALLOCATE( hdiag_d  )
+     IF( ALLOCATED( sdiag_d  ) .and. SIZE( sdiag_d  ) < 2*n      ) DEALLOCATE( sdiag_d  )
+     IF( ALLOCATED( h_temp_d ) .and. SIZE( h_temp_d ) < 2*n*n    ) DEALLOCATE( h_temp_d )
+     IF( ALLOCATED( s_temp_d ) .and. SIZE( s_temp_d ) < 2*n*n    ) DEALLOCATE( s_temp_d )
+     IF( ALLOCATED( Z        ) .and. SIZE( Z        ) < 2*n*n    ) DEALLOCATE( Z        )
+
+     IF( .not. ALLOCATED( work_d   ) ) ALLOCATE( work_d( max_lwork )   )
+     IF( .not. ALLOCATED( rwork_d  ) ) ALLOCATE( rwork_d( max_lrwork ) )
+     IF( .not. ALLOCATED( hdiag_d  ) ) ALLOCATE( hdiag_d( ldh )        )
+     IF( .not. ALLOCATED( sdiag_d  ) ) ALLOCATE( sdiag_d( ldh )        )
+     IF( .not. ALLOCATED( h_temp_d ) ) ALLOCATE( h_temp_d(ldh,ldh)     )
+     IF( .not. ALLOCATED( s_temp_d ) ) ALLOCATE( s_temp_d(ldh,ldh)     )
+     IF( .not. ALLOCATED( Z        ) ) ALLOCATE( Z(ldh,ldh)            )
+  ENDIF
 #endif
-  ELSE IF( size( work ) < 2*lwork .or. size( rwork ) < 2*lrwork .or. size( iwork ) < 2*liwork ) then
-     DEALLOCATE( work, rwork, iwork, ifail, sdiag, hdiag, h_temp, s_temp )
-#ifdef USE_GPU
-     DEALLOCATE( work_d, rwork_d, Z )
-#endif
-     ALLOCATE( work( max_lwork ) )
-     ALLOCATE( rwork( max_lrwork ) )
-     ALLOCATE( iwork( max_liwork ) )
-     ALLOCATE( ifail( ldh ) )
-     ALLOCATE( sdiag( ldh ) )
-     ALLOCATE( hdiag( ldh ) )
-     ALLOCATE( h_temp(ldh,ldh) )
-     ALLOCATE( s_temp(ldh,ldh) )
-#ifdef USE_GPU
-     ALLOCATE( work_d( max_lwork ) )
-     ALLOCATE( rwork_d( max_lrwork ) )     
-     ALLOCATE( Z(ldh,ldh) )
-#endif
-  END IF
 
 #if 1
-    s_temp = s
+#ifdef USE_GPU
+   if( cpu_path==0 ) then
+      s_temp_d = s
+   else
+#endif
+      s_temp = s  
+#ifdef USE_GPU
+   endif   
+#endif
+
 #else
 #ifdef USE_GPU
 !$cuf kernel do(1) <<<*,*>>>
@@ -182,7 +225,10 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
      !
      IF ( all_eigenvalues ) THEN
         !
-        ALLOCATE( rwork( 3*n - 2 ) )
+        IF( SIZE(rwork) < 3*n-2) THEN
+          DEALLOCATE( rwork )
+          ALLOCATE( rwork( 3*n - 2 ) )
+        ENDIF
         !
         ! ... calculate all eigenvalues (overwritten to v)
         !
@@ -197,15 +243,26 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
         ! ... save the diagonal of input H (it will be overwritten)
         !
 #if 1
-    h_temp = h
+
+#ifdef USE_GPU
+   if( cpu_path==0) then
+      h_temp_d = h
+   else
+#endif
+      h_temp = h
+#ifdef USE_GPU
+   endif
+#endif
+
 #else
 #ifdef USE_GPU
 !$cuf kernel do(1) <<<*,*>>>
 #endif
         DO i = 1, n
-           hdiag(i) = DBLE( h(i,i) ) !  <--- THIS LINE GIVES ERROR: INVALID DEVICE FUNCTION
+           hdiag(i) = h(i,i)!DBLE( h(i,i) ) !  <--- THIS LINE GIVES ERROR: INVALID DEVICE FUNCTION
         END DO
 #endif
+
         !
         ! ... calculate only m lowest eigenvalues
         !
@@ -228,6 +285,8 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
         !END IF
         !
 #ifdef USE_GPU
+      if( cpu_path == 0 ) then
+
         call magmaf_zpotrf_gpu('U', n, s, ldh, info)
         call magmaf_zhegst_gpu( 1, 'U', n, h, ldh, s, ldh, info)
         IF(n > jdr_min_size) THEN
@@ -246,6 +305,14 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 !        s = s_temp
         v_h = v
         e_h = e
+
+     else
+
+        CALL ZHEGVX( 1, 'V', 'I', 'U', n, h_temp, ldh, s_temp, ldh, &
+                     0.D0, 0.D0, 1, m, abstol, mm, e_h, v_h, ldh, &
+                     work, lwork, rwork, iwork, ifail, info )
+
+     endif
 #else
         CALL ZHEGVX( 1, 'V', 'I', 'U', n, h, ldh, s, ldh, &
                      0.D0, 0.D0, 1, m, abstol, mm, e, v, ldh, &
@@ -256,7 +323,14 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
         ! ... restore input H matrix from saved diagonal and lower triangle
         !
 #if 1
-        h = h_temp
+#ifdef USE_GPU
+   if(cpu_path==0) then
+        h = h_temp_d
+   endif
+#else
+   h = h_temp
+#endif
+
 #else
 #ifdef USE_GPU
 !$cuf kernel do(1) <<<*,*>>>
@@ -288,7 +362,14 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
      ! ... restore input S matrix from saved diagonal and lower triangle
      !
 #if 1
-     s = s_temp
+#ifdef USE_GPU
+   if(cpu_path==0) then
+      s = s_temp_d
+   endif
+#else
+   s = s_temp
+#endif
+
 #else
 #ifdef USE_GPU
 !$cuf kernel do(1) <<<*,*>>>
@@ -308,8 +389,15 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   !
   ! ... broadcast eigenvectors and eigenvalues to all other processors
   !
+#ifdef USE_GPU
+  CALL mp_bcast( e_h, root_bgrp, intra_bgrp_comm )
+  CALL mp_bcast( v_h, root_bgrp, intra_bgrp_comm )
+  e = e_h
+  v = v_h
+#else
   CALL mp_bcast( e, root_bgrp, intra_bgrp_comm )
   CALL mp_bcast( v, root_bgrp, intra_bgrp_comm )
+#endif
   !
   IF( first_time_zhegvx ) first_time_zhegvx = 0
   !
