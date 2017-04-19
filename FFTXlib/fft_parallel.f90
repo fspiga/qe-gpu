@@ -407,9 +407,7 @@ SUBROUTINE tg_cft3s_gpu( f_d, dfft, isgn, dtgs )
         STOP ! [TASK-GROUP NOT SUPPORTED
         !CALL cft_2xy( f, dtgs%tg_npp( me_p ), n1, n2, nx1, nx2, isgn, planes )
      ELSE
-        istat = cudaDeviceSynchronize() ! DEBUG
         CALL cft_2xy( f_d, aux_d, dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes )
-        istat = cudaDeviceSynchronize() ! DEBUG
      ENDIF
      !
   ELSE
@@ -459,8 +457,6 @@ SUBROUTINE tg_cft3s_gpu( f_d, dfft, isgn, dtgs )
   IF( use_tg ) THEN
      DEALLOCATE( yf )
   ENDIF
-
-  DEALLOCATE( aux_d )
   !
   RETURN
   !
