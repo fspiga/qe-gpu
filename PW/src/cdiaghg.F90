@@ -31,7 +31,7 @@ module zhegvx_module
   COMPLEX(DP), ALLOCATABLE :: h_temp(:,:),s_temp(:,:)
 #ifdef USE_CUDA
   ATTRIBUTES( PINNED ) :: iwork, ifail, rwork, sdiag, hdiag, work
-  INTEGER, PARAMETER :: jdr_min_size=1000
+  INTEGER, PARAMETER :: jdr_min_size=256
   COMPLEX(DP), PINNED, ALLOCATABLE :: Z(:,:)
   REAL(DP), ALLOCATABLE, PINNED :: e_h(:)
   COMPLEX(DP), ALLOCATABLE, PINNED :: v_h(:,:)
@@ -41,6 +41,19 @@ module zhegvx_module
 #endif
 END MODULE zhegvx_module
 #endif 
+
+#ifdef USE_GPU
+SUBROUTINE EpMemcpy2D( dst, dpitch, src, spitch, n, m )
+   USE kinds
+   USE cudafor
+   IMPLICIT NONE
+   COMPLEX(DP), DEVICE  :: dst,src
+   INTEGER, INTENT(IN) :: dpitch, spitch, n, m
+   INTEGER :: istat
+   istat = cudaMemcpy2D( dst, dpitch, src, spitch, n, m )
+END SUBROUTINE EPMemcpy2D
+#endif
+
 !----------------------------------------------------------------------------
 SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   !----------------------------------------------------------------------------
@@ -57,7 +70,7 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   USE zhegvx_module,    ONLY : iwork, ifail, rwork, work, first_time_zhegvx
 #ifdef USE_GPU
   USE cudafor
-  USE cublas
+  USE cublas,           ONLY : cublasZtrsm
   USE zheevd_jdr,       ONLY : zheevd_gpu
   USE zhegvx_module,    ONLY : h_temp,h_temp_d, s_temp,s_temp_d, hdiag,hdiag_d, sdiag,sdiag_d
   USE zhegvx_module,    ONLY : e_h, v_h, rwork_d, work_d, Z, jdr_min_size
@@ -201,10 +214,20 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 #if 1
 #ifdef USE_GPU
    if( cpu_path==0 ) then
-      s_temp_d = s
+#if 0
+!$cuf kernel do(2) <<<*,*>>>
+      DO j = 1, n
+         DO i = 1, ldh
+      !s_temp_d(1:ldh,1:n) = s(1:ldh,1:n)
+      s_temp_d(i,j) = s(i,j)
+         END DO
+      END DO
+#else
+     call EpMemcpy2D( s_temp_d, size( s_temp_d, 1 ), s, ldh, ldh, n )
+#endif
    else
 #endif
-      s_temp = s  
+      s_temp(1:ldh,1:n) = s(1:ldh,1:n)  
 #ifdef USE_GPU
    endif   
 #endif
@@ -246,10 +269,21 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 
 #ifdef USE_GPU
    if( cpu_path==0) then
-      h_temp_d = h
+#if 0
+!      h_temp_d(1:ldh,1:n) = h(1:ldh,1:n)
+!$cuf kernel do(2) <<<*,*>>>
+      DO j = 1, n
+         DO i = 1, ldh
+      h_temp_d(i,j) = h(i,j)
+         END DO
+      END DO
+#else
+     call EpMemcpy2D( h_temp_d, size( h_temp_d, 1 ), h, ldh, ldh, n )
+#endif
+
    else
 #endif
-      h_temp = h
+      h_temp(1:ldh,1:n) = h(1:ldh,1:n)
 #ifdef USE_GPU
    endif
 #endif
@@ -296,15 +330,15 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
            mm = m
         ELSE
            call magmaf_zheevdx_gpu('V', 'I', 'U', n, h, ldh, 0.D0, 0.D0, 1, m, mm, e_h, Z, ldh, work, 2*lwork, rwork, 2*(1+5*n+2*n*n), iwork, 2*(3+5*n), info)
-           v_h = h(:,1:m)
-           v = v_h
-           e = e_h
+           v_h(1:ldh,1:m) = h(1:ldh,1:m)
+           v(1:ldh,1:m) = v_h(1:ldh,1:m)
+           e(1:n) = e_h(1:n)
         END IF
         call cublasZtrsm( 'L', 'U', 'N', 'N', n, mm, ONE, s, ldh, v, ldh )
 !        h = h_temp
 !        s = s_temp
-        v_h = v
-        e_h = e
+        v_h(1:ldh,1:m) = v(1:ldh,1:m)
+        e_h(1:n) = e(1:n)
 
      else
 
@@ -325,10 +359,21 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 #if 1
 #ifdef USE_GPU
    if(cpu_path==0) then
-        h = h_temp_d
+#if 0
+!        h(1:ldh,1:n) = h_temp_d(1:ldh,1:n)
+!$cuf kernel do(2) <<<*,*>>>
+      DO j = 1, n
+         DO i = 1, ldh
+     h(i,j) = h_temp_d(i,j)
+         END DO
+      END DO
+#else
+     call EpMemcpy2D( h, ldh, h_temp_d, size( h_temp_d, 1 ), ldh, n )
+#endif
+
    endif
 #else
-   h = h_temp
+   h(1:ldh,1:n) = h_temp(1:ldh,1:n)
 #endif
 
 #else
@@ -364,10 +409,20 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 #if 1
 #ifdef USE_GPU
    if(cpu_path==0) then
-      s = s_temp_d
+#if 0
+!      s(1:ldh,1:n) = s_temp_d(1:ldh,1:n)
+!$cuf kernel do(2) <<<*,*>>>
+      DO j = 1, n
+         DO i = 1, ldh
+      s(i,j) = s_temp_d(i,j) 
+         END DO
+      END DO
+#else
+     call EpMemcpy2D( s, ldh, s_temp_d, size( s_temp_d, 1 ), ldh, n )
+#endif
    endif
 #else
-   s = s_temp
+   s(1:ldh,1:n) = s_temp(1:ldh,1:n)
 #endif
 
 #else
@@ -390,10 +445,10 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   ! ... broadcast eigenvectors and eigenvalues to all other processors
   !
 #ifdef USE_GPU
-  CALL mp_bcast( e_h, root_bgrp, intra_bgrp_comm )
-  CALL mp_bcast( v_h, root_bgrp, intra_bgrp_comm )
-  e = e_h
-  v = v_h
+  CALL mp_bcast( e_h(1:n), root_bgrp, intra_bgrp_comm )
+  CALL mp_bcast( v_h(1:ldh,1:m), root_bgrp, intra_bgrp_comm )
+  e(1:n) = e_h(1:n)
+  v(1:ldh,1:m) = v_h(1:ldh,1:m)
 #else
   CALL mp_bcast( e, root_bgrp, intra_bgrp_comm )
   CALL mp_bcast( v, root_bgrp, intra_bgrp_comm )

@@ -1,4 +1,5 @@
 !
+
 ! Copyright (C) Quantum ESPRESSO group
 !
 ! This file is distributed under the terms of the
@@ -1273,6 +1274,11 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
   INTEGER :: me_p, nppx, mc, j, npp, nnp, ii, it, ip, ioff, sendsiz, ncpx, ipp, nblk, nsiz
   !
   LOGICAL :: use_tg_
+#ifdef EPA2A
+  INTEGER, ALLOCATABLE, DIMENSION(:) :: offset_proc, kdest_proc, kfrom_proc
+  INTEGER :: iter
+  INTEGER :: istatus(MPI_STATUS_SIZE)
+#endif
 
   p_ismap_d => dfft%ismap_d
 
@@ -1292,6 +1298,9 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
   !
   CALL start_clock ('fft_scatter')
   !
+#ifdef EPA2A
+  ALLOCATE( offset_proc( nprocp ), kdest_proc( nprocp ), kfrom_proc( nprocp ) )
+#endif
   ncpx = 0
   nppx = 0
   IF( use_tg_ ) THEN
@@ -1309,6 +1318,23 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
   ENDIF
   sendsiz = ncpx * nppx
   !
+#ifdef EPA2A
+     offset = 0
+
+     DO proc = 1, nprocp
+        IF( use_tg_ ) THEN
+           gproc = dtgs%nplist(proc)+1
+        ELSE
+           gproc = proc
+        ENDIF
+        !
+        offset_proc( proc ) = offset
+        kdest_proc( proc ) = ( proc - 1 ) * sendsiz
+        kfrom_proc( proc ) = offset
+        !
+        offset = offset + npp_ ( gproc )
+     ENDDO
+#endif
 
   ierr = 0
   IF (isgn.gt.0) THEN
@@ -1321,6 +1347,83 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
      !
      offset = 0
      !f_aux = (0.d0, 0.d0)
+#ifdef EPA2A
+     DO iter = 1, nprocp
+        proc = IEOR( me-1, iter-1 ) + 1
+        IF( use_tg_ ) THEN
+           gproc = dtgs%nplist(proc)+1
+        ELSE
+           gproc = proc
+        ENDIF
+        kdest = kdest_proc( proc )
+        kfrom = kfrom_proc( proc )
+
+#if 1
+        istat = cudaMemcpy2DAsync( f_aux_d(kdest + 1), nppx, f_in_d(kfrom + 1 ), nr3x, npp_(gproc), ncp_(me), stream=dfft%a2a_comp )
+#else
+!$cuf kernel do(2) <<<*,*,0,dfft%a2a_comp>>>
+        DO k = 1, ncp_ (me)
+           DO i = 1, npp_ ( gproc )
+             f_aux_d( kdest + i + (k-1)*nppx ) = f_in_d( kfrom + i + (k-1)*nr3x )
+           END DO
+        END DO
+#endif
+        istat = cudaEventRecord( dfft%a2a_event(iter+nprocp), dfft%a2a_comp )
+        istat = cudaStreamWaitEvent( dfft%a2a_d2h, dfft%a2a_event(iter+nprocp), 0)
+        if( iter > 1 ) istat = cudaMemcpyAsync( f_aux(kdest + 1), f_aux_d(kdest + 1), sendsiz, dfft%a2a_d2h )
+        istat = cudaEventRecord( dfft%a2a_event(iter), dfft%a2a_d2h )
+#if 0
+! zero aux_d after data is copied out to host
+!THIS METHOD DID NOT WORK (TODO: find out why zeroing sendsiz chunks of aux_d gives incorrect results)
+        istat = cudaStreamWaitEvent( dfft%a2a_comp, dfft%a2a_event(iter), 0)
+        istat = cudaMemcpyAsync( f_in_d( kdest_proc( me ) + 1), f_aux_d(kdest_proc(me) + 1), sendsiz, stream=dfft%a2a_comp )
+!$cuf kernel do(1) <<<*,*,0,dfft%a2a_comp>>>
+        DO i = 1, sendsiz
+          f_aux_d(kdest + i) = (0.d0, 0.d0)
+        ENDDO
+        ! cudaMemsetAsync not part of cuda fortran yet
+        !istat = cudaMemsetAsync( f_aux_d(kdest+1), (0.d0, 0.d0),sendsiz,dfft%a2a_comp) 
+#endif
+     ENDDO
+
+!zero aux_d after all data has been transfered to host
+     istat = cudaStreamWaitEvent( dfft%a2a_comp, dfft%a2a_event(nprocp), 0)
+
+!     NO need for the following event, since the kernel that consumes the data is in the same stream (dfft%a2a_comp)
+!     istat = cudaEventRecord( dfft%a2a_event(1+nprocp), dfft%a2a_comp )
+
+! local part of array copied directly in GPU memory
+     istat = cudaMemcpyAsync( f_in_d( kdest_proc( me ) + 1), f_aux_d(kdest_proc(me) + 1), sendsiz, stream=dfft%a2a_comp )
+
+! zero f_aux_d (use cuf kernel rather than assignment statement so it can overlap with MPI and data transfers)
+!$cuf kernel do(1) <<<*,*,0,dfft%a2a_comp>>>
+        DO i = 1, size(f_aux_d,1)
+          f_aux_d(i) = (0.d0, 0.d0)
+        ENDDO
+
+
+     DO iter = 2, nprocp
+        proc = IEOR( me-1, iter-1 ) + 1
+        IF( use_tg_ ) THEN
+           gproc = dtgs%nplist(proc)+1
+        ELSE
+           gproc = proc
+        ENDIF
+        kdest = kdest_proc( proc )
+        kfrom = kfrom_proc( proc )
+
+        istat = cudaEventSynchronize( dfft%a2a_event(iter) )
+!CALL start_clock ('sndrcv_fw')
+        call MPI_SENDRECV( f_aux(kdest + 1), sendsiz, MPI_DOUBLE_COMPLEX, proc-1, iter, f_in(kdest + 1), sendsiz, MPI_DOUBLE_COMPLEX, proc-1, iter, gcomm, istatus, ierr )
+!CALL stop_clock ('sndrcv_fw')
+        istat = cudaMemcpyAsync( f_in_d(kdest + 1), f_in(kdest+1), sendsiz, dfft%a2a_h2d )
+        istat = cudaEventRecord( dfft%a2a_event(iter+nprocp), dfft%a2a_h2d )
+
+     ENDDO
+
+     !istat = cudaDeviceSynchronize()
+     
+#else
      DO proc = 1, nprocp
         IF( use_tg_ ) THEN
            gproc = dtgs%nplist(proc)+1
@@ -1376,15 +1479,38 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
         f_in_d(1:sendsiz*dfft%nproc) = f_in(1:sendsiz*dfft%nproc)
 #endif
 
+#endif
+
      !
 10   CONTINUE
-     !
+     
+#ifndef EPA2A
      f_aux_d = (0.d0, 0.d0)
-     !
+#endif
+
      IF( isgn == 1 ) THEN
 
         npp = dfft%npp( me )
         nnp = dfft%nnp
+
+#ifdef EPA2A
+        DO iter = 1, dfft%nproc
+           ip = IEOR( me-1, iter-1 ) + 1
+           ioff = dfft%iss( ip )
+           nswip = dfft%nsp( ip )
+
+           istat = cudaStreamWaitEvent( dfft%a2a_comp, dfft%a2a_event(iter+nprocp), 0)
+
+!$cuf kernel do(2) <<<*,*,0,dfft%a2a_comp>>>
+           DO cuf_j = 1, npp
+              DO cuf_i = 1, nswip
+                 it = ( ip - 1 ) * sendsiz + (cuf_i-1)*nppx
+                 mc = p_ismap_d( cuf_i + ioff )
+                 f_aux_d( mc + ( cuf_j - 1 ) * nnp ) = f_in_d( cuf_j + it )
+              ENDDO
+           ENDDO
+        ENDDO
+#else
 
         DO ip = 1, dfft%nproc
            ioff = dfft%iss( ip )
@@ -1398,7 +1524,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
               ENDDO
            ENDDO
         ENDDO
-
+#endif
      ELSE
 
         IF( use_tg_ ) THEN
@@ -1419,6 +1545,42 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
         !
         ip = 1
         !
+#ifdef EPA2A
+        DO iter = 1, nblk
+           !
+           gproc = IEOR( me-1, iter-1 ) + 1
+
+           istat = cudaStreamWaitEvent( dfft%a2a_comp, dfft%a2a_event(iter+nprocp), 0) 
+
+           ii = 0
+           !
+           DO ipp = 1, nsiz
+              !
+              ! explicitly compute ip since we are looping gproc out-of-order
+              ip = ipp + gproc - 1
+              ioff = dfft%iss( ip )
+              nswip =  dfft%nsw( ip )
+             !
+!$cuf kernel do(2) <<<*,*,0,dfft%a2a_comp>>>
+            DO cuf_j = 1, npp
+              DO cuf_i = 1, nswip
+                 !
+                 mc = p_ismap_d( cuf_i + ioff )
+                 !
+                 it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz
+                 !
+                    f_aux_d( mc + ( cuf_j - 1 ) * nnp ) = f_in_d( cuf_j + it )
+                 ENDDO
+                 !
+              ENDDO
+              !
+              !ip = ip + 1
+              !
+           ENDDO
+           !
+        ENDDO
+
+#else
         DO gproc = 1, nblk
            !
            ii = 0
@@ -1446,7 +1608,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
            ENDDO
            !
         ENDDO
-
+#endif
      END IF
   ELSE
      !
@@ -1456,6 +1618,24 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
 
         npp = dfft%npp( me )
         nnp = dfft%nnp
+#ifdef EPA2A
+        DO iter = 1, dfft%nproc
+           ip = IEOR( me-1, iter-1 ) + 1
+           ioff = dfft%iss( ip )
+           nswip = dfft%nsp( ip )
+!$cuf kernel do(2) <<<*,*,0,dfft%a2a_comp>>>
+        DO cuf_j = 1, npp
+           DO cuf_i = 1, nswip
+              mc = p_ismap_d( cuf_i + ioff )
+              it = ( ip - 1 ) * sendsiz + (cuf_i-1)*nppx
+                 f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp )
+              ENDDO
+           ENDDO
+
+        istat = cudaEventRecord( dfft%a2a_event(iter), dfft%a2a_comp )
+
+        ENDDO
+#else
         DO ip = 1, dfft%nproc
            ioff = dfft%iss( ip )
            nswip = dfft%nsp( ip )
@@ -1469,7 +1649,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
            ENDDO
 
         ENDDO
-
+#endif
      ELSE
 
         IF( use_tg_ ) THEN
@@ -1490,6 +1670,40 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
         !
         ip = 1
         !
+#ifdef EPA2A
+        DO iter = 1, nblk
+           !
+           gproc = IEOR( me-1, iter-1 ) + 1
+
+           ii = 0
+           !
+           DO ipp = 1, nsiz
+              !
+              ! explicitly compute ip since we are looping gproc out-of-order
+              ip = ipp + gproc - 1
+              ioff = dfft%iss( ip )
+              nswip = dfft%nsw( ip )
+!$cuf kernel do(2) <<<*,*,0,dfft%a2a_comp>>>
+              DO cuf_j = 1, npp
+                 DO cuf_i = 1, nswip
+                 !
+                    mc = p_ismap_d( cuf_i + ioff )
+                 !
+                    it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz
+                 !
+                    f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp )
+                 ENDDO
+                 !
+              ENDDO
+              !
+              !ip = ip + 1
+              !
+           ENDDO
+           !
+           istat = cudaEventRecord( dfft%a2a_event(iter), dfft%a2a_comp )
+           !
+        ENDDO
+#else
         DO gproc = 1, nblk
            !
            ii = 0
@@ -1517,11 +1731,11 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
            ENDDO
            !
         ENDDO
+#endif
      END IF
 
-#ifndef USE_GPU_MPI
-     f_in(1:sendsiz*dfft%nproc) = f_in_d(1:sendsiz*dfft%nproc)
-#endif
+
+
 
      IF( nprocp == 1 ) GO TO 20
      !
@@ -1532,6 +1746,54 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
      ELSE
         gcomm = dfft%comm
      ENDIF
+
+#ifdef EPA2A
+
+     DO iter = 1, nprocp
+        proc = IEOR( me-1, iter-1 ) + 1
+        kdest = (proc-1)*sendsiz
+
+        istat = cudaStreamWaitEvent( dfft%a2a_d2h, dfft%a2a_event(iter), 0)
+        if( iter > 1 ) istat = cudaMemcpyAsync( f_in(kdest + 1), f_in_d(kdest+1), sendsiz, dfft%a2a_d2h )
+        istat = cudaEventRecord( dfft%a2a_event(iter+nprocp), dfft%a2a_d2h )
+     ENDDO
+
+     istat = cudaStreamWaitEvent( dfft%a2a_d2h, dfft%a2a_event(nprocp), 0)
+     istat = cudaMemcpyAsync( f_aux_d( kdest_proc(me) + 1 ), f_in_d( kdest_proc(me) + 1 ), sendsiz, stream=dfft%a2a_comp )
+
+     !not needed since the following cudaMemcpy2Dasync that consumes this data is in the same stream (dfft%a2a_comp)
+     !istat = cudaEventRecord( dfft%a2a_event(1), dfft%a2a_comp )
+
+     DO iter = 1, nprocp
+        proc = IEOR( me-1, iter-1 ) + 1
+        IF( use_tg_ ) THEN
+           gproc = dtgs%nplist(proc)+1
+        ELSE
+           gproc = proc
+        ENDIF
+        kdest = kdest_proc( proc )
+        kfrom = kfrom_proc( proc )
+
+        istat = cudaEventSynchronize( dfft%a2a_event(iter+nprocp) )
+        IF( iter > 1) THEN
+!CALL start_clock ('sndrcv_fw')
+           call MPI_SENDRECV( f_in(kdest + 1), sendsiz, MPI_DOUBLE_COMPLEX, proc-1, iter, f_aux(kdest + 1), sendsiz, MPI_DOUBLE_COMPLEX, proc-1, iter, gcomm, istatus, ierr )
+!CALL stop_clock ('sndrcv_fw')
+           istat = cudaMemcpyAsync( f_aux_d(kdest + 1), f_aux(kdest+1), sendsiz, dfft%a2a_h2d )
+           istat = cudaEventRecord( dfft%a2a_event(iter), dfft%a2a_h2d )
+        ENDIF
+        istat = cudaStreamWaitEvent( dfft%a2a_comp, dfft%a2a_event(2*nprocp), 0)
+        istat = cudaStreamWaitEvent( dfft%a2a_comp, dfft%a2a_event(iter), 0)
+        istat = cudaMemcpy2DAsync( f_in_d(kfrom + 1), nr3x, f_aux_d(kdest + 1), nppx, npp_(gproc), ncp_(me), stream=dfft%a2a_comp )
+
+     ENDDO
+
+
+#else
+
+#ifndef USE_GPU_MPI
+     f_in(1:sendsiz*dfft%nproc) = f_in_d(1:sendsiz*dfft%nproc)
+#endif
 
      ! CALL mpi_barrier (gcomm, ierr)  ! why barrier? for buggy openmpi over ib
   CALL start_clock ('a2a_bw')
@@ -1576,6 +1838,8 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
         offset = offset + npp_ ( gproc )
      ENDDO
 
+#endif
+
 20   CONTINUE
 
   ENDIF
@@ -1587,6 +1851,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
   RETURN
 
 END SUBROUTINE fft_scatter_gpu
+
 #endif
 !
 !=----------------------------------------------------------------------=!

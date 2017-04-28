@@ -304,7 +304,20 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
 #endif
      ELSE
         !
-        psic(:) = (0.d0, 0.d0)
+        ! USE cuf kenrel because CUDAFortran implementation of cudaMemset is slow
+        !psic(:) = (0.d0, 0.d0)
+#ifndef USE_GPU
+!$omp parallel do
+#else
+!$cuf kernel do(1) <<<*,*>>>
+#endif
+        DO j = 1, dffts%nnr
+           psic (j) = (0.d0, 0.d0)
+        ENDDO
+#ifndef USE_GPU
+!$omp end parallel do
+#endif
+
 
 #ifndef USE_GPU
 !$omp parallel do

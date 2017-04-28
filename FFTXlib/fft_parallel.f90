@@ -434,7 +434,7 @@ SUBROUTINE tg_cft3s_gpu( f_d, dfft, isgn, dtgs )
      !
      CALL bw_scatter( isgn )
      !
-     f_d = (0.d0, 0.d0)
+     !f_d = (0.d0, 0.d0)
      !
      IF ( isgn /= -2 ) THEN
         !
