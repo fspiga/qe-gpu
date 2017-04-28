@@ -13,7 +13,9 @@ MODULE fft_types
 
   USE fft_support, ONLY : good_fft_order, good_fft_dimension
   USE fft_param
-
+#ifdef USE_CUDA
+  USE cudafor
+#endif
   IMPLICIT NONE
   PRIVATE
   SAVE
@@ -48,6 +50,8 @@ MODULE fft_types
     INTEGER, ALLOCATABLE :: ismap(:) ! for each stick in the plane indicate the position
 #ifdef USE_CUDA
     INTEGER, ALLOCATABLE, DEVICE :: ismap_d(:)
+    INTEGER(kind=cuda_stream_kind) :: a2a_comp, a2a_h2d, a2a_d2h
+    TYPE(cudaEvent), allocatable, dimension(:) :: a2a_event
 #endif
     INTEGER, ALLOCATABLE :: iplp(:)  ! indicate which "Y" plane should be FFTed ( potential )
     INTEGER, ALLOCATABLE :: iplw(:)  ! indicate which "Y" plane should be FFTed ( wave func )
@@ -106,6 +110,9 @@ CONTAINS
     INTEGER, INTENT(in) :: comm ! mype starting from 0
     INTEGER :: nx, ny, ierr
     INTEGER :: mype, root, nproc ! mype starting from 0
+#ifdef USE_CUDA
+    INTEGER :: istat,i
+#endif
 
     IF ( ALLOCATED( desc%nsp ) ) &
         CALL fftx_error__(' fft_type_allocate ', ' fft arrays already allocated ', 1 )
@@ -142,6 +149,16 @@ CONTAINS
     ALLOCATE( desc%ismap( nx * ny ) )
 #ifdef USE_CUDA
     ALLOCATE( desc%ismap_d( nx * ny ) )
+
+    istat = cudaStreamCreate( desc%a2a_comp )
+    istat = cudaStreamCreate( desc%a2a_d2h )
+    istat = cudaStreamCreate( desc%a2a_h2d )
+
+    ALLOCATE( desc%a2a_event( 2*nproc ) )
+    DO i = 1, 2*nproc
+       istat = cudaEventCreate( desc%a2a_event( i ) )
+    ENDDO
+
 #endif
     ALLOCATE( desc%iplp( nx ) )
     ALLOCATE( desc%iplw( nx ) )
@@ -167,6 +184,9 @@ CONTAINS
 
   SUBROUTINE fft_type_deallocate( desc )
     TYPE (fft_type_descriptor) :: desc
+#ifdef USE_CUDA
+    INTEGER :: istat,i,nproc
+#endif
     IF ( ALLOCATED( desc%nsp ) )    DEALLOCATE( desc%nsp )
     IF ( ALLOCATED( desc%nsw ) )    DEALLOCATE( desc%nsw )
     IF ( ALLOCATED( desc%ngl ) )    DEALLOCATE( desc%ngl )
@@ -178,6 +198,19 @@ CONTAINS
     IF ( ALLOCATED( desc%ismap ) )  DEALLOCATE( desc%ismap )
 #ifdef USE_CUDA
     IF ( allocated(  desc%ismap_d))  DEALLOCATE( desc%ismap_d)
+
+    istat = cudaStreamDestroy( desc%a2a_comp )
+    istat = cudaStreamDestroy( desc%a2a_d2h )
+    istat = cudaStreamDestroy( desc%a2a_h2d )
+
+    nproc = desc%nproc
+
+    DO i = 1, 2*nproc
+       istat = cudaEventDestroy( desc%a2a_event( i ) )
+    ENDDO
+
+    DEALLOCATE( desc%a2a_event( 2*nproc ) )
+
 #endif
     IF ( ALLOCATED( desc%iplp ) )   DEALLOCATE( desc%iplp )
     IF ( ALLOCATED( desc%iplw ) )   DEALLOCATE( desc%iplw )
