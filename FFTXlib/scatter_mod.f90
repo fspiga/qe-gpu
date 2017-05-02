@@ -1274,6 +1274,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
   INTEGER :: me_p, nppx, mc, j, npp, nnp, ii, it, ip, ioff, sendsiz, ncpx, ipp, nblk, nsiz
   !
   LOGICAL :: use_tg_
+!#define EPA2A
 #ifdef EPA2A
   INTEGER, ALLOCATABLE, DIMENSION(:) :: offset_proc, kdest_proc, kfrom_proc
   INTEGER :: iter
@@ -1401,6 +1402,13 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
           f_aux_d(i) = (0.d0, 0.d0)
         ENDDO
 
+!set communicator before communication
+     IF( use_tg_ ) THEN
+        gcomm = dtgs%pgrp_comm
+     ELSE
+        gcomm = dfft%comm
+     ENDIF
+
 
      DO iter = 2, nprocp
         proc = IEOR( me-1, iter-1 ) + 1
@@ -1416,13 +1424,12 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
 !CALL start_clock ('sndrcv_fw')
         call MPI_SENDRECV( f_aux(kdest + 1), sendsiz, MPI_DOUBLE_COMPLEX, proc-1, iter, f_in(kdest + 1), sendsiz, MPI_DOUBLE_COMPLEX, proc-1, iter, gcomm, istatus, ierr )
 !CALL stop_clock ('sndrcv_fw')
+        istat = cudaStreamWaitEvent( dfft%a2a_h2d, dfft%a2a_event(2*nprocp), 0)
         istat = cudaMemcpyAsync( f_in_d(kdest + 1), f_in(kdest+1), sendsiz, dfft%a2a_h2d )
         istat = cudaEventRecord( dfft%a2a_event(iter+nprocp), dfft%a2a_h2d )
 
      ENDDO
 
-     !istat = cudaDeviceSynchronize()
-     
 #else
      DO proc = 1, nprocp
         IF( use_tg_ ) THEN
@@ -1619,6 +1626,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
         npp = dfft%npp( me )
         nnp = dfft%nnp
 #ifdef EPA2A
+
         DO iter = 1, dfft%nproc
            ip = IEOR( me-1, iter-1 ) + 1
            ioff = dfft%iss( ip )
@@ -1758,7 +1766,8 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
         istat = cudaEventRecord( dfft%a2a_event(iter+nprocp), dfft%a2a_d2h )
      ENDDO
 
-     istat = cudaStreamWaitEvent( dfft%a2a_d2h, dfft%a2a_event(nprocp), 0)
+!local copy in place
+     istat = cudaStreamWaitEvent( dfft%a2a_comp, dfft%a2a_event(nprocp), 0)
      istat = cudaMemcpyAsync( f_aux_d( kdest_proc(me) + 1 ), f_in_d( kdest_proc(me) + 1 ), sendsiz, stream=dfft%a2a_comp )
 
      !not needed since the following cudaMemcpy2Dasync that consumes this data is in the same stream (dfft%a2a_comp)
@@ -1779,6 +1788,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
 !CALL start_clock ('sndrcv_fw')
            call MPI_SENDRECV( f_in(kdest + 1), sendsiz, MPI_DOUBLE_COMPLEX, proc-1, iter, f_aux(kdest + 1), sendsiz, MPI_DOUBLE_COMPLEX, proc-1, iter, gcomm, istatus, ierr )
 !CALL stop_clock ('sndrcv_fw')
+           istat = cudaStreamWaitEvent( dfft%a2a_h2d, dfft%a2a_event(nprocp), 0)
            istat = cudaMemcpyAsync( f_aux_d(kdest + 1), f_aux(kdest+1), sendsiz, dfft%a2a_h2d )
            istat = cudaEventRecord( dfft%a2a_event(iter), dfft%a2a_h2d )
         ENDIF
@@ -1787,7 +1797,6 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
         istat = cudaMemcpy2DAsync( f_in_d(kfrom + 1), nr3x, f_aux_d(kdest + 1), nppx, npp_(gproc), ncp_(me), stream=dfft%a2a_comp )
 
      ENDDO
-
 
 #else
 
