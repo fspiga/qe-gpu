@@ -222,6 +222,9 @@
 !     isign > 0 : forward (f(G)=>f(R)), isign <0 backward (f(R) => f(G))
 !     Up to "ndims" initializations (for different combinations of input
 !     parameters nz, nsl, ldz) are stored and re-used if available
+#ifdef TRACK_FLOPS
+     USE flops_tracker, ONLY : fft_ops
+#endif
      IMPLICIT NONE
 
      INTEGER, INTENT(IN) :: isign
@@ -231,6 +234,9 @@
 
      REAL (DP)  :: tscale
      INTEGER    :: i, err, idir, ip, void, istat
+#ifdef TRACK_FLOPS
+     REAL (DP), SAVE :: zflops( ndims ) = 0.d0
+#endif
      INTEGER, SAVE :: zdims( 3, ndims ) = -1
      INTEGER, SAVE :: icurrent = 1
      LOGICAL :: found
@@ -291,6 +297,10 @@
      CALL stop_clock( 'GPU_cft_1z' )
 #endif
 
+#ifdef TRACK_FLOPS
+     fft_ops = fft_ops + zflops( ip )
+#endif
+
      RETURN
 
      CONTAINS 
@@ -322,6 +332,10 @@
                               DATA_DIM, STRIDE, DIST, &
                               DATA_DIM, STRIDE, DIST, &
                               CUFFT_Z2Z, BATCH )
+
+#ifdef TRACK_FLOPS
+       zflops( icurrent ) = 5.0d0 * REAL( nz ) * log( REAL( nz ) )/log( 2.d0 )
+#endif
 
        zdims(1,icurrent) = nz; zdims(2,icurrent) = nsl; zdims(3,icurrent) = ldz;
        ip = icurrent
@@ -605,7 +619,9 @@
 !     isign > 0 : forward (f(G)=>f(R)), isign <0 backward (f(R) => f(G))
 !     Up to "ndims" initializations (for different combinations of input
 !     parameters nx,ny,nzl,ldx) are stored and re-used if available
-
+#ifdef TRACK_FLOPS
+     USE flops_tracker, ONLY : fft_ops
+#endif
      IMPLICIT NONE
 
      INTEGER, INTENT(IN) :: isign, ldx, ldy, nx, ny, nzl
@@ -620,6 +636,10 @@
      ! dims(6,:) = batch_2
      LOGICAL :: dofft( nfftx ), found
      INTEGER, PARAMETER  :: stdout = 6
+#ifdef TRACK_FLOPS
+     REAL (DP), SAVE :: xyflops( ndims ) = 0.d0
+#endif
+
 #if defined __FFTW_ALL_XY_PLANES
      INTEGER, SAVE :: cufft_plan_2d( ndims ) = 0
 #else
@@ -788,6 +808,10 @@
      CALL stop_clock( 'GPU_cft_2xy' )
 #endif
 
+#ifdef TRACK_FLOPS
+     fft_ops = fft_ops + xyflops( ip )
+#endif
+
      RETURN
 
    CONTAINS
@@ -866,6 +890,13 @@
 
 
 #endif
+
+#ifdef TRACK_FLOPS
+       xyflops( icurrent ) = REAL( ny*nzl )                    * 5.0d0 * REAL( nx ) * log( REAL( nx )  )/log( 2.d0 ) &
+                           + REAL( nzl*BATCH_1 + nzl*BATCH_2 ) * 5.0d0 * REAL( ny ) * log( REAL( ny )  )/log( 2.d0 )
+
+#endif
+
        dims(1,icurrent) = ny; dims(2,icurrent) = ldx;
        dims(3,icurrent) = nx; dims(4,icurrent) = nzl;
        dims(5,icurrent) = BATCH_1; dims(6,icurrent) = BATCH_2;

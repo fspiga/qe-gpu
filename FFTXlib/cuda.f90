@@ -1,3 +1,12 @@
+#ifdef TRACK_FLOPS
+module flops_tracker
+  implicit none
+  INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
+  REAL(DP) :: fft_ops=0.d0
+
+end module flops_tracker
+#endif
+
 #ifdef USE_CUDA
 module mpiDeviceUtil
   implicit none
