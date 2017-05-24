@@ -34,9 +34,8 @@ PROGRAM pwscf
   !
 #ifdef USE_CUDA
 !  USE mpiDeviceUtil, ONLY : assignDevice
-!  USE zheevd_cudafor,         ONLY : init_eigen_gpu
   USE mpiDeviceUtil, ONLY : assignDevice
-  USE zheevd_jdr,         ONLY : init_jdr
+  USE zhegvdx_gpu,         ONLY : init_eigvars_gpu
 
 #endif
   IMPLICIT NONE
@@ -55,10 +54,7 @@ PROGRAM pwscf
   ! This routine assigns a different GPU to each MPI rank in the same server
   CALL assignDevice( dev )
   print *,"Running on GPU dev = ",dev
-  CALL magmaf_init()
-  CALL init_jdr()
-!  CALL magmaf_init()  ! This will be removed once zheevd_cudafor works for every size
-!  CALL init_eigen_gpu()
+  CALL init_eigvars_gpu()
 #endif
 
   CALL environment_start ( 'PWSCF' )

@@ -71,7 +71,7 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 #ifdef USE_GPU
   USE cudafor
   USE cublas,           ONLY : cublasZtrsm
-  USE zheevd_jdr,       ONLY : zheevd_gpu
+  USE zhegvdx_gpu,      ONLY : zhegvdx_gpu
   USE zhegvx_module,    ONLY : h_temp,h_temp_d, s_temp,s_temp_d, hdiag,hdiag_d, sdiag,sdiag_d
   USE zhegvx_module,    ONLY : e_h, v_h, rwork_d, work_d, Z, jdr_min_size
 #else
@@ -152,7 +152,7 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
     write(*,"(A16,F8.1,A16,F8.1,A26)") "ZHEGVX: GPU has",rFreeMem,"MB available / ",rNeedMem,"MB required --> using CPU"
     cpu_path=1
   endif
-
+  
   if(cpu_path==1) then
     if(allocated(hdiag_d)) deallocate(hdiag_d)
     if(allocated(sdiag_d)) deallocate(sdiag_d)
@@ -321,24 +321,13 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 #ifdef USE_GPU
       if( cpu_path == 0 ) then
 
-        call magmaf_zpotrf_gpu('U', n, s, ldh, info)
-        call magmaf_zhegst_gpu( 1, 'U', n, h, ldh, s, ldh, info)
-        IF(n > jdr_min_size) THEN
-           call zheevd_gpu('V', 'U', 1, m, n, h, ldh, v, ldh, e, work_d, 2*lwork, rwork_d, 2*(1+5*n+2*n*n),  &
-                                                                 work  , 2*lwork, rwork  , 2*(1+5*n+2*n*n), iwork  , 2*(3+5*n), &
-                                                    v_h, ldh, e_h )
-           mm = m
-        ELSE
-           call magmaf_zheevdx_gpu('V', 'I', 'U', n, h, ldh, 0.D0, 0.D0, 1, m, mm, e_h, Z, ldh, work, 2*lwork, rwork, 2*(1+5*n+2*n*n), iwork, 2*(3+5*n), info)
-           v_h(1:ldh,1:m) = h(1:ldh,1:m)
-           v(1:ldh,1:m) = v_h(1:ldh,1:m)
-           e(1:n) = e_h(1:n)
-        END IF
-        call cublasZtrsm( 'L', 'U', 'N', 'N', n, mm, ONE, s, ldh, v, ldh )
-!        h = h_temp
-!        s = s_temp
-        v_h(1:ldh,1:m) = v(1:ldh,1:m)
-        e_h(1:n) = e(1:n)
+        call zhegvdx_gpu(n, h, ldh, s, ldh, v, ldh, 1, m, e, work_d,&
+                         2*lwork, rwork_d, 2*(1+5*n+2*n*n), &
+                         work, 2*lwork, rwork, 2*(1+5*n+2*n*n), &
+                         iwork, 2*(3+5*n), v_h, ldh, e_h)
+
+        info = 0 ! setting info to bypass error checking at end of function
+        mm = m
 
      else
 
