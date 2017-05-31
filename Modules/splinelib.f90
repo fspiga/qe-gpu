@@ -16,6 +16,9 @@ MODULE splinelib
   PRIVATE
   !
   PUBLIC :: dosplineint, spline, splint, splint_deriv
+  #ifdef USE_CUDA
+  PUBLIC :: splint_eq_gpu
+  #endif
   !
   INTERFACE dosplineint
      !
@@ -290,4 +293,49 @@ MODULE splinelib
       !
     END SUBROUTINE dosplineint_2D
     !
+#ifdef USE_CUDA
+    ! This subroutine is equivalent to calling splint for a list of x values with
+    ! an equispaced xdata interpolation grid with spacing dq, xdata = [0, dq, 2dq....]
+    !------------------------------------------------------------------------
+    SUBROUTINE splint_eq_gpu( dq, ydata, d2y, xlist, s)
+      !------------------------------------------------------------------------
+      !
+      USE cudafor
+      IMPLICIT NONE
+      !
+      REAL(DP), device, INTENT(IN) :: ydata(:), d2y(:), xlist(:)
+      REAL(DP), device, INTENT(OUT) :: s(:)
+      REAL(DP), INTENT(IN) :: dq
+      !
+      INTEGER  :: xdim, n, ig, khi, klo
+      REAL(DP) :: a, b, h, xlo, xhi, x
+      !
+      !
+
+      xdim = size(ydata)
+      n  = size(xlist)
+
+      !$cuf kernel do(1) <<<*,*>>>
+      do ig = 1, n
+        !
+        x = xlist(ig)
+        klo = MAX( MIN( int(x/dq) + 1, ( xdim - 1 ) ), 1 )
+        !
+        khi = klo + 1
+        !
+        xlo = (klo - 1) * dq
+        xhi = (khi - 1) * dq
+        h = xhi - xlo
+        !
+        a = ( xhi - x ) / h
+        b = ( x - xlo ) / h
+        !
+        s(ig) = a * ydata(klo) + b * ydata(khi) + &
+                 ( ( a*a*a - a ) * d2y(klo) + ( b*b*b - b ) * d2y(khi) ) * &
+                 ( h*h ) / 6.0_DP
+      end do
+
+      END SUBROUTINE splint_eq_gpu
+#endif
+
 END MODULE splinelib

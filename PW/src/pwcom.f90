@@ -38,7 +38,8 @@ MODULE klist
 #ifdef USE_CUDA
   ATTRIBUTES(PINNED) :: igk_k
   INTEGER, ALLOCATABLE, DEVICE :: &
-       igk_k_d(:,:)       ! index of G corresponding to a given index of k+G on GPU
+       igk_k_d(:,:),      &! index of G corresponding to a given index of k+G on GPU
+       ngk_d(:)            ! number of plane waves for each k point
        
 #endif
   !
@@ -344,7 +345,9 @@ MODULE us
        tab_at(:,:,:)     ! interpolation table for atomic wfc
 #ifdef USE_CUDA
   REAL(DP), DEVICE, ALLOCATABLE :: &
-       qrad_d(:,:,:,:) !,         &! radial FT of Q functions
+       qrad_d(:,:,:,:), &! radial FT of Q functions
+       tab_d(:,:,:),    &! interpolation table for PPs
+       tab_d2y_d(:,:,:)    ! for cubic splines
 #endif
   LOGICAL :: spline_ps = .false.
   REAL(DP), ALLOCATABLE :: &

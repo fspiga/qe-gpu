@@ -40,6 +40,7 @@ SUBROUTINE wfcinit()
   USE qes_libs_module,             ONLY : qes_reset_output
 #ifdef USE_CUDA
   USE uspp,                 ONLY : vkb_d
+  USE klist,                ONLY : igk_k_d
 #endif
   !
   IMPLICIT NONE
@@ -169,9 +170,10 @@ SUBROUTINE wfcinit()
      ! ... More Hpsi initialization: nonlocal pseudopotential projectors |beta>
      !
      IF ( nkb > 0 ) then
-        CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
 #ifdef USE_CUDA
-        vkb_d = vkb
+        CALL init_us_2_gpu( ngk(ik), igk_k_d(1,ik), xk(1,ik), vkb_d )
+#else
+        CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
 #endif
      END IF
      !

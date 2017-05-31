@@ -41,7 +41,7 @@ SUBROUTINE allocate_nlpot
 #ifdef USE_CUDA
   USE wvfct,            ONLY : g2kin_d
   USE uspp,             ONLY : indv_d, nhtolm_d, vkb_d, deeq_d, qq_d, becsum_d, indv_ijkb0_d
-  USE us,               ONLY : qrad_d
+  USE us,               ONLY : qrad_d, tab_d, tab_d2y_d
 #endif
   !
   IMPLICIT NONE
@@ -125,9 +125,15 @@ SUBROUTINE allocate_nlpot
   nqx = int( (sqrt (ecutwfc) / dq + 4) * cell_factor )
 
   ALLOCATE (tab( nqx , nbetam , nsp))
+#ifdef USE_CUDA
+  ALLOCATE(tab_d, source=tab)
+#endif
 
   ! d2y is for the cubic splines
   IF (spline_ps) ALLOCATE (tab_d2y( nqx , nbetam , nsp))
+#ifdef USE_CUDA
+  IF (spline_ps) ALLOCATE(tab_d2y_d, source=tab_d2y)
+#endif
 
   nwfcm = maxval ( upf(1:nsp)%nwfc )
   ALLOCATE (tab_at( nqx , nwfcm , nsp))

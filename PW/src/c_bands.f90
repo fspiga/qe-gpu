@@ -32,6 +32,7 @@ SUBROUTINE c_bands( iter )
   USE mp,                   ONLY : mp_sum
   USE check_stop,           ONLY : check_stop_now
 #ifdef USE_CUDA                                               
+  USE klist,                ONLY : igk_k_d
   USE uspp,                 ONLY : vkb_d                      
   USE wvfct,                ONLY : et_d
   USE nvtx                                                    
@@ -87,9 +88,10 @@ SUBROUTINE c_bands( iter )
      ! ... More stuff needed by the hamiltonian: nonlocal projectors
      !
      IF ( nkb > 0 ) then
-        CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
 #ifdef USE_CUDA
-        vkb_d = vkb
+        CALL init_us_2_gpu( ngk(ik), igk_k_d(1,ik), xk(1,ik), vkb_d ) 
+#else
+        CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
 #endif
      endif
      !
@@ -655,6 +657,7 @@ SUBROUTINE c_bands_nscf( )
   USE mp,                   ONLY : mp_sum
   USE check_stop,           ONLY : check_stop_now
 #ifdef USE_CUDA                                                                       
+  USE klist,                ONLY : igk_k_d
   USE uspp,                 ONLY : vkb_d                                              
 #endif                                                                                
   !
@@ -703,9 +706,10 @@ SUBROUTINE c_bands_nscf( )
      ! ... More stuff needed by the hamiltonian: nonlocal projectors
      !
      IF ( nkb > 0 ) then
-        CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
 #ifdef USE_CUDA                                                                       
-        vkb_d = vkb                                                                    
+        CALL init_us_2_gpu( ngk(ik), igk_k_d(1,ik), xk(1,ik), vkb_d )
+#else
+        CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
 #endif                                                                                
      endif
      !

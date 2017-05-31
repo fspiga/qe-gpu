@@ -875,6 +875,7 @@ init_us_2.o : ../../Modules/kind.o
 init_us_2.o : ../../Modules/recvec.o
 init_us_2.o : ../../Modules/splinelib.o
 init_us_2.o : ../../Modules/uspp.o
+init_us_2.o : addusdens.o
 init_us_2.o : pwcom.o
 init_us_b0.o : ../../Modules/atom.o
 init_us_b0.o : ../../Modules/cell_base.o
