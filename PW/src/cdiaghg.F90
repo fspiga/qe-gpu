@@ -324,9 +324,10 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
         call zhegvdx_gpu(n, h, ldh, s, ldh, v, ldh, 1, m, e, work_d,&
                          2*lwork, rwork_d, 2*(1+5*n+2*n*n), &
                          work, 2*lwork, rwork, 2*(1+5*n+2*n*n), &
-                         iwork, 2*(3+5*n), v_h, ldh, e_h)
+                         iwork, 2*(3+5*n), v_h, ldh, e_h, info)
 
-        info = 0 ! setting info to bypass error checking at end of function
+        ! Note: if zhegvdx_gpu fails, info = -1
+
         mm = m
 
      else
