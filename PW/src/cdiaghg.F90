@@ -71,7 +71,9 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 #ifdef USE_GPU
   USE cudafor
   USE cublas,           ONLY : cublasZtrsm
-  USE zhegvdx_gpu,      ONLY : zhegvdx_gpu
+  USE zheevd_gpu,       ONLY : zheevd_gpu
+  USE eigsolve_vars
+  USE zhegst_gpu
   USE zhegvx_module,    ONLY : h_temp,h_temp_d, s_temp,s_temp_d, hdiag,hdiag_d, sdiag,sdiag_d
   USE zhegvx_module,    ONLY : e_h, v_h, rwork_d, work_d, Z, jdr_min_size
 #else
@@ -321,14 +323,17 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 #ifdef USE_GPU
       if( cpu_path == 0 ) then
 
-        call zhegvdx_gpu(n, h, ldh, s, ldh, v, ldh, 1, m, e, work_d,&
-                         2*lwork, rwork_d, 2*(1+5*n+2*n*n), &
-                         work, 2*lwork, rwork, 2*(1+5*n+2*n*n), &
-                         iwork, 2*(3+5*n), v_h, ldh, e_h, info)
+        info =  cusolverDnZpotrf(cusolverHandle, CUBLAS_FILL_MODE_UPPER, n, s, ldh, work_d, 2*lwork, devInfo_d)
+        info = devInfo_d
 
-        ! Note: if zhegvdx_gpu fails, info = -1
-
+        call zhegst_gpu( 1, 'U', n, h, ldh, s, ldh, 448)
+        call zheevd_gpu('V', 'U', 1, m, n, h, ldh, v, ldh, e, work_d, 2*lwork, rwork_d, 2*(1+5*n+2*n*n),  &
+                                                                 work  , 2*lwork, rwork  , 2*(1+5*n+2*n*n), iwork  , 2*(3+5*n), &
+                                                    v_h, ldh, e_h,info )
         mm = m
+        call cublasZtrsm( 'L', 'U', 'N', 'N', n, mm, ONE, s, ldh, v, ldh )
+        v_h(1:ldh,1:m) = v(1:ldh,1:m)
+        e_h(1:n) = e(1:n)
 
      else
 
