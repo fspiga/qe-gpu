@@ -35,7 +35,6 @@ PROGRAM pwscf
 #ifdef USE_CUDA
 !  USE mpiDeviceUtil, ONLY : assignDevice
   USE mpiDeviceUtil, ONLY : assignDevice
-  USE zhegvdx_gpu,         ONLY : init_eigsolve_gpu
 
 #endif
   IMPLICIT NONE
@@ -54,7 +53,6 @@ PROGRAM pwscf
   ! This routine assigns a different GPU to each MPI rank in the same server
   CALL assignDevice( dev )
   print *,"Running on GPU dev = ",dev
-  CALL init_eigsolve_gpu()
 #endif
 
   CALL environment_start ( 'PWSCF' )
