@@ -12,7 +12,8 @@ AC_ARG_ENABLE(parallel,
       use_parallel=0
    fi],
    [set_use_parallel=0 use_parallel=1])
-   
+
+
 # candidate fortran compilers good for all cases
 try_mpif90="mpif90"
 try_f90="gfortran g95 f90"
@@ -216,6 +217,12 @@ case "$arch" in
         f90=$f90_in_mpif90
         ;;
 esac
+
+if test "$use_parallel" -eq 0
+then
+  AC_MSG_ERROR([*** MPI in required!])
+fi
+
 
 echo setting F90... $f90
 echo setting MPIF90... $mpif90

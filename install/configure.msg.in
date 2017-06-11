@@ -5,14 +5,10 @@ but may fail if they have been installed in non-standard locations.
 If a required library is not found, the local copy will be compiled.
 
 The following libraries have been found:
-  @blas_line@
-  @lapack_line@
+
+  @mathlib_line@
   @scalapack_line@
-  @elpa_line@
-  @fft_line@
-  @mpi_line@
-  @hdf5_line@
-  @mass_line@
+
 Please check if this is what you expect.
 
 If any libraries are missing, you may specify a list of directories
@@ -21,5 +17,4 @@ to search and retry, as follows:
 
 @parallel_report@
 
-For more info, read the ESPRESSO User's Guide (Doc/users-guide.tex).
 --------------------------------------------------------------------

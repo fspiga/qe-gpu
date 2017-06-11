@@ -60,7 +60,7 @@ try_cpp="cpp"
 
 case "$arch:$cc" in
 *:pgcc )
-        try_cflags="-fast"
+        try_cflags="-fast -Mpreprocess"
         ;;
 # pathcc -E seems to give problems when preprocessing iotk
 #*:pathcc )

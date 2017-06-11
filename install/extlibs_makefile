@@ -1,4 +1,5 @@
 # Copyright (C) 2001-2016 Quantum ESPRESSO group
+# Copyright (C) 2017 Filippo Spiga
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -6,48 +7,30 @@
 # of the License. See the file `License' in the root directory
 # of the present distribution.
 #
-# Makefile for fundamental math libraries
+# Makefile for fundamental CPU/GPU math libraries
 
 include ../make.inc
 include install_utils
 
 #.NOTPARALLEL: liblapack_internal
 
-# NETLIB targets
-#BLAS_NETLIB=blas-3.6.0.tgz
-#BLAS_NETLIB_NAME=BLAS-3.6.0
-#BLAS_NETLIB_URL=http://www.netlib.org/blas/${BLAS_NETLIB}
-
 LAPACK_NETLIB=lapack-3.6.1.tgz
 LAPACK_NETLIB_NAME=lapack-3.6.1
 LAPACK_NETLIB_URL=http://www.netlib.org/lapack/${LAPACK_NETLIB}
 
-#
-# MAIN target
-#
 all: 
-	$(MAKE) libblas_$(BLAS_LIBS_SWITCH) 
-	$(MAKE) liblapack_$(LAPACK_LIBS_SWITCH) 
+	$(MAKE) liblapack_$(NETLIB_LIBS_SWITCH) 
 	$(MAKE) libelpa_internal 
 	$(MAKE) libiotk 
 
-libblas : libblas_$(BLAS_LIBS_SWITCH)
-
-libblas_external : fake_blas_external
+libblas : fake_blas_external
 
 fake_blas_external :
 	touch fake_libblas.a
 	-rm fake_libblas.a
 
-#libblas_internal:
-#	$(call download_and_unpack,$(BLAS_NETLIB_NAME),$(BLAS_NETLIB_URL),BLAS,BLAS)
-#	if test -e make_blas.inc; then \
-#	(cp make_blas.inc ../BLAS/make.inc; \
-#	cd ../BLAS; $(MAKE) ); else \
-#        (echo "no configuration file found for blas"; \
-#	echo "run configure from main QE dir"; exit); fi
 
-liblapack : liblapack_$(LAPACK_LIBS_SWITCH) 
+liblapack : liblapack_$(NETLIB_LIBS_SWITCH) 
 
 liblapack_external : fake_lapack_external
 
@@ -76,37 +59,11 @@ libiotk:
 	ln -fs ../S3DE/iotk/src/iotk_print_kinds.x .; \
 	cd ../; ln -fs S3DE/iotk iotk
 	
-# ELPA
-libelpa : libelpa_$(ELPA_LIBS_SWITCH)
-
-libelpa_ : fake_elpa_external
-libelpa_disabled : fake_elpa_external
-
-fake_elpa_external :
-	touch fake_libelpa.a
-	-rm fake_libelpa.a
-
-libelpa_enabled:
-	if test ! -d ../ELPA; then \
-	( gzip -dc ../archive/ELPA-0.3.tar.gz |(cd ../; tar -xvf -)); fi
-	cd ../ELPA; $(MAKE)
-	
-###################################
 # cleaning
-###################################
-# each lib independently
-#blas_clean:
-#	if test -d ../BLAS; then (cd ../BLAS; $(MAKE) clean); fi
-#blas_veryclean:
-#	if test -d ../BLAS; then (rm -R -f ../BLAS ../${BLAS_NETLIB_NAME}); fi
 lapack_clean:
 	if test -d ../LAPACK; then (cd ../LAPACK; $(MAKE) clean); fi
 lapack_veryclean:
 	if test -d ../LAPACK; then (rm -R -f ../LAPACK ../${LAPACK_NETLIB_NAME}); fi
-elpa_clean:
-	if test -d ../ELPA; then (cd ../ELPA; $(MAKE) clean); fi
-elpa_veryclean:
-	if test -d ../ELPA; then (rm -R -f ../ELPA); fi
 iotk_clean:
 	if test -d ../S3DE; then (cd ../S3DE; $(MAKE) clean); fi
 	if test -d ../iotk; then (rm -R -f ../iotk); fi
@@ -125,7 +82,5 @@ iotk_veryclean:
 	rm -f ../iotk
 
 # general cleaning
-#clean: blas_clean lapack_clean elpa_clean iotk_clean
-#veryclean: blas_veryclean lapack_veryclean elpa_veryclean iotk_veryclean
-clean: lapack_clean elpa_clean iotk_clean
-veryclean: lapack_veryclean elpa_veryclean iotk_veryclean
+clean: lapack_clean iotk_clean
+veryclean: lapack_veryclean iotk_veryclean

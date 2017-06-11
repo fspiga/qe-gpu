@@ -27,6 +27,7 @@ AC_ARG_ENABLE(shared,
 # check Fortran compiler flags
 # have_cpp=0: use external C preprocessing for fortran code
 # have_cpp=1: use C-like preprocessing in fortran compiler
+have_pgi=0
 have_cpp=1
 xlf_flags=0
 
@@ -69,15 +70,16 @@ x86_64:nagfor* )
         ;;
 ia32:pgf* | ia64:pgf* | x86_64:pgf* )
 	    try_fflags_nomain="-Mnomain"
-        try_fflags="-fast -r8"
+        try_fflags="-O3 -r8 -Mpreprocess"
         try_fflags_openmp="-mp"
-        try_f90flags="-fast -r8 -Mcache_align"
+        try_f90flags="-O3 -r8 -Mpreprocess -Mcache_align"
         try_fflags_noopt="-O0"
         try_ldflags=""
         try_ldflags_openmp="-mp"
         try_ldflags_static="-Bstatic"
         try_dflags="$try_dflags -D__PGI"
         have_cpp=0
+        have_pgi=1
         ;;
 ia32:path* | ia64:path* | x86_64:path* )
         try_fflags="-march=auto -O2"
@@ -273,6 +275,11 @@ ppc64-bgq:*xlf* )
         ;;
 
 esac
+
+if test "$have_pgi" -eq 0
+then
+  AC_MSG_ERROR([*** PGI compiler not detected!])
+fi
 
 if test "$use_shared" -eq 0 ; then
   try_ldflags="$try_ldflags $try_ldflags_static" ; fi

@@ -1,4 +1,5 @@
 # Copyright (C) 2001-2016 Quantum ESPRESSO group
+# Copyright (C) 2017      Filippo Spiga
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -6,7 +7,7 @@
 # of the License. See the file `License' in the root directory
 # of the present distribution.
 
-AC_INIT(ESPRESSO, 6.0-beta, , espresso)
+AC_INIT(QE-GPU, 0.1, , qe-gpu)
 
 # Do not use Autoconf 2.69 
 AC_PREREQ(2.60)
@@ -39,9 +40,6 @@ X_AC_QE_OPENMP()
 # Checking MPIF90...
 X_AC_QE_MPIF90()
 
-# Check environ...
-X_AC_QE_ENVIRON()
-
 # Checking CC...
 X_AC_QE_CC()
 
@@ -60,6 +58,9 @@ X_AC_QE_CPP()
 # Checking linker...
 X_AC_QE_LD()
 
+# Checking GPU support... (default: yes)
+X_AC_QE_GPU()
+
 # Checking F90 rule...
 X_AC_QE_F90RULE()
 
@@ -72,43 +73,28 @@ FFLAGS="$test_fflags"
 LDFLAGS="$test_ldflags"
 
 # Checking BLAS...
-X_AC_QE_BLAS()
-
-# Checking LAPACK...
-X_AC_QE_LAPACK()
+X_AC_QE_MATHLIB()
 
 # Checking for FFT...
 X_AC_QE_FFT()
 
 # Checking for IBM MASS library...
-X_AC_QE_MASS()
+#X_AC_QE_MASS()
 
 # check for MPI library...
 X_AC_QE_MPI()
 
-# Setting ScaLAPACK...
+# Setting ScaLAPACK... (default: no)
 X_AC_QE_SCALAPACK()
 
-# Setting ELPA...
-X_AC_QE_ELPA()
-
-# Enable XML ...
-X_AC_QE_XML()
-
-# Setting HDF5...
-X_AC_QE_HDF5()
-
 # Checking SIGNAL...
-X_AC_QE_SIGNAL()
+#X_AC_QE_SIGNAL()
 
 # Checking for ranlib...
 X_AC_QE_RANLIB()
 
 # Checking wget or curl...
 X_AC_QE_WGET()
-
-# Checking for GPU support ...
-X_AC_QE_GPU()
 
 # Show dflags before adding $(MANUAL_DFLAGS) and adapt to XLF (if needed)
 if test "$dflags" = "" ; then dflags="$try_dflags" ; fi
@@ -132,14 +118,11 @@ AC_CONFIG_HEADERS([include/c_defs.h:include/c_defs.h.in])
 AC_CONFIG_FILES([include/fft_defs.h:include/fft_defs.h.in])
 AC_CONFIG_FILES([include/configure.h:include/configure.h.in])
 
-#AC_CONFIG_FILES(Makefile.cpu)
 AC_CONFIG_FILES(make.inc)
 AC_CONFIG_FILES(configure.msg)
-AC_CONFIG_FILES(install/make_wannier90.inc)
 
 
 AC_OUTPUT
 
 # final messages
 sed '/@delete@/d' configure.msg
-echo configure: success

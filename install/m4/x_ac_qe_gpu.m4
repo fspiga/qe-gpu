@@ -3,35 +3,44 @@
 AC_DEFUN([X_AC_QE_GPU], [
 
 AC_ARG_ENABLE(gpu,
-   [AS_HELP_STRING([--enable-gpu=<arch|no>],
-       [Compile with GPU support (Supported arch: {Kepler, Pascal}, default: no)])],
-   [if   test "$enableval" = "yes" ; then
-      use_gpu=1
-      gpu_arch="$withval"
-   else
+   [AS_HELP_STRING([--enable-gpu=<arch>],
+       [Compile with GPU support (Supported arch: {kepler, pascal}, default: pascal)])],
+   [if test "$enableval" = "no" ; then
       use_gpu=0
-   fi],
-   [use_gpu=0])
-
-
-AC_ARG_WITH(gpu-profiling,
-   [AS_HELP_STRING([--with-gpu-profiling],
-       [Enable NVTX profiling information (default: no)])],
-   [if  test "$withval" = "no" ; then
-      with_nvtx=0
    else
-      with_nvtx=1
+      use_gpu=1
+      gpu_arch="$enableval"
    fi],
-   [with_nvtx=0])
-
-AC_ARG_WITH(cuda_dir,
-   [AS_HELP_STRING([--with-cuda-dir=<path>],
-    [Specify CUDA installation directory (default is /usr/local/cuda/ - MANDATORY)])],
-    [cuda_path="$withval"],
-    [cuda_path="/usr/local/cuda/"])
+   [use_gpu=1 gpu_arch="pascal"])
 
 with_nvtx=0
-use_gpu=0
+gpu_arch_num=60
 
+if test "$use_gpu" -eq 1
+then
+  case "$gpu_arch" in
+    kepler | Kepler | KEPLER ) 
+      gpu_arch_num=35
+      ;;
+    pascal | Pascal | PASCAL ) 
+      gpu_arch_num=60
+      ;;
+    *)
+      AC_MSG_ERROR([ *** GPU arch must be one of: kepler, pascal ])
+      ;;
+    esac
+else
+  AC_MSG_ERROR([ *** GPU acceleration must be enable ])
+fi
+
+
+  try_dflags="$try_dflags -DUSE_CUDA"
+
+  try_iflags="$try_iflags -I\$(TOPDIR)/Eigensolver_gpu-0.1/lib_eigsolve"
+
+  f90flags="$f90flags -Mcuda=cc$gpu_arch_num,cuda8.0 -Mlarge_arrays"
+
+  ldflags="$ldflags -Mcuda=cc$gpu_arch_num,cuda8.0 -Mlarge_arrays"
+  ld_libs="$ld_libs -Mcudalib=cufft,cublas,cusolver \$(TOPDIR)/Eigensolver_gpu-0.1/lib_eigsolve/lib_eigsolve.a"
   ]
 )

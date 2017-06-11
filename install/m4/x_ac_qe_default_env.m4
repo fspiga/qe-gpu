@@ -29,16 +29,9 @@ f90flags=$F90FLAGS # Flags for Fortran 90 compiler only
 ld=$LD             # Loader (must be in the execution path)
 ldflags=$LDFLAGS   # Flags for loader
 ld_libs=$LD_LIBS   # Additional libraries
-blas_libs=$BLAS_LIBS     # blas library - specify e.g. /my/blas/lib/libmyblas.a
-                         # or -L/my/blas/lib -lmyblas
-lapack_libs=$LAPACK_LIBS # lapack library, similar to above
-fft_libs=$FFT_LIBS       # FFT libraries - may depend upon DFLAGS
-mpi_libs=$MPI_LIBS       # MPI libraries - shouldn't be needed
-mass_libs=$MASS_LIBS     # MASS libraries (IBM only)
 libdirs=$LIBDIRS         # Where to look for libraries (e.g. /my/blas/lib)
 scalapack_libs=$SCALAPACK_LIBS # scalapack libs
 scalapack_dir=$SCALAPACK_LIB  # Where to look for scalapack libs
-blacs_dir=$BLACS_LIB          # Where to look for libblacs.a
 ar=$AR                   # ar (shouldn't be needed)
 arflags=$ARFLAGS         # Flags for ar (as above)
 extlib_flags=$EXTLIB_FLAGS # Flags for internal copies of lapack and blas

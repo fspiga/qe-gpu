@@ -45,6 +45,12 @@ Configured for compilation of parallel executables."
                 parallel_report="Parallel environment not detected \
 \(is this a parallel machine?\).\\
 Configured for compilation of serial executables."
+
+  if test "$use_parallel" -eq 0
+  then
+    AC_MSG_ERROR([*** MPI in required!])
+  fi
+
         fi
 else
         parallel_report="Configured for compilation of serial executables."
