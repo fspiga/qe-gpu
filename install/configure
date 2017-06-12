@@ -643,6 +643,7 @@ host_cpu
 host
 f90rule
 SET_MAKE
+gpu_arch_num
 ldflags
 ld
 cppflags
@@ -5699,6 +5700,11 @@ fi
   ld_libs="$ld_libs -Mcudalib=cufft,cublas,cusolver \$(TOPDIR)/Eigensolver_gpu-0.1/lib_eigsolve/lib_eigsolve.a"
 
 
+  ac_config_files="$ac_config_files install/Makefile.lib_eigsolve:install/Makefile.lib_eigsolve.in"
+
+
+
+
 
 # Checking F90 rule...
 
@@ -7843,6 +7849,7 @@ cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
 for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
+    "install/Makefile.lib_eigsolve") CONFIG_FILES="$CONFIG_FILES install/Makefile.lib_eigsolve:install/Makefile.lib_eigsolve.in" ;;
     "install/make_lapack.inc") CONFIG_FILES="$CONFIG_FILES install/make_lapack.inc" ;;
     "include/c_defs.h") CONFIG_HEADERS="$CONFIG_HEADERS include/c_defs.h:include/c_defs.h.in" ;;
     "include/fft_defs.h") CONFIG_FILES="$CONFIG_FILES include/fft_defs.h:include/fft_defs.h.in" ;;

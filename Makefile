@@ -117,7 +117,7 @@ all	:	pw
 # compile modules, libraries, directory for binaries, etc
 ###########################################################
 
-libla : touch-dummy liblapack
+libla : touch-dummy libeigensolver_gpu liblapack
 	( cd LAXlib ; $(MAKE) TLDEPS= all || exit 1 )
 
 libfft : touch-dummy
@@ -139,13 +139,15 @@ bindir :
 # Targets for external libraries
 ############################################################
 
-libblas : touch-dummy
-	cd install ; $(MAKE) -f extlibs_makefile $@
+libblas : liblapack
 
 liblapack: touch-dummy
 	cd install ; $(MAKE) -f extlibs_makefile $@
 
-libiotk: touch-dummy
+libeigensolver_gpu: touch-dummy
+	cd install ; $(MAKE) -f extlibs_makefile $@
+
+libiotk: libeigensolver_gpu touch-dummy
 	cd install ; $(MAKE) -f extlibs_makefile $@
 
 # In case of trouble with iotk and compilers, add

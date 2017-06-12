@@ -12,24 +12,22 @@
 include ../make.inc
 include install_utils
 
-#.NOTPARALLEL: liblapack_internal
+# .NOTPARALLEL: liblapack_internal libeigensolver_gpu
 
 LAPACK_NETLIB=lapack-3.6.1.tgz
 LAPACK_NETLIB_NAME=lapack-3.6.1
 LAPACK_NETLIB_URL=http://www.netlib.org/lapack/${LAPACK_NETLIB}
 
+EIGENSOLVER_GPU=v0.1.tar.gz
+EIGENSOLVER_GPU_NAME=Eigensolver_gpu-0.1
+EIGENSOLVER_GPU_URL=https://github.com/NVIDIA/Eigensolver_gpu/archive/${EIGENSOLVER_GPU}
+
 all: 
 	$(MAKE) liblapack_$(NETLIB_LIBS_SWITCH) 
-	$(MAKE) libelpa_internal 
+	$(MAKE) libeigensolver_gpu
 	$(MAKE) libiotk 
 
-libblas : fake_blas_external
-
-fake_blas_external :
-	touch fake_libblas.a
-	-rm fake_libblas.a
-
-
+libblas	:	liblapack
 liblapack : liblapack_$(NETLIB_LIBS_SWITCH) 
 
 liblapack_external : fake_lapack_external
@@ -46,7 +44,15 @@ liblapack_internal:
         (echo "no configuration file found for lapack"; \
          echo "run configure from main QE dir"; exit); fi 
 
-libiotk:
+
+libeigensolver_gpu:
+	$(call download_and_unpack,$(EIGENSOLVER_GPU_NAME),$(EIGENSOLVER_GPU_URL),EIGENSOLVER_GPU,EIGENSOLVER_GPU)
+	if test ! -e ../Eigensolver_gpu-0.1/lib_eigsolve/lib_eigsolve.a && test -e Makefile.lib_eigsolve; then \
+    (cp Makefile.lib_eigsolve ../Eigensolver_gpu-0.1/lib_eigsolve/Makefile; \
+    cd ../Eigensolver_gpu-0.1/lib_eigsolve/; $(MAKE) ); else \
+        (echo "no configuration file found for GPU custom eigensolver"; exit); fi
+
+libiotk: 
 	if test ! -d ../S3DE; then \
 	(gzip -dc ../archive/iotk-1.2.beta.tar.gz | (cd ../; tar -xvf -)) ; \
 	if test -e Makefile_iotk; then \
@@ -80,7 +86,11 @@ iotk_veryclean:
 	rm -f ../bin/iotk.x; \
 	rm -f ../bin/iotk_print_kinds.x; \
 	rm -f ../iotk
+libeigensolver_gpu_clean:
+	if test -d ../EIGENSOLVER_GPU; then (cd ../EIGENSOLVER_GPU; $(MAKE) clean); fi
+libeigensolver_gpu_veryclean:
+	if test -d ../EIGENSOLVER_GPU; then (rm -R -f ../EIGENSOLVER_GPU ../${EIGENSOLVER_GPU_NAME}); fi
 
 # general cleaning
-clean: lapack_clean iotk_clean
-veryclean: lapack_veryclean iotk_veryclean
+clean: lapack_clean iotk_clean libeigensolver_gpu_clean
+veryclean: lapack_veryclean iotk_veryclean libeigensolver_gpu_veryclean
