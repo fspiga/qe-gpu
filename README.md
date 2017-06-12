@@ -24,7 +24,7 @@ The freely available compiler suite
 required to use QE-GPU. It containes CUDA SDK 8.0 and pre-built Open MPI for
 parallel execution (check the
 [PGI Instalation Guide](http://www.pgroup.com/doc/pgiinstall174.pdf) how to
-install it). **No other compilers are supported**.
+install it). PGI 17.4 or above is required, **no other compilers are supported**.
 
 You need data-centre grade NVIDIA TESLA Kepler (K20, K40, K80) or NVIDIA TESLA
 Pascal (P100) compute GPUs. No other cards are supported. NVIDIA TESLA P100 is
