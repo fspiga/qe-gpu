@@ -20,7 +20,7 @@ MODULE environment
       nproc_image
   USE mp_pools,  ONLY: npool
   USE mp_bands,  ONLY: ntask_groups, nproc_bgrp, nbgrp
-  USE global_version, ONLY: version_number, svn_revision
+  USE global_version, ONLY: version_number, svn_revision, gpu_version_number
 
   IMPLICIT NONE
 
@@ -63,8 +63,9 @@ CONTAINS
     CALL start_clock( TRIM(code) )
 
     code_version = TRIM (code) // " v." // TRIM (version_number)
-    IF ( TRIM (svn_revision) /= "unknown" ) code_version = &
-         TRIM (code_version) // " (svn rev. " // TRIM (svn_revision) // ")"
+!    IF ( TRIM (svn_revision) /= "unknown" ) code_version = &
+!         TRIM (code_version) // " (svn rev. " // TRIM (svn_revision) // ")"
+    code_version = TRIM (code_version) // " (gpu tag v" // TRIM (gpu_version_number) // ")"
 
     ! ... for compatibility with PWSCF
 

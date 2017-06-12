@@ -53,7 +53,9 @@ SUBROUTINE stop_run( exit_status )
   CALL clean_pw( .TRUE. )
   !
 #ifdef USE_CUDA
+#if defined(__GPU_DEBUG)
   print *,"calling cudaThreadExit"
+#endif
   istat = cudaThreadExit
   !
 #endif

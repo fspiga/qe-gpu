@@ -1,4 +1,4 @@
-- [Report new Bug Issue](.github/ISSUE_TEMPLATE.md)
+- [Report new Bug Issue](https://github.com/RSE-Cambridge/qe-gpu/issues/new)
 - [Guidelines for Contributing](CONTRIBUTING.md)
 - [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md)
 - [Project License](License)
