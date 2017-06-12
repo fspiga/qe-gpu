@@ -265,7 +265,9 @@
 
        !   no table exist for these parameters
        !   initialize a new one
+#if defined(__GPU_DEBUG)
        print *,"INIT CUFFT Z PLAN: ",nz,"x",nsl
+#endif
        CALL init_plan()
 
      END IF
@@ -691,7 +693,6 @@
 
        !   no table exist for these parameters
        !   initialize a new one
-!       print *,"XY PLAN NOT FOUND, INIT CUFFT XY PLAN NOW!"
        CALL init_plan()
 
      END IF
@@ -871,7 +872,9 @@
        IF( cufft_plan_y( 1, icurrent) /= 0 )  istat = cufftDestroy( cufft_plan_y(1,icurrent) )
        IF( cufft_plan_y( 2, icurrent) /= 0 )  istat = cufftDestroy( cufft_plan_y(2,icurrent) )
 
+#if defined(__GPU_DEBUG)
        print *,"INIT CUFFT XY PLAN: ",nx,"x",ny,"x",nzl
+#endif
 
        istat = cufftPlanMany( cufft_plan_x( icurrent), RANK, FFT_DIM_X, &
                               DATA_DIM_X, STRIDE_X, DIST_X, &
