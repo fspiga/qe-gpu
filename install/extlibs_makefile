@@ -70,6 +70,7 @@ lapack_clean:
 	if test -d ../LAPACK; then (cd ../LAPACK; $(MAKE) clean); fi
 lapack_veryclean:
 	if test -d ../LAPACK; then (rm -R -f ../LAPACK ../${LAPACK_NETLIB_NAME}); fi
+	rm -f make_lapack.inc
 iotk_clean:
 	if test -d ../S3DE; then (cd ../S3DE; $(MAKE) clean); fi
 	if test -d ../iotk; then (rm -R -f ../iotk); fi
@@ -90,6 +91,7 @@ libeigensolver_gpu_clean:
 	if test -d ../EIGENSOLVER_GPU; then (cd ../EIGENSOLVER_GPU; $(MAKE) clean); fi
 libeigensolver_gpu_veryclean:
 	if test -d ../EIGENSOLVER_GPU; then (rm -R -f ../EIGENSOLVER_GPU ../${EIGENSOLVER_GPU_NAME}); fi
+	rm -f Makefile.lib_eigsolve
 
 # general cleaning
 clean: lapack_clean iotk_clean libeigensolver_gpu_clean
