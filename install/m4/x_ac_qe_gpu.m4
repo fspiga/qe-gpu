@@ -11,9 +11,8 @@ AC_ARG_ENABLE(gpu,
       use_gpu=1
       gpu_arch="$enableval"
    fi],
-   [use_gpu=1 gpu_arch="pascal"])
+   [use_gpu=1])
 
-with_nvtx=0
 gpu_arch_num=60
 
 if test "$use_gpu" -eq 1
@@ -22,7 +21,7 @@ then
     kepler | Kepler | KEPLER ) 
       gpu_arch_num=35
       ;;
-    pascal | Pascal | PASCAL ) 
+    yes | pascal | Pascal | PASCAL ) 
       gpu_arch_num=60
       ;;
     *)
