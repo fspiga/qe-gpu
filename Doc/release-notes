@@ -1,16 +1,16 @@
-New in svn version:
+New in svn r13374 version:
 
   * Hybrid functionals with PAW now work
   * Optimized tetrahedron method, contributed by Mitsuaki Kawamura, U. Tokyo
 
-Incompatible changes in svn version:
+Incompatible changes in svn r13374 version:
 
   * Routine h_psiq deleted, replaced by h_psi
   * Many variables related to tetrahedron method moved around
   * Functions set_sym and find_sym no longer require FFT grid dimensions as 
     input arguments, no longer force consistency of symmetries with FFT grids
 
-Fixed in svn version
+Fixed in svn r13374 version
 
   * pwi2xsf utility, also used in XCrysDen: various fixes (r13197)
   * PP: incorrect results in "projwfc.x" with PAW projection due to a 
