@@ -19,12 +19,11 @@ please refer to the guidelines in [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ### Requirements
 
-The freely available compiler suite
-[PGI Community Edition](http://www.pgroup.com/products/community.htm) is
-required to use QE-GPU. It containes CUDA SDK 8.0 and pre-built Open MPI for
-parallel execution (check the
-[PGI Instalation Guide](http://www.pgroup.com/doc/pgiinstall174.pdf) how to
-install it). PGI 17.4 or above is required, **no other compilers are supported**.
+The [PGI](http://www.pgroup.com/products/community.htm) compiler version 17.4 
+or above is required to use QE-GPU. It containes CUDA SDK 8.0 and pre-built 
+Open MPI for parallel execution (check the
+[PGI Instalation Guide](http://www.pgroup.com/doc/pgiinstall174.pdf) how to 
+install it). **no other compilers are supported**
 
 You need data-centre grade NVIDIA TESLA Kepler (K20, K40, K80) or NVIDIA TESLA
 Pascal (P100) compute GPUs. No other cards are supported. NVIDIA TESLA P100 is
@@ -46,7 +45,7 @@ make pw
 support. Binaries go in "bin/". Additional configure options are made
 available to customize the building process:
 
-* `--enable-gpu=<kepler|pascal>` to enable GPU support (default: on, "pascal"
+* `--enable-gpu=<kepler|pascal>` to enable GPU support (default: "pascal"
 architecture selected)
 
 The QE-GPU package has been reduced in size to the minimum essential. For more
