@@ -36,7 +36,19 @@ crayxt*:pgf* )
         have_cpp=0
         have_pgi=1
         ;;
-ppc64*:xlf* )
+ppc64:pgf* )
+        try_fflags_nomain="-Mnomain"
+        try_fflags="-O3 -Mpreprocess"
+        try_fflags_openmp="-mp"
+        try_f90flags="-O3 -Mpreprocess -Mcache_align"
+        try_fflags_noopt="-O0"
+        try_ldflags=""
+        try_ldflags_openmp="-mp"
+        try_dflags="$try_dflags -D__PGI"
+        have_cpp=0
+        have_pgi=1
+        ;;
+ppc64:xlf* )
         # Need review
         try_f90flags="\$(FFLAGS) -qfree=f90"
         try_fflags_noopt="-q64 -qthreaded -O0"

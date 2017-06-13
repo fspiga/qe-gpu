@@ -9,12 +9,6 @@ case "$arch:$f90_flavor" in
 *:pgf* )
         try_cc="pgcc $try_cc"
         ;;
-cray*:* )
-        try_cc="cc"
-        ;;
-ppc64*:xlf* )
-        try_cc="xlc_r $try_cc"
-        ;;
 esac
 
 # check serial C compiler
@@ -34,17 +28,6 @@ try_cpp="cpp"
 case "$arch:$cc" in
 *:pgcc )
         try_cflags="-fast -Mpreprocess"
-        ;;
-aix:xlc* | aix:cc )
-        try_cflags="-q64 -O2"
-        c_ldflags="-q64"
-        ;;
-crayxt*:cc )
-        try_cflags="-O3"
-        ;;
-ppc64*:xlc*)
-        try_cflags="-O3 -q64 -qthreaded"
-        c_ldflags="-q64"
         ;;
 esac
 if test "$cflags" = "" ; then cflags=$try_cflags ; fi

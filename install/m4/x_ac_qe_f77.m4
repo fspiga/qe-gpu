@@ -9,9 +9,6 @@ case "$arch:$f90_flavor" in
 *:pgf* )
         try_f77="pgf77 $f90"
         ;;
-ppc64*:xlf* )
-        try_f77="xlf_r $f90"
-        ;;
 esac
 
 # check serial Fortran 77 compiler (use F77 if it was set)

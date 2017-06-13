@@ -78,17 +78,11 @@ X_AC_QE_MATHLIB()
 # Checking for FFT...
 X_AC_QE_FFT()
 
-# Checking for IBM MASS library...
-#X_AC_QE_MASS()
-
 # check for MPI library...
 X_AC_QE_MPI()
 
 # Setting ScaLAPACK... (default: no)
 X_AC_QE_SCALAPACK()
-
-# Checking SIGNAL...
-#X_AC_QE_SIGNAL()
 
 # Checking for ranlib...
 X_AC_QE_RANLIB()
