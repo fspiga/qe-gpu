@@ -2813,257 +2813,6 @@ $as_echo "$ac_try_echo"; } >&5
 done
 rm -f a.out
 
-# If we don't use `.F' as extension, the preprocessor is not run on the
-# input file.  (Note that this only needs to work for GNU compilers.)
-ac_save_ext=$ac_ext
-ac_ext=F
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether we are using the GNU Fortran compiler" >&5
-$as_echo_n "checking whether we are using the GNU Fortran compiler... " >&6; }
-if ${ac_cv_fc_compiler_gnu+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  cat > conftest.$ac_ext <<_ACEOF
-      program main
-#ifndef __GNUC__
-       choke me
-#endif
-
-      end
-_ACEOF
-if ac_fn_fc_try_compile "$LINENO"; then :
-  ac_compiler_gnu=yes
-else
-  ac_compiler_gnu=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-ac_cv_fc_compiler_gnu=$ac_compiler_gnu
-
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_fc_compiler_gnu" >&5
-$as_echo "$ac_cv_fc_compiler_gnu" >&6; }
-ac_ext=$ac_save_ext
-ac_test_FCFLAGS=${FCFLAGS+set}
-ac_save_FCFLAGS=$FCFLAGS
-FCFLAGS=
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether $FC accepts -g" >&5
-$as_echo_n "checking whether $FC accepts -g... " >&6; }
-if ${ac_cv_prog_fc_g+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  FCFLAGS=-g
-cat > conftest.$ac_ext <<_ACEOF
-      program main
-
-      end
-_ACEOF
-if ac_fn_fc_try_compile "$LINENO"; then :
-  ac_cv_prog_fc_g=yes
-else
-  ac_cv_prog_fc_g=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_prog_fc_g" >&5
-$as_echo "$ac_cv_prog_fc_g" >&6; }
-if test "$ac_test_FCFLAGS" = set; then
-  FCFLAGS=$ac_save_FCFLAGS
-elif test $ac_cv_prog_fc_g = yes; then
-  if test "x$ac_cv_fc_compiler_gnu" = xyes; then
-    FCFLAGS="-g -O2"
-  else
-    FCFLAGS="-g"
-  fi
-else
-  if test "x$ac_cv_fc_compiler_gnu" = xyes; then
-    FCFLAGS="-O2"
-  else
-    FCFLAGS=
-  fi
-fi
-
-if test $ac_compiler_gnu = yes; then
-  GFC=yes
-else
-  GFC=
-fi
-ac_ext=${ac_fc_srcext-f}
-ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
-ac_link='$FC -o conftest$ac_exeext $FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
-ac_compiler_gnu=$ac_cv_fc_compiler_gnu
-
-
-
-
-# Check whether --enable-parallel was given.
-if test "${enable_parallel+set}" = set; then :
-  enableval=$enable_parallel; set_use_parallel=1
-    if   test "$enableval" = "yes" ; then
-      use_parallel=1
-   else
-      use_parallel=0
-   fi
-else
-  set_use_parallel=0 use_parallel=1
-fi
-
-
-
-# candidate fortran compilers good for all cases
-try_mpif90="mpif90"
-try_f90="gfortran g95 f90"
-
-# candidate compilers and flags based on architecture
-case $arch in
-x86_64 | ppc64 )
-        try_f90="pgf90 $try_f90"
-        ;;
-* )
-        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $arch : unsupported architecture?" >&5
-$as_echo "$as_me: WARNING: $arch : unsupported architecture?" >&2;}
-        ;;
-esac
-
-# check serial Fortran 90 compiler. This must be done before performing
-# the check for the parallel compiler (section below) because option
-# --disable-parallel will do very strange things otherwise. The reason
-# seems to be that autoconf does not repeat all tests for the second
-# occurrence of AC_PROG_FC. So the first occurrence is the one that
-# must always be performed, the second is optional. PG & CC sep.2006
-
-# use F90 if set
-if test "$f90" = "" ; then f90="$try_f90" ; fi
-ac_ext=${ac_fc_srcext-f}
-ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
-ac_link='$FC -o conftest$ac_exeext $FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
-ac_compiler_gnu=$ac_cv_fc_compiler_gnu
-if test -n "$ac_tool_prefix"; then
-  for ac_prog in $f90
-  do
-    # Extract the first word of "$ac_tool_prefix$ac_prog", so it can be a program name with args.
-set dummy $ac_tool_prefix$ac_prog; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_prog_FC+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  if test -n "$FC"; then
-  ac_cv_prog_FC="$FC" # Let the user override the test.
-else
-as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_prog_FC="$ac_tool_prefix$ac_prog"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-fi
-fi
-FC=$ac_cv_prog_FC
-if test -n "$FC"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $FC" >&5
-$as_echo "$FC" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-    test -n "$FC" && break
-  done
-fi
-if test -z "$FC"; then
-  ac_ct_FC=$FC
-  for ac_prog in $f90
-do
-  # Extract the first word of "$ac_prog", so it can be a program name with args.
-set dummy $ac_prog; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_prog_ac_ct_FC+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  if test -n "$ac_ct_FC"; then
-  ac_cv_prog_ac_ct_FC="$ac_ct_FC" # Let the user override the test.
-else
-as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_prog_ac_ct_FC="$ac_prog"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-fi
-fi
-ac_ct_FC=$ac_cv_prog_ac_ct_FC
-if test -n "$ac_ct_FC"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_ct_FC" >&5
-$as_echo "$ac_ct_FC" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-  test -n "$ac_ct_FC" && break
-done
-
-  if test "x$ac_ct_FC" = x; then
-    FC=""
-  else
-    case $cross_compiling:$ac_tool_warned in
-yes:)
-{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: using cross tools not prefixed with host triplet" >&5
-$as_echo "$as_me: WARNING: using cross tools not prefixed with host triplet" >&2;}
-ac_tool_warned=yes ;;
-esac
-    FC=$ac_ct_FC
-  fi
-fi
-
-
-# Provide some information about the compiler.
-$as_echo "$as_me:${as_lineno-$LINENO}: checking for Fortran compiler version" >&5
-set X $ac_compile
-ac_compiler=$2
-for ac_option in --version -v -V -qversion; do
-  { { ac_try="$ac_compiler $ac_option >&5"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:${as_lineno-$LINENO}: $ac_try_echo\""
-$as_echo "$ac_try_echo"; } >&5
-  (eval "$ac_compiler $ac_option >&5") 2>conftest.err
-  ac_status=$?
-  if test -s conftest.err; then
-    sed '10a\
-... rest of stderr output deleted ...
-         10q' conftest.err >conftest.er1
-    cat conftest.er1 >&5
-  fi
-  rm -f conftest.er1 conftest.err
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; }
-done
-rm -f a.out
-
 cat > conftest.$ac_ext <<_ACEOF
       program main
 
@@ -3370,12 +3119,57 @@ if test $ac_compiler_gnu = yes; then
 else
   GFC=
 fi
-ac_ext=c
-ac_cpp='$CPP $CPPFLAGS'
-ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
-ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
-ac_compiler_gnu=$ac_cv_c_compiler_gnu
+ac_ext=${ac_fc_srcext-f}
+ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
+ac_link='$FC -o conftest$ac_exeext $FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_fc_compiler_gnu
 
+
+
+
+# Check whether --enable-parallel was given.
+if test "${enable_parallel+set}" = set; then :
+  enableval=$enable_parallel; set_use_parallel=1
+    if   test "$enableval" = "yes" ; then
+      use_parallel=1
+   else
+      use_parallel=0
+   fi
+else
+  set_use_parallel=0 use_parallel=1
+fi
+
+
+
+# candidate fortran compilers good for all cases
+try_mpif90="mpif90"
+try_f90="gfortran f90"
+
+# candidate compilers and flags based on architecture
+case $arch in
+x86_64 | ppc64 )
+        try_f90="pgf90 $try_f90"
+        ;;
+cray )
+        try_f90="ftn"
+        try_mpif90="ftn"
+        ;;
+* )
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $arch : unsupported architecture?" >&5
+$as_echo "$as_me: WARNING: $arch : unsupported architecture?" >&2;}
+        ;;
+esac
+
+# check serial Fortran 90 compiler. This must be done before performing
+# the check for the parallel compiler (section below) because option
+# --disable-parallel will do very strange things otherwise. The reason
+# seems to be that autoconf does not repeat all tests for the second
+# occurrence of AC_PROG_FC. So the first occurrence is the one that
+# must always be performed, the second is optional. PG & CC sep.2006
+
+# use F90 if set
+if test "$f90" = "" ; then f90="$try_f90" ; fi
+#AC_PROG_FC([pgf90 ftn])
 f90=$FC
 ac_ext=${ac_fc_srcext-f}
 ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
@@ -3438,10 +3232,9 @@ if test "$use_parallel" -eq 0 ;
 then
         mpif90=$f90
 else
-        # clear cached values (not sure when and why this is needed)
         unset FC ac_cv_prog_ac_ct_FC ac_cv_fc_compiler_gnu ac_cv_prog_fc_g
         if test "$mpif90" = "" ; then
-	   mpif90="$try_mpif90 $f90"
+	         mpif90="$try_mpif90 $f90"
            ac_ext=${ac_fc_srcext-f}
 ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
 ac_link='$FC -o conftest$ac_exeext $FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
@@ -3865,21 +3658,18 @@ ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
-# this avoids that an empty MPIF90 field is produced if the corresponding
-# environment variable MPIF90 does not contain an acceptable compiler
            if test "$FC" = "" ; then
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: MPIF90 not found: using MPIF90 anyway" >&5
+		          { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: MPIF90 not found: using MPIF90 anyway" >&5
 $as_echo "$as_me: WARNING: MPIF90 not found: using MPIF90 anyway" >&2;}
-	  	FC=$MPIF90
-	   fi
+	  	        FC=$MPIF90
+	         fi
         fi
         mpif90=$FC
 fi
 
 # check which compiler does mpif90 wrap
-
 case "$arch" in
-        x86_64 | ppc64 )
+    x86_64 | ppc64 )
         echo $ECHO_N "checking version of $mpif90... $ECHO_C"
         pgf_version=`$mpif90 -V 2>&1 | grep "^pgf"`
         #
@@ -3894,15 +3684,8 @@ case "$arch" in
                 echo "${ECHO_T}unknown, assuming gfortran"
                 f90_in_mpif90="gfortran"
         fi
-        # check if serial and parallel compiler are the same
-        if test "$f90" != "$f90_in_mpif90"; then
-           { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: parallel compiler $mpif90 uses $f90_in_mpif90, but serial compiler $f90 was detected" >&5
-$as_echo "$as_me: WARNING: parallel compiler $mpif90 uses $f90_in_mpif90, but serial compiler $f90 was detected" >&2;}
-           { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: assuming F90=$f90_in_mpif90, discarding $f90" >&5
-$as_echo "$as_me: WARNING: assuming F90=$f90_in_mpif90, discarding $f90" >&2;}
-        fi
         f90=$f90_in_mpif90
-        ;;
+   ;;
 esac
 
 if test "$use_parallel" -eq 0
@@ -4310,7 +4093,7 @@ try_cpp="cpp"
 
 case "$arch:$cc" in
 *:pgcc )
-        try_cflags="-fast -Mpreprocess"
+        try_cflags="-O3 -Mpreprocess"
         ;;
 esac
 if test "$cflags" = "" ; then cflags=$try_cflags ; fi
@@ -5035,7 +4818,7 @@ x86_64:pgf* )
         try_fflags_nomain="-Mnomain"
         try_fflags="-O3 -Mpreprocess"
         try_fflags_openmp="-mp"
-        try_f90flags="-O3 -Mpreprocess -Mcache_align"
+        try_f90flags="-O3 -Mpreprocess"
         try_fflags_noopt="-O0"
         try_ldflags=""
         try_ldflags_openmp="-mp"
@@ -5043,11 +4826,11 @@ x86_64:pgf* )
         have_cpp=0
         have_pgi=1
         ;;
-crayxt*:pgf* )
+cray:pgf* )
         try_fflags_nomain="-Mnomain"
         try_fflags="-O3 -Mpreprocess"
         try_fflags_openmp="-mp"
-        try_f90flags="-O3 -Mpreprocess -Mcache_align"
+        try_f90flags="-O3 -Mpreprocess"
         try_fflags_noopt="-O0"
         try_ldflags=""
         try_ldflags_openmp="-mp"
@@ -5059,7 +4842,7 @@ ppc64:pgf* )
         try_fflags_nomain="-Mnomain"
         try_fflags="-O3 -Mpreprocess"
         try_fflags_openmp="-mp"
-        try_f90flags="-O3 -Mpreprocess -Mcache_align"
+        try_f90flags="-O3 -Mpreprocess"
         try_fflags_noopt="-O0"
         try_ldflags=""
         try_ldflags_openmp="-mp"

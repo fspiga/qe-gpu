@@ -16,7 +16,7 @@ x86_64:pgf* )
         try_fflags_nomain="-Mnomain"
         try_fflags="-O3 -Mpreprocess"
         try_fflags_openmp="-mp"
-        try_f90flags="-O3 -Mpreprocess -Mcache_align"
+        try_f90flags="-O3 -Mpreprocess"
         try_fflags_noopt="-O0"
         try_ldflags=""
         try_ldflags_openmp="-mp"
@@ -24,11 +24,11 @@ x86_64:pgf* )
         have_cpp=0
         have_pgi=1
         ;;
-crayxt*:pgf* )
+cray:pgf* )
         try_fflags_nomain="-Mnomain"
         try_fflags="-O3 -Mpreprocess"
         try_fflags_openmp="-mp"
-        try_f90flags="-O3 -Mpreprocess -Mcache_align"
+        try_f90flags="-O3 -Mpreprocess"
         try_fflags_noopt="-O0"
         try_ldflags=""
         try_ldflags_openmp="-mp"
@@ -40,7 +40,7 @@ ppc64:pgf* )
         try_fflags_nomain="-Mnomain"
         try_fflags="-O3 -Mpreprocess"
         try_fflags_openmp="-mp"
-        try_f90flags="-O3 -Mpreprocess -Mcache_align"
+        try_f90flags="-O3 -Mpreprocess"
         try_fflags_noopt="-O0"
         try_ldflags=""
         try_ldflags_openmp="-mp"

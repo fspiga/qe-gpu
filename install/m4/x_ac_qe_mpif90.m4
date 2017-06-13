@@ -16,12 +16,16 @@ AC_ARG_ENABLE(parallel,
 
 # candidate fortran compilers good for all cases
 try_mpif90="mpif90"
-try_f90="gfortran g95 f90"
+try_f90="gfortran f90"
 
 # candidate compilers and flags based on architecture
 case $arch in
 x86_64 | ppc64 )
         try_f90="pgf90 $try_f90"
+        ;;
+cray )
+        try_f90="ftn"
+        try_mpif90="ftn"
         ;;
 * )
         AC_MSG_WARN($arch : unsupported architecture?)
@@ -37,7 +41,7 @@ esac
 
 # use F90 if set
 if test "$f90" = "" ; then f90="$try_f90" ; fi
-AC_PROG_FC($f90)
+#AC_PROG_FC([pgf90 ftn])
 f90=$FC
 AC_FC_SRCEXT(f90)
 
@@ -46,27 +50,23 @@ if test "$use_parallel" -eq 0 ;
 then
         mpif90=$f90
 else
-        # clear cached values (not sure when and why this is needed)
         unset FC ac_cv_prog_ac_ct_FC ac_cv_fc_compiler_gnu ac_cv_prog_fc_g
         if test "$mpif90" = "" ; then 
-	   mpif90="$try_mpif90 $f90"
+	         mpif90="$try_mpif90 $f90"
            AC_PROG_FC($mpif90)
         else
            AC_PROG_FC($mpif90)
-# this avoids that an empty MPIF90 field is produced if the corresponding
-# environment variable MPIF90 does not contain an acceptable compiler
            if test "$FC" = "" ; then 
-		AC_MSG_WARN([MPIF90 not found: using MPIF90 anyway])
-	  	FC=$MPIF90
-	   fi
+		          AC_MSG_WARN([MPIF90 not found: using MPIF90 anyway])
+	  	        FC=$MPIF90
+	         fi
         fi
         mpif90=$FC
 fi
 
 # check which compiler does mpif90 wrap
-
 case "$arch" in
-        x86_64 | ppc64 )
+    x86_64 | ppc64 )
         echo $ECHO_N "checking version of $mpif90... $ECHO_C"
         pgf_version=`$mpif90 -V 2>&1 | grep "^pgf"`
         #
@@ -81,13 +81,8 @@ case "$arch" in
                 echo "${ECHO_T}unknown, assuming gfortran"
                 f90_in_mpif90="gfortran"
         fi
-        # check if serial and parallel compiler are the same
-        if test "$f90" != "$f90_in_mpif90"; then
-           AC_MSG_WARN([parallel compiler $mpif90 uses $f90_in_mpif90, but serial compiler $f90 was detected])
-           AC_MSG_WARN([assuming F90=$f90_in_mpif90, discarding $f90])
-        fi
         f90=$f90_in_mpif90
-        ;;
+   ;;
 esac
 
 if test "$use_parallel" -eq 0

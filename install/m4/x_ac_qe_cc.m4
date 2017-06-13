@@ -27,7 +27,7 @@ try_cpp="cpp"
 
 case "$arch:$cc" in
 *:pgcc )
-        try_cflags="-fast -Mpreprocess"
+        try_cflags="-O3 -Mpreprocess"
         ;;
 esac
 if test "$cflags" = "" ; then cflags=$try_cflags ; fi
