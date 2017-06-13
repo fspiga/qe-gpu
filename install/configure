@@ -2597,7 +2597,7 @@ if test "$host" = "" ; then host=$build; fi
 if test "$arch" = ""
 then
         case $host in
-                86_64-*-linux-gnu )    arch=x86_64 ;;
+                x86_64-*-linux-gnu )    arch=x86_64 ;;
                 powerpc64le-* ) arch=ppc64  ;;
                 * )                     { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Unrecognized build architecture" >&5
 $as_echo "$as_me: WARNING: Unrecognized build architecture" >&2;}

@@ -12,7 +12,7 @@ if test "$host" = "" ; then host=$build; fi
 if test "$arch" = ""
 then
         case $host in
-                86_64-*-linux-gnu )    arch=x86_64 ;;
+                x86_64-*-linux-gnu )    arch=x86_64 ;;
                 powerpc64le-* ) arch=ppc64  ;;
                 * )                     AC_MSG_WARN(Unrecognized build architecture)
         ;;
