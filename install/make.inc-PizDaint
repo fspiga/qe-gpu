@@ -1,0 +1,114 @@
+# Machine : Piz Daint (CSCS)
+# Date    : 13/06/2017
+# Instructions provided by Massimiliano Fatica (NVIDIA)
+
+# Compiling QE-GPU on Piz Daint
+#
+# QE-GPU requires PGI 17.4 or newer  ( this is due to a bug in the gpu linker
+# that has been fixed in 17.4) but the latest available PGI compiler on
+# Piz Daint is 16.9. It is still possible to compile QE-GPU installing some
+# files in your home directory. We basically need to instruct the PGI compiler
+# to use a newer linker.
+#
+# From a Linux computer with the PGI 17.4 version installed ( let’s assume that
+# the installation in in /opt/pgi),
+# we will tar the directory /opt/pgi/linux-64/2017/cuda/8.0/bin
+#
+#   $ cd
+#   $ cd /opt/pgi/linux86-64/2017/cuda/8.0
+#   $ tar cvfz  pgicuda.tar.gz  /bin
+#
+# Once the tar file is transferred  to your home directory on Piz Daint,
+# we will create a directory "cuda/8.0" and untar the file inside
+# this directory. We will also create symbolic links to "include/", "lib64/",
+# "libnvvp/" and "nvvm/" from the 16.9 version installed. At the end of these
+# steps, the content of your directory cuda/8.0 should look like this:
+#
+#   mfatica@daint102:~/cuda/8.0> ls -lrt
+#   total 0
+#   drwxr-xr-x 2 mfatica g33 4096 May 20 00:04 bin
+#   lrwxrwxrwx 1 mfatica g33   49 Jun  1 20:36 include -> #/opt/pgi/16.9.0/linux86-64/2016/cuda/8.0/include/
+#   lrwxrwxrwx 1 mfatica g33   47 Jun  1 20:36 lib64 -> #/opt/pgi/16.9.0/linux86-64/2016/cuda/8.0/lib64/
+#   lrwxrwxrwx 1 mfatica g33   49 Jun  1 20:36 libnvvp -> /opt/pgi/16.9.0/linux86-64/2016/cuda/8.0/libnvvp/
+#   lrwxrwxrwx 1 mfatica g33   46 Jun  1 20:36 nvvm -> /opt/pgi/16.9.0/linux86-64/2016/cuda/8.0/nvvm/
+#
+# Once we create a file called “.mypgirc” with this content, the PGI compiler
+# will use the new linker and it will be able to compile QE-GPU:
+#
+#   mfatica@daint102:~> cat  .mypgirc
+#   set CUDAROOT=$HOME/cuda/8.0;
+#   export CUDAROOT=$HOME/cuda/8.0;
+#
+# The correct environment to load use is:
+#
+#   $ module load intel pgi cudatoolkit
+#   $ module swap PrgEnv-cray PrgEnv-pgi
+#
+# And run the configure as follow:
+#
+#   $ ./configure ARCH=cray --enable-gpu=pascal
+#
+# The configure may fails. Please edit it according to the below template
+
+.SUFFIXES :
+.SUFFIXES : .o .c .f .f90 .F90
+
+.F90.o:
+    $(MPIF90) $(F90FLAGS) -c $< -o $(*)_cpu.o ; \
+    $(MPIF90) $(F90FLAGS) -c -DUSE_GPU $< -o $(*)_gpu.o ; \
+    ld -r $(*)_cpu.o $(*)_gpu.o -o $(*).o ; \
+    rm $(*)_cpu.o $(*)_gpu.o
+
+.f90.o:
+    $(MPIF90) $(F90FLAGS) -c $(*).f90 -o $(*).o
+
+.f.o:
+    $(F77) $(FFLAGS) -c $<
+
+.c.o:
+    $(CC) $(CFLAGS)  -c $<
+
+TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
+# TOPDIR = /home/fspiga/fs395/qe-gpu
+
+DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
+FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
+
+IFLAGS         = -I$(TOPDIR)/include -I../include/ -In/lib_eigsolve
+
+MOD_FLAG      = -I
+
+MPIF90         = ftn
+#F90           = pgf90
+CC             = pgcc
+F77            = pgf90
+
+CFLAGS         = -O3 —mp Mpreprocess $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O3 —mp Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+FFLAGS         = -O3 -Mpreprocess
+
+FFLAGS_NOOPT   = -O0
+FFLAGS_NOMAIN   = -Mnomain
+
+LD             = ftn
+LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
+LD_LIBS        = -Mcudalib=cufft,cublas $(TOPDIR)/Eigensolver_gpu-0.1/lib_eigsolve/lib_eigsolve.a $(CUDATOOLKIT_HOME)/lib64/libculibos.a $(CUDATOOLKIT_HOME)/lib64/libcusolver_static.a -lstdc++
+
+MATH_LIBS      = -L${MKLROOT}/lib/intel64  -lmkl_intel_lp64 -lmkl_pgi_thread -lmkl_core -pgf90libs -mp -lpthread -lm -ldl
+
+NETLIB_LIBS_SWITCH = external
+
+SCALAPACK_LIBS =
+
+AR             = ar
+ARFLAGS        = ruv
+RANLIB         = ranlib
+
+FLIB_TARGETS   = all
+
+LIBOBJS        = $(TOPDIR)/clib/clib.a $(TOPDIR)/iotk/src/libiotk.a
+LIBS           = $(SCALAPACK_LIBS) $(MATH_LIBS) $(LD_LIBS)
+
+WGET = wget -O
+
+PREFIX = /usr/local
