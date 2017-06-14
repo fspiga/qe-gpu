@@ -97,6 +97,7 @@ gen_us_dj.o \
 gen_us_dy.o \
 get_locals.o \
 gk_sort.o \
+gpu_routines.o\
 gradcorr.o \
 gweights.o \
 g2_kin.o \

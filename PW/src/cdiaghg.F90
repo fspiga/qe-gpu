@@ -31,28 +31,13 @@ module zhegvx_module
   COMPLEX(DP), ALLOCATABLE :: h_temp(:,:),s_temp(:,:)
 #ifdef USE_CUDA
   ATTRIBUTES( PINNED ) :: iwork, ifail, rwork, sdiag, hdiag, work
-  INTEGER, PARAMETER :: jdr_min_size=256
-  COMPLEX(DP), PINNED, ALLOCATABLE :: Z(:,:)
   REAL(DP), ALLOCATABLE, PINNED :: e_h(:)
   COMPLEX(DP), ALLOCATABLE, PINNED :: v_h(:,:)
   REAL(DP),    DEVICE, ALLOCATABLE :: rwork_d(:), sdiag_d(:), hdiag_d(:)
   COMPLEX(DP), DEVICE, ALLOCATABLE :: work_d(:)
-  COMPLEX(DP), DEVICE, ALLOCATABLE :: h_temp_d(:,:),s_temp_d(:,:)
 #endif
 END MODULE zhegvx_module
 #endif 
-
-#ifdef USE_GPU
-SUBROUTINE EpMemcpy2D( dst, dpitch, src, spitch, n, m )
-   USE kinds
-   USE cudafor
-   IMPLICIT NONE
-   COMPLEX(DP), DEVICE  :: dst,src
-   INTEGER, INTENT(IN) :: dpitch, spitch, n, m
-   INTEGER :: istat
-   istat = cudaMemcpy2D( dst, dpitch, src, spitch, n, m )
-END SUBROUTINE EPMemcpy2D
-#endif
 
 !----------------------------------------------------------------------------
 SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
@@ -70,9 +55,10 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   USE zhegvx_module,    ONLY : iwork, ifail, rwork, work, first_time_zhegvx
 #ifdef USE_GPU
   USE cudafor
+  USE gpu_routines, ONLY: cufMemcpy2D, copy_diag, restore_upper_tri
   USE zhegvdx_gpu
-  USE zhegvx_module,    ONLY : h_temp,h_temp_d, s_temp,s_temp_d, hdiag,hdiag_d, sdiag,sdiag_d
-  USE zhegvx_module,    ONLY : e_h, v_h, rwork_d, work_d, Z, jdr_min_size
+  USE zhegvx_module,    ONLY : h_temp, s_temp, hdiag,hdiag_d, sdiag,sdiag_d
+  USE zhegvx_module,    ONLY : e_h, v_h, rwork_d, work_d
 #else
   USE zhegvx_module,    ONLY : h_temp, s_temp, hdiag, sdiag
 #endif
@@ -98,9 +84,11 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   INTEGER                  :: lwork, lrwork, liwork, nb, mm, info, i, j
   INTEGER                  :: max_lwork, max_lrwork, max_liwork
 #ifdef USE_GPU
-  INTEGER  :: cuf_i, ii, istat, cpu_path
-  REAL(DP) :: rFreeMem,rNeedMem
-  INTEGER(KIND=8) :: freeMem,totalMem,needMem
+  INTEGER                  :: lwork_d, lrwork_d
+  INTEGER                  :: max_lwork_d, max_lrwork_d
+  INTEGER                  :: cuf_i, ii, istat, cpu_path
+  REAL(DP)                 :: rFreeMem,rNeedMem
+  INTEGER(KIND=8)          :: freeMem,totalMem,needMem
 #endif
     ! mm = number of calculated eigenvectors
   REAL(DP)                 :: abstol
@@ -126,23 +114,28 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
      ! ... save the diagonal of input S (it will be overwritten)
      !
 #ifdef USE_GPU
-  nb = 64
-  lwork  = max(2*n + n*n, n + n*nb)
-  lrwork = 1 + 5*n + 2*n*n
-  liwork = 3 + 5*n
-  max_lwork  = 2*(max(2*ldh + ldh*ldh, ldh + ldh*nb))
-  max_lrwork = 2*(1 + 5*ldh + 2*ldh*ldh)
-  max_liwork = 2*(3 + 5*ldh)
+  ! Host workspace
+  lwork = n
+  lrwork = 1+5*n+2*n*n
+  liwork = 3+5*n
+
+  max_lwork = ldh
+  max_lrwork = 1 + 5*ldh + 2*ldh*ldh
+  max_liwork = 3 + 5*ldh
+
+  ! Device workspace
+  lwork_d  = 2*64*64 + 65*n
+  lrwork_d = n
+  max_lwork_d  = 2*64*64 + 65*ldh
+  max_lrwork_d = ldh
 
   cpu_path=0
 
   istat=CudaMemGetInfo(freeMem,totalMem)
   rFreeMem = freeMem/(10.**6)
-  needMem = 8*2*ldh + 16*2*ldh*ldh + 16*max_lwork + 8*max_lrwork
+  needMem = 8*2*ldh + 16*2*ldh*ldh + 16*max_lwork_d + 8*max_lrwork_d
   if(allocated(sdiag_d)) needMem = needMem - 8*size(sdiag_d)
   if(allocated(hdiag_d)) needMem = needMem - 8*size(hdiag_d)
-  if(allocated(h_temp_d)) needMem = needMem - 16*size(h_temp_d)
-  if(allocated(s_temp_d)) needMem = needMem - 16*size(s_temp_d)
   if(allocated(work_d)) needMem = needMem - 16*size(work_d)
   if(allocated(rwork_d)) needMem = needMem - 8*size(rwork_d)
   rNeedMem = needMem/(10.**6)
@@ -155,8 +148,6 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   if(cpu_path==1) then
     if(allocated(hdiag_d)) deallocate(hdiag_d)
     if(allocated(sdiag_d)) deallocate(sdiag_d)
-    if(allocated(h_temp_d)) deallocate(h_temp_d)
-    if(allocated(s_temp_d)) deallocate(s_temp_d)
     if(allocated(work_d)) deallocate(work_d)
     if(allocated(rwork_d)) deallocate(rwork_d)
 #endif
@@ -192,108 +183,68 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 
 #ifdef USE_GPU
   IF( cpu_path==0 ) THEN
-     IF( ALLOCATED( work_d   ) .and. SIZE( work_d   ) < 2*lwork  ) DEALLOCATE( work_d   )
-     IF( ALLOCATED( rwork_d  ) .and. SIZE( rwork_d  ) < 2*lrwork ) DEALLOCATE( rwork_d  )
+     IF( ALLOCATED( work_d   ) .and. SIZE( work_d   ) < 2*lwork_d  ) DEALLOCATE( work_d   )
+     IF( ALLOCATED( rwork_d  ) .and. SIZE( rwork_d  ) < 2*lrwork_d ) DEALLOCATE( rwork_d  )
      IF( ALLOCATED( hdiag_d  ) .and. SIZE( hdiag_d  ) < 2*n      ) DEALLOCATE( hdiag_d  )
      IF( ALLOCATED( sdiag_d  ) .and. SIZE( sdiag_d  ) < 2*n      ) DEALLOCATE( sdiag_d  )
-     IF( ALLOCATED( h_temp_d ) .and. SIZE( h_temp_d ) < 2*n*n    ) DEALLOCATE( h_temp_d )
-     IF( ALLOCATED( s_temp_d ) .and. SIZE( s_temp_d ) < 2*n*n    ) DEALLOCATE( s_temp_d )
-     IF( ALLOCATED( Z        ) .and. SIZE( Z        ) < 2*n*n    ) DEALLOCATE( Z        )
 
-     IF( .not. ALLOCATED( work_d   ) ) ALLOCATE( work_d( max_lwork )   )
-     IF( .not. ALLOCATED( rwork_d  ) ) ALLOCATE( rwork_d( max_lrwork ) )
+     IF( .not. ALLOCATED( work_d   ) ) ALLOCATE( work_d( max_lwork_d )   )
+     IF( .not. ALLOCATED( rwork_d  ) ) ALLOCATE( rwork_d( max_lrwork_d ) )
      IF( .not. ALLOCATED( hdiag_d  ) ) ALLOCATE( hdiag_d( ldh )        )
      IF( .not. ALLOCATED( sdiag_d  ) ) ALLOCATE( sdiag_d( ldh )        )
-     IF( .not. ALLOCATED( h_temp_d ) ) ALLOCATE( h_temp_d(ldh,ldh)     )
-     IF( .not. ALLOCATED( s_temp_d ) ) ALLOCATE( s_temp_d(ldh,ldh)     )
-     IF( .not. ALLOCATED( Z        ) ) ALLOCATE( Z(ldh,ldh)            )
   ENDIF
 #endif
 
-#if 1
 #ifdef USE_GPU
-   if( cpu_path==0 ) then
-#if 0
-!$cuf kernel do(2) <<<*,*>>>
-      DO j = 1, n
-         DO i = 1, ldh
-      !s_temp_d(1:ldh,1:n) = s(1:ldh,1:n)
-      s_temp_d(i,j) = s(i,j)
-         END DO
-      END DO
-#else
-     call EpMemcpy2D( s_temp_d, size( s_temp_d, 1 ), s, ldh, ldh, n )
+  if( cpu_path==0 ) then
+   !call cufMemcpy2D( s_temp_d, size( s_temp_d, 1 ), s, ldh, ldh, n )
+    call copy_diag(sdiag_d, s, ldh, n)
+  else
 #endif
-   else
-#endif
-      s_temp(1:ldh,1:n) = s(1:ldh,1:n)  
+    s_temp(1:ldh,1:n) = s(1:ldh,1:n)  
+    !DO i = 1, n
+    !  sdiag(i) = DBLE( s(i,i) )
+    !END DO
 #ifdef USE_GPU
-   endif   
-#endif
-
-#else
-#ifdef USE_GPU
-!$cuf kernel do(1) <<<*,*>>>
-#endif
-     DO i = 1, n
-        sdiag(i) = DBLE( s(i,i) )
-     END DO
+  endif   
 #endif
 
 #ifndef USE_GPU
-     !
-     all_eigenvalues = ( m == n )
-     !
-     !
-     IF ( all_eigenvalues ) THEN
-        !
-        IF( SIZE(rwork) < 3*n-2) THEN
-          DEALLOCATE( rwork )
-          ALLOCATE( rwork( 3*n - 2 ) )
-        ENDIF
-        !
-        ! ... calculate all eigenvalues (overwritten to v)
-        !
-        v(:,:) = h(:,:)
-        !
-        CALL ZHEGV( 1, 'V', 'U', n, v, ldh, &
-                    s, ldh, e, work, lwork, rwork, info )
-        !
-     ELSE
+    !
+    all_eigenvalues = ( m == n )
+    !
+    !
+    IF ( all_eigenvalues ) THEN
+       !
+       IF( SIZE(rwork) < 3*n-2) THEN
+         DEALLOCATE( rwork )
+         ALLOCATE( rwork( 3*n - 2 ) )
+       ENDIF
+       !
+       ! ... calculate all eigenvalues (overwritten to v)
+       !
+       v(:,:) = h(:,:)
+       !
+       CALL ZHEGV( 1, 'V', 'U', n, v, ldh, &
+                   s, ldh, e, work, lwork, rwork, info )
+       !
+    ELSE
 #endif
-        !
-        ! ... save the diagonal of input H (it will be overwritten)
-        !
-#if 1
-
+       !
+       ! ... save the diagonal of input H (it will be overwritten)
+       !
 #ifdef USE_GPU
-   if( cpu_path==0) then
-#if 0
-!      h_temp_d(1:ldh,1:n) = h(1:ldh,1:n)
-!$cuf kernel do(2) <<<*,*>>>
-      DO j = 1, n
-         DO i = 1, ldh
-      h_temp_d(i,j) = h(i,j)
-         END DO
-      END DO
-#else
-     call EpMemcpy2D( h_temp_d, size( h_temp_d, 1 ), h, ldh, ldh, n )
+       if( cpu_path==0 ) then
+         !call cufMemcpy2D( h_temp_d, size( h_temp_d, 1 ), h, ldh, ldh, n )
+         call copy_diag(hdiag_d, h, ldh, n)
+       else
 #endif
-
-   else
-#endif
-      h_temp(1:ldh,1:n) = h(1:ldh,1:n)
+         h_temp(1:ldh,1:n) = h(1:ldh,1:n)  
+         !DO i = 1, n
+         !  hdiag(i) = DBLE( h(i,i) )
+         !END DO
 #ifdef USE_GPU
-   endif
-#endif
-
-#else
-#ifdef USE_GPU
-!$cuf kernel do(1) <<<*,*>>>
-#endif
-        DO i = 1, n
-           hdiag(i) = h(i,i)!DBLE( h(i,i) ) !  <--- THIS LINE GIVES ERROR: INVALID DEVICE FUNCTION
-        END DO
+       endif   
 #endif
 
         !
@@ -321,9 +272,9 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
       if( cpu_path == 0 ) then
 
         call zhegvdx_gpu(n, h, ldh, s, ldh, v, ldh, 1, m, e, work_d,&
-                         2*lwork, rwork_d, 2*(1+5*n+2*n*n), &
-                         work, 2*lwork, rwork, 2*(1+5*n+2*n*n), &
-                         iwork, 2*(3+5*n), v_h, size(v_h, 1), e_h, info)
+                         lwork_d, rwork_d, lrwork_d, &
+                         work, lwork, rwork, lrwork, &
+                         iwork, liwork, v_h, size(v_h, 1), e_h, info)
 
         ! Note: if zhegvdx_gpu fails, info = -1
         mm = m
@@ -344,40 +295,24 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
         !
         ! ... restore input H matrix from saved diagonal and lower triangle
         !
-#if 1
 #ifdef USE_GPU
-   if(cpu_path==0) then
-#if 0
-!        h(1:ldh,1:n) = h_temp_d(1:ldh,1:n)
-!$cuf kernel do(2) <<<*,*>>>
-      DO j = 1, n
-         DO i = 1, ldh
-     h(i,j) = h_temp_d(i,j)
-         END DO
-      END DO
+    if(cpu_path==0) then
+      !call cufMemcpy2D( h, ldh, h_temp_d, size( h_temp_d, 1 ), ldh, n )
+      call restore_upper_tri(h, ldh, hdiag_d, n)
+    endif
 #else
-     call EpMemcpy2D( h, ldh, h_temp_d, size( h_temp_d, 1 ), ldh, n )
+    h(1:ldh,1:n) = h_temp(1:ldh,1:n)
+    !DO i = 1, n
+    !  h_temp(i,i) = CMPLX( hdiag(i), 0.0_DP ,kind=DP)
+    !  DO j = i + 1, n
+    !    h_temp(i,j) = CONJG( h_temp(j,i) )
+    !  END DO
+    !  DO j = n + 1, ldh
+    !    h_temp(j,i) = ( 0.0_DP, 0.0_DP )
+    !  END DO
+    !END DO
 #endif
 
-   endif
-#else
-   h(1:ldh,1:n) = h_temp(1:ldh,1:n)
-#endif
-
-#else
-#ifdef USE_GPU
-!$cuf kernel do(1) <<<*,*>>>
-#endif
-        DO i = 1, n
-           h(i,i) = CMPLX( hdiag(i), 0.0_DP ,kind=DP)
-           DO j = i + 1, n
-              h(i,j) = CONJG( h(j,i) )
-           END DO
-           DO j = n + 1, ldh
-              h(j,i) = ( 0.0_DP, 0.0_DP )
-           END DO
-        END DO
-#endif
         !
 #ifndef USE_GPU
      END IF
@@ -394,40 +329,25 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
      !
      ! ... restore input S matrix from saved diagonal and lower triangle
      !
-#if 1
 #ifdef USE_GPU
-   if(cpu_path==0) then
-#if 0
-!      s(1:ldh,1:n) = s_temp_d(1:ldh,1:n)
-!$cuf kernel do(2) <<<*,*>>>
-      DO j = 1, n
-         DO i = 1, ldh
-      s(i,j) = s_temp_d(i,j) 
-         END DO
-      END DO
+    if(cpu_path==0) then
+     !call EpMemcpy2D( s, ldh, s_temp_d, size( s_temp_d, 1 ), ldh, n )
+      call restore_upper_tri(s, ldh, sdiag_d, n)
+    endif
 #else
-     call EpMemcpy2D( s, ldh, s_temp_d, size( s_temp_d, 1 ), ldh, n )
-#endif
-   endif
-#else
-   s(1:ldh,1:n) = s_temp(1:ldh,1:n)
+    s(1:ldh,1:n) = s_temp(1:ldh,1:n)
+    !DO i = 1, n
+    !  s(i,i) = CMPLX( sdiag(i), 0.0_DP ,kind=DP)
+    !  DO j = i + 1, n
+    !    s_temp(i,j) = CONJG( s_temp(j,i) )
+    !  END DO
+    !  DO j = n + 1, ldh
+    !    s_temp(j,i) = ( 0.0_DP, 0.0_DP )
+    !  END DO
+    !END DO
 #endif
 
-#else
-#ifdef USE_GPU
-!$cuf kernel do(1) <<<*,*>>>
-#endif
-     DO i = 1, n
-        s(i,i) = CMPLX( sdiag(i), 0.0_DP ,kind=DP)
-        DO j = i + 1, n
-           s(i,j) = CONJG( s(j,i) )
-        END DO
-        DO j = n + 1, ldh
-           s(j,i) = ( 0.0_DP, 0.0_DP )
-        END DO
-     END DO
-#endif
-     !
+    !
   END IF
   !
   ! ... broadcast eigenvectors and eigenvalues to all other processors

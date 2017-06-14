@@ -18,8 +18,8 @@ LAPACK_NETLIB=lapack-3.6.1.tgz
 LAPACK_NETLIB_NAME=lapack-3.6.1
 LAPACK_NETLIB_URL=http://www.netlib.org/lapack/${LAPACK_NETLIB}
 
-EIGENSOLVER_GPU=v0.1.tar.gz
-EIGENSOLVER_GPU_NAME=Eigensolver_gpu-0.1
+EIGENSOLVER_GPU=v0.2.tar.gz
+EIGENSOLVER_GPU_NAME=Eigensolver_gpu-0.2
 EIGENSOLVER_GPU_URL=https://github.com/NVIDIA/Eigensolver_gpu/archive/${EIGENSOLVER_GPU}
 
 all: 
@@ -47,9 +47,9 @@ liblapack_internal:
 
 libeigensolver_gpu:
 	$(call download_and_unpack,$(EIGENSOLVER_GPU_NAME),$(EIGENSOLVER_GPU_URL),EIGENSOLVER_GPU,EIGENSOLVER_GPU)
-	if test ! -e ../Eigensolver_gpu-0.1/lib_eigsolve/lib_eigsolve.a && test -e Makefile.lib_eigsolve; then \
-    (cp Makefile.lib_eigsolve ../Eigensolver_gpu-0.1/lib_eigsolve/Makefile; \
-    cd ../Eigensolver_gpu-0.1/lib_eigsolve/; $(MAKE) ); else \
+	if test ! -e ../Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a && test -e Makefile.lib_eigsolve; then \
+    (cp Makefile.lib_eigsolve ../Eigensolver_gpu-0.2/lib_eigsolve/Makefile; \
+    cd ../Eigensolver_gpu-0.2/lib_eigsolve/; $(MAKE) ); else \
         (echo "no configuration file found for GPU custom eigensolver"; exit); fi
 
 libiotk: 

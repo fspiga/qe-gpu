@@ -29,7 +29,7 @@ TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
-IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0.1/lib_eigsolve
+IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve
 
 MOD_FLAG      = -I
 
@@ -47,7 +47,7 @@ FFLAGS_NOMAIN   = -Mnomain
 
 LD             = mpif90
 LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
-LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/Eigensolver_gpu-0.1/lib_eigsolve/lib_eigsolve.a
+LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a
 
 MATH_LIBS      = -L/opt/ibm/xlf/15.1.5/lib -lessl -lxl -lxlf90_r -lxlfmath $(TOPDIR)/LAPACK/liblapack.a $(TOPDIR)/LAPACK/libblas.a
 

@@ -35,12 +35,12 @@ fi
 
   try_dflags="$try_dflags -DUSE_CUDA"
 
-  try_iflags="$try_iflags -I\$(TOPDIR)/Eigensolver_gpu-0.1/lib_eigsolve"
+  try_iflags="$try_iflags -I\$(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve"
 
   f90flags="$f90flags -Mcuda=cc$gpu_arch_num,cuda8.0 -Mlarge_arrays"
 
   ldflags="$ldflags -Mcuda=cc$gpu_arch_num,cuda8.0 -Mlarge_arrays"
-  ld_libs="$ld_libs -Mcudalib=cufft,cublas,cusolver \$(TOPDIR)/Eigensolver_gpu-0.1/lib_eigsolve/lib_eigsolve.a"
+  ld_libs="$ld_libs -Mcudalib=cufft,cublas,cusolver \$(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a"
 
   AC_SUBST(gpu_arch_num)
   AC_CONFIG_FILES([install/Makefile.lib_eigsolve:install/Makefile.lib_eigsolve.in])
