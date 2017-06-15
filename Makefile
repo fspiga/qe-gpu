@@ -219,7 +219,6 @@ veryclean : clean
 	- cd install ; rm -fr autom4te.cache
 	- cd pseudo; ./clean_ps ; cd -
 	- cd install; ./clean.sh ; cd -
-	- cd include; ./clean.sh ; cd -
 	- rm -f espresso.tar.gz
 	- rm -rf make.inc
 

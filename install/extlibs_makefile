@@ -47,9 +47,9 @@ liblapack_internal:
 
 libeigensolver_gpu:
 	$(call download_and_unpack,$(EIGENSOLVER_GPU_NAME),$(EIGENSOLVER_GPU_URL),EIGENSOLVER_GPU,EIGENSOLVER_GPU)
-	if test ! -e ../Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a && test -e Makefile.lib_eigsolve; then \
-    (cp Makefile.lib_eigsolve ../Eigensolver_gpu-0.2/lib_eigsolve/Makefile; \
-    cd ../Eigensolver_gpu-0.2/lib_eigsolve/; $(MAKE) ); else \
+	if test ! -e ../EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a && test -e Makefile.lib_eigsolve; then \
+    (cp Makefile.lib_eigsolve ../EIGENSOLVER_GPU/lib_eigsolve/Makefile; \
+    cd ../EIGENSOLVER_GPU/lib_eigsolve/; $(MAKE) ); else \
         (echo "no configuration file found for GPU custom eigensolver"; exit); fi
 
 libiotk: 
@@ -91,7 +91,6 @@ libeigensolver_gpu_clean:
 	if test -d ../EIGENSOLVER_GPU; then (cd ../EIGENSOLVER_GPU; $(MAKE) clean); fi
 libeigensolver_gpu_veryclean:
 	if test -d ../EIGENSOLVER_GPU; then (rm -R -f ../EIGENSOLVER_GPU ../${EIGENSOLVER_GPU_NAME}); fi
-	rm -f Makefile.lib_eigsolve
 
 # general cleaning
 clean: lapack_clean iotk_clean libeigensolver_gpu_clean
