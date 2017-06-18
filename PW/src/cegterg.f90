@@ -35,8 +35,13 @@ END SUBROUTINE myDdot
 #endif
 !
 !----------------------------------------------------------------------------
+#ifdef USE_CUDA
 SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
                     uspp, e, e_d, btype, notcnv, lrot, dav_iter )
+#else
+SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
+                    uspp, e, btype, notcnv, lrot, dav_iter )
+#endif
   !----------------------------------------------------------------------------
   !
   ! ... iterative solution of the eigenvalue problem:
@@ -70,9 +75,6 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, ethr, &
 #ifdef USE_CUDA
   COMPLEX(DP), DEVICE, INTENT(INOUT) :: evc_d(npwx,npol,nvec)
   REAL(DP), DEVICE, INTENT(OUT) :: e_d(nvec)
-#else
-  COMPLEX(DP), OPTIONAL :: evc_d(:)
-  REAL(DP), OPTIONAL :: e_d(:)
 #endif
     !  evc_d contains the refined estimates of the eigenvectors  
   REAL(DP), INTENT(IN) :: ethr
