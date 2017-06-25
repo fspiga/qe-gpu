@@ -40,11 +40,14 @@ F77            = pgf90
 
 GPU_ARCH=60
 
-CFLAGS         = -O2 -Mpreprocess $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O2 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-FFLAGS         = -O2 -Mpreprocess  
+CFLAGS         = -O2 -mp -Mpreprocess $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O2 -mp -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+FFLAGS         = -O2 -mp -Mpreprocess  
 
-FFLAGS_NOOPT   = -O0
+# If this flag is present some files are compiled differently as workaround for compiler bugs
+F90FLAGS_WORKAROUND = -O2 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+
+FFLAGS_NOOPT   = 
 FFLAGS_NOMAIN   = -Mnomain
 
 LD             = mpif90
