@@ -1,6 +1,3 @@
-# Machine : DAVIDE
-# Date    : 13/06/2017
-
 # For a verbose description of these fields please refer to the original 
 # Quantum ESPRESSO make.inc file
 
@@ -26,7 +23,7 @@ TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 # TOPDIR = /home/fspiga/fs395/qe-gpu
 
 # See include/defs.h.README for a list of options and their meaning
-DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
+DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI -D__OPENMP
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
 IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve
@@ -40,12 +37,12 @@ F77            = pgf90
 
 GPU_ARCH=60
 
-CFLAGS         = -O2 -mp -Mpreprocess $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O2 -mp -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-FFLAGS         = -O2 -mp -Mpreprocess  
+CFLAGS         = -O3 -mp -Mpreprocess $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O3 -mp -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+FFLAGS         = -O3 -mp -Mpreprocess  
 
 # If this flag is present some files are compiled differently as workaround for compiler bugs
-F90FLAGS_WORKAROUND = -O2 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+F90FLAGS_WORKAROUND = -O3 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 
 FFLAGS_NOOPT   = 
 FFLAGS_NOMAIN   = -Mnomain
@@ -55,6 +52,7 @@ LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
 LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a
 
 MATH_LIBS      = -L/opt/ibm/xlf/15.1.5/lib -lessl -lxl -lxlf90_r -lxlfmath -llapack -lblas
+#MATH_LIBS 	= -L/opt/ibm/xlf/15.1.5/lib -lesslsmp -lessl -lxl -lxlf90_r -lxlfmath -L/opt/ibm/xlsmp/4.1.5/lib -lxlsmp -lxlfmath -llapack -lblas
 
 EIGENSOLVER_VERSION     = 0.2
 
