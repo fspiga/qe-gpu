@@ -38,6 +38,8 @@ MPIF90         = mpif90
 CC             = pgcc
 F77            = pgf90
 
+GPU_ARCH=60
+
 CFLAGS         = -O2 -Mpreprocess $(DFLAGS) $(IFLAGS)
 F90FLAGS       = -O2 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 FFLAGS         = -O2 -Mpreprocess  
@@ -49,9 +51,9 @@ LD             = mpif90
 LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
 LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a
 
-MATH_LIBS      = -L/opt/ibm/xlf/15.1.5/lib -lessl -lxl -lxlf90_r -lxlfmath $(TOPDIR)/LAPACK/liblapack.a $(TOPDIR)/LAPACK/libblas.a
+MATH_LIBS      = -L/opt/ibm/xlf/15.1.5/lib -lessl -lxl -lxlf90_r -lxlfmath -llapack -lblas
 
-NETLIB_LIBS_SWITCH = internal
+EIGENSOLVER_VERSION     = 0.2
 
 SCALAPACK_LIBS = 
 

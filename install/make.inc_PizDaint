@@ -83,6 +83,8 @@ MPIF90         = ftn
 CC             = pgcc
 F77            = pgf90
 
+GPU_ARCH=60
+
 CFLAGS         = -O3 —mp Mpreprocess $(DFLAGS) $(IFLAGS)
 F90FLAGS       = -O3 —mp Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 FFLAGS         = -O3 -Mpreprocess
@@ -96,7 +98,7 @@ LD_LIBS        = -Mcudalib=cufft,cublas $(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsol
 
 MATH_LIBS      = -L${MKLROOT}/lib/intel64  -lmkl_intel_lp64 -lmkl_pgi_thread -lmkl_core -pgf90libs -mp -lpthread -lm -ldl
 
-NETLIB_LIBS_SWITCH = external
+EIGENSOLVER_VERSION     = 0.2
 
 SCALAPACK_LIBS =
 
