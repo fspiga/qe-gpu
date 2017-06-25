@@ -12,45 +12,26 @@
 include ../make.inc
 include install_utils
 
-# .NOTPARALLEL: liblapack_internal libeigensolver_gpu
+# .NOTPARALLEL: libeigensolver_gpu
 
-LAPACK_NETLIB=lapack-3.6.1.tgz
-LAPACK_NETLIB_NAME=lapack-3.6.1
-LAPACK_NETLIB_URL=http://www.netlib.org/lapack/${LAPACK_NETLIB}
-
-EIGENSOLVER_GPU=v0.2.tar.gz
-EIGENSOLVER_GPU_NAME=Eigensolver_gpu-0.2
+EIGENSOLVER_GPU=v${EIGENSOLVER_VERSION}.tar.gz
+EIGENSOLVER_GPU_NAME=Eigensolver_gpu-${EIGENSOLVER_VERSION}
 EIGENSOLVER_GPU_URL=https://github.com/NVIDIA/Eigensolver_gpu/archive/${EIGENSOLVER_GPU}
 
 all: 
-	$(MAKE) liblapack_$(NETLIB_LIBS_SWITCH) 
+ifdef EIGENSOLVER_VERSION
 	$(MAKE) libeigensolver_gpu
+endif
 	$(MAKE) libiotk 
 
-libblas	:	liblapack
-liblapack : liblapack_$(NETLIB_LIBS_SWITCH) 
-
-liblapack_external : fake_lapack_external
-
-fake_lapack_external :
-	touch fake_liblapack.a
-	-rm fake_liblapack.a
-
-liblapack_internal:
-	$(call download_and_unpack,$(LAPACK_NETLIB_NAME),$(LAPACK_NETLIB_URL),LAPACK,LAPACK)
-	if test ! -e ../LAPACK/liblapack.a && test -e make_lapack.inc; then \
-	  (cp make_lapack.inc ../LAPACK/make.inc; \
-	  cd ../LAPACK; $(MAKE) blaslib lapacklib); else \
-        (echo "no configuration file found for lapack"; \
-         echo "run configure from main QE dir"; exit); fi 
-
-
 libeigensolver_gpu:
+ifdef EIGENSOLVER_VERSION
 	$(call download_and_unpack,$(EIGENSOLVER_GPU_NAME),$(EIGENSOLVER_GPU_URL),EIGENSOLVER_GPU,EIGENSOLVER_GPU)
-	if test ! -e ../EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a && test -e Makefile.lib_eigsolve; then \
+	if test ! -e ../EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a ; then \
     (cp Makefile.lib_eigsolve ../EIGENSOLVER_GPU/lib_eigsolve/Makefile; \
     cd ../EIGENSOLVER_GPU/lib_eigsolve/; $(MAKE) ); else \
         (echo "no configuration file found for GPU custom eigensolver"; exit); fi
+endif
 
 libiotk: 
 	if test ! -d ../S3DE; then \
@@ -66,11 +47,6 @@ libiotk:
 	cd ../; ln -fs S3DE/iotk iotk
 	
 # cleaning
-lapack_clean:
-	if test -d ../LAPACK; then (cd ../LAPACK; $(MAKE) clean); fi
-lapack_veryclean:
-	if test -d ../LAPACK; then (rm -R -f ../LAPACK ../${LAPACK_NETLIB_NAME}); fi
-	rm -f make_lapack.inc
 iotk_clean:
 	if test -d ../S3DE; then (cd ../S3DE; $(MAKE) clean); fi
 	if test -d ../iotk; then (rm -R -f ../iotk); fi
@@ -88,10 +64,10 @@ iotk_veryclean:
 	rm -f ../bin/iotk_print_kinds.x; \
 	rm -f ../iotk
 libeigensolver_gpu_clean:
-	if test -d ../EIGENSOLVER_GPU; then (cd ../EIGENSOLVER_GPU; $(MAKE) clean); fi
+	if test -d ../EIGENSOLVER_GPU; then (cd ../EIGENSOLVER_GPU ; $(MAKE) clean); fi
 libeigensolver_gpu_veryclean:
 	if test -d ../EIGENSOLVER_GPU; then (rm -R -f ../EIGENSOLVER_GPU ../${EIGENSOLVER_GPU_NAME}); fi
 
 # general cleaning
-clean: lapack_clean iotk_clean libeigensolver_gpu_clean
-veryclean: lapack_veryclean iotk_veryclean libeigensolver_gpu_veryclean
+clean: iotk_clean libeigensolver_gpu_clean
+veryclean: iotk_veryclean libeigensolver_gpu_veryclean
