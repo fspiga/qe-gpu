@@ -208,6 +208,10 @@ CONTAINS
          &I5," processors")' ) nproc 
 #endif
     !
+#if defined(USE_CUDA)
+    WRITE( stdout, '(/5X,"GPU accelerated version",/5x)')
+#endif 
+    !
     IF ( nimage > 1 ) WRITE( stdout, &
          '(5X,"path-images division:  nimage    = ",I7)' ) nimage
     IF ( npool > 1 ) WRITE( stdout, &
