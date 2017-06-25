@@ -64,7 +64,7 @@ iotk_veryclean:
 	rm -f ../bin/iotk_print_kinds.x; \
 	rm -f ../iotk
 libeigensolver_gpu_clean:
-	if test -d ../EIGENSOLVER_GPU; then (cd ../EIGENSOLVER_GPU ; $(MAKE) clean); fi
+	if test -d ../EIGENSOLVER_GPU; then (cd ../EIGENSOLVER_GPU/lib_eigsolve ; $(MAKE) clean); fi
 libeigensolver_gpu_veryclean:
 	if test -d ../EIGENSOLVER_GPU; then (rm -R -f ../EIGENSOLVER_GPU ../${EIGENSOLVER_GPU_NAME}); fi
 
