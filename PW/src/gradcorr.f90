@@ -1068,16 +1068,16 @@ subroutine pw_gpu (rs, ec, vc)
 end subroutine pw_gpu
 
 
-SUBROUTINE gradcorr_gpu( rho, rho_d, rhog, rhog_d, rho_core, rho_core_d, rhog_core, rhog_core_d, etxc, vtxc, v, v_d )
+SUBROUTINE gradcorr_gpu(rho_d, rhog_d, rho_core_d, rhog_core_d, etxc, vtxc, v_d )
   !----------------------------------------------------------------------------
   !
-  USE constants,            ONLY : e2
+  USE constants,            ONLY : e2, pi
   USE kinds,                ONLY : DP
-  USE gvect,                ONLY : nl, ngm, g
+  USE gvect,                ONLY : nl, nl_d, ngm, g, g_d
   USE lsda_mod,             ONLY : nspin
   USE cell_base,            ONLY : omega, alat
   USE funct,                ONLY : gcxc, gcx_spin, gcc_spin, igcc_is_lyp, &
-                                   gcc_spin_more, dft_is_gradient, get_igcc
+                                   gcc_spin_more, dft_is_gradient, get_igcc, get_igcx
   USE spin_orb,             ONLY : domag
   USE noncollin_module,     ONLY : ux
   USE wavefunctions_module, ONLY : psic
@@ -1087,32 +1087,52 @@ SUBROUTINE gradcorr_gpu( rho, rho_d, rhog, rhog_d, rho_core, rho_core_d, rhog_co
   !
   IMPLICIT NONE
   !
-  REAL(DP),    INTENT(IN)    :: rho(dfftp%nnr,nspin), rho_core(dfftp%nnr)
-  COMPLEX(DP), INTENT(IN)    :: rhog(ngm,nspin), rhog_core(ngm)
-  REAL(DP),    INTENT(INOUT) :: v(dfftp%nnr,nspin)
+  REAL(DP),    INTENT(IN), device    :: rho_d(dfftp%nnr,nspin), rho_core_d(dfftp%nnr)
+  COMPLEX(DP), INTENT(IN), device    :: rhog_d(ngm,nspin), rhog_core_d(ngm)
+  REAL(DP),    INTENT(INOUT), device :: v_d(dfftp%nnr,nspin)
   REAL(DP),    INTENT(INOUT) :: vtxc, etxc
-  !
-  REAL(DP),    DEVICE, INTENT(IN)    :: rho_d(dfftp%nnr,nspin), rho_core_d(dfftp%nnr)
-  COMPLEX(DP), DEVICE, INTENT(IN)    :: rhog_d(ngm,nspin), rhog_core_d(ngm)
-  REAL(DP),    DEVICE, INTENT(INOUT) :: v_d(dfftp%nnr,nspin)
+
   !
   INTEGER :: k, ipol, is, nspin0, ir, jpol
   !
-  REAL(DP),    ALLOCATABLE :: grho(:,:,:), h(:,:,:), dh(:)
-  REAL(DP),    ALLOCATABLE :: rhoout(:,:), segni(:), vgg(:,:), vsave(:,:)
+  REAL(DP),    ALLOCATABLE :: segni(:), vgg(:,:), vsave(:,:)
   REAL(DP),    ALLOCATABLE :: gmag(:,:,:)
 
-  COMPLEX(DP), ALLOCATABLE :: rhogsum(:,:)
+  REAL(DP),    ALLOCATABLE, device :: grho_d(:,:,:), h_d(:,:,:), dh_d(:), rhoout_d(:,:)
+
+  COMPLEX(DP), ALLOCATABLE, device :: rhogsum_d(:,:)
   !
-  REAL(DP) :: grho2(2), sx, sc, v1x, v2x, v1c, v2c, &
+  REAL(DP) :: grho1, grho2(2), sx, sc, v1x, v2x, v1c, v2c, &
               v1xup, v1xdw, v2xup, v2xdw, v1cup, v1cdw , &
               etxcgc, vtxcgc, segno, arho, fac, zeta, rh, grh2, amag 
   REAL(DP) :: v2cup, v2cdw,  v2cud, rup, rdw, &
               grhoup, grhodw, grhoud, grup, grdw, seg
   !
   REAL(DP), PARAMETER :: epsr = 1.D-6, epsg = 1.D-10
-  !
+  integer :: i, j, igcx, igcc
 
+  ! parameters from expanded gcxc subroutine
+  real(DP), parameter:: small = 1.E-10_DP
+  real(DP) :: kf, agrho, s1, s2, ds, dsg, exunif, fx
+  real(DP) :: dxunif, dfx, f1, f2, f3, dfx1
+  real(DP) :: p,  amu, ab, c, dfxdp, dfxds, upbe, uge, s, ak, aa
+  real(DP), parameter :: third = 1._DP / 3._DP, c1 = 0.75_DP / pi , &
+       c2 = 3.093667726280136_DP, c5 = 4._DP * third, &
+       c6 = c2*2.51984210, c7=5._DP/6._DP, c8=0.8_DP, & ! (3pi^2)^(1/3)*2^(4/3)
+       k1 = 0.804_DP, mu1 = 0.21951_DP 
+  !
+  real(DP), parameter :: ga = 0.031091d0, be1 = 0.066725d0
+  real(DP), parameter :: pi34 = 0.6203504908994d0
+  real(DP), parameter :: xkf = 1.919158292677513d0, xks = 1.128379167095513d0
+  real(DP) :: ks, rs, ec, vc, t, expe, af, bf, y, xy, qy
+  real(DP) :: h0, dh0, ddh0, sc2D, v1c2D, v2c2D
+  !
+  real(DP) :: a, b1, b2, c0, d0, d1
+  parameter (a = 0.031091d0, b1 = 7.5957d0, b2 = 3.5876d0, c0 = a)
+  real(DP) :: lnrs, rs12, rs32, rs2, om, dom, olog
+  real(DP), parameter :: a11 = 0.21370d0, b31 = 1.6382d0, b41 = 0.49294d0
+
+  !
   !
   IF ( .NOT. dft_is_gradient() ) RETURN
   !
@@ -1126,199 +1146,333 @@ SUBROUTINE gradcorr_gpu( rho, rho_d, rhog, rhog_d, rho_core, rho_core_d, rhog_co
   if (nspin==4.and.domag) nspin0=2
   fac = 1.D0 / DBLE( nspin0 )
   !
-  ALLOCATE(    h( 3, dfftp%nnr, nspin0) )
-  ALLOCATE( grho( 3, dfftp%nnr, nspin0) )
-  ALLOCATE( rhoout( dfftp%nnr, nspin0) )
-  IF (nspin==4.AND.domag) THEN
-     ALLOCATE( vgg( dfftp%nnr, nspin0 ) )
-     ALLOCATE( vsave( dfftp%nnr, nspin ) )
-     ALLOCATE( segni( dfftp%nnr ) )
-     vsave=v
-     v=0.d0
-  ENDIF
+  ALLOCATE(    h_d( 3, dfftp%nnr, nspin0) )
+  ALLOCATE( grho_d( 3, dfftp%nnr, nspin0) )
+  ALLOCATE( rhoout_d( dfftp%nnr, nspin0) )
+!  IF (nspin==4.AND.domag) THEN
+!     ALLOCATE( vgg( dfftp%nnr, nspin0 ) )
+!     ALLOCATE( vsave( dfftp%nnr, nspin ) )
+!     ALLOCATE( segni( dfftp%nnr ) )
+!     vsave=v
+!     v=0.d0
+!  ENDIF
   !
-  ALLOCATE( rhogsum( ngm, nspin0 ) )
+  ALLOCATE( rhogsum_d( ngm, nspin0 ) )
   !
   ! ... calculate the gradient of rho + rho_core in real space
   !
   IF ( nspin == 4 .AND. domag ) THEN
-     !
-     CALL compute_rho(rho,rhoout,segni,dfftp%nnr)
-     !
-     ! ... bring starting rhoout to G-space
-     !
-     DO is = 1, nspin0
-        !
-        psic(:) = rhoout(:,is)
-        !
-        CALL fwfft ('Dense', psic, dfftp)
-        !
-        rhogsum(:,is) = psic(nl(:))
-        !
-     END DO
+     print*, "gradcorr_gpu: nspin == 4 .and. domag not supported!"; flush(6); stop
+!     !
+!     CALL compute_rho(rho,rhoout,segni,dfftp%nnr)
+!     !
+!     ! ... bring starting rhoout to G-space
+!     !
+!     DO is = 1, nspin0
+!        !
+!        psic(:) = rhoout(:,is)
+!        !
+!        CALL fwfft ('Dense', psic, dfftp)
+!        !
+!        rhogsum(:,is) = psic(nl(:))
+!        !
+!     END DO
   ELSE
      !
-     rhoout(:,1:nspin0)  = rho(:,1:nspin0)
-     rhogsum(:,1:nspin0) = rhog(:,1:nspin0)
+     !$cuf kernel do(2) <<<*,*>>>
+     do j = 1, nspin0
+       do i = lbound(rhoout_d,1), ubound(rhoout_d,1)
+         rhoout_d(i,j)  = rho_d(i,j)
+       end do
+     end do
+
+     !$cuf kernel do(2) <<<*,*>>>
+     do j = 1, nspin0
+       do i = lbound(rhogsum_d,1), ubound(rhogsum_d,1)
+         rhogsum_d(i,j)  = rhog_d(i,j)
+       end do
+     end do
      !
   ENDIF
 
   DO is = 1, nspin0
      !
-     rhoout(:,is)  = fac * rho_core(:)  + rhoout(:,is)
-     rhogsum(:,is) = fac * rhog_core(:) + rhogsum(:,is)
+     !$cuf kernel do(1) <<<*,*>>>
+     do i = lbound(rhoout_d,1), ubound(rhoout_d,1)
+       rhoout_d(i,is)  = fac * rho_core_d(i)  + rhoout_d(i,is)
+     end do
+     !$cuf kernel do(1) <<<*,*>>>
+     do i = lbound(rhogsum_d,1), ubound(rhogsum_d,1)
+       rhogsum_d(i,is) = fac * rhog_core_d(i) + rhogsum_d(i,is)
+     end do
      !
 call start_clock( 'gradrho' )
-     CALL gradrho( dfftp%nnr, rhogsum(1,is), ngm, g, nl, grho(1,1,is) )
+     CALL gradrho_gpu( dfftp%nnr, rhogsum_d(1,is), ngm, g_d, nl_d, grho_d(1,1,is) )
 call stop_clock( 'gradrho' )
+     
      !
   END DO
-
   !
-  DEALLOCATE( rhogsum )
+  DEALLOCATE( rhogsum_d )
   !
   IF ( nspin0 == 1 ) THEN
-     !
-     ! ... This is the spin-unpolarised case
-     !
-     DO k = 1, dfftp%nnr
+    igcx = get_igcx
+    igcc = get_igcc
+
+    !
+    IF (igcx .eq. 3 .and. igcc .eq. 4) THEN
+      !
+      ! ... This is the spin-unpolarised case (on GPU, only for igcx == 3 and igcc == 4 config)
+      !
+      !$cuf kernel do(1) <<<*, *>>>
+      DO k = 1, dfftp%nnr
         !
-        arho = ABS( rhoout(k,1) )
+        arho = ABS( rhoout_d(k,1) )
         !
         IF ( arho > epsr ) THEN
            !
-           grho2(1) = grho(1,k,1)**2 + grho(2,k,1)**2 + grho(3,k,1)**2
+           grho1 = grho_d(1,k,1)**2 + grho_d(2,k,1)**2 + grho_d(3,k,1)**2
            !
-           IF ( grho2(1) > epsg ) THEN
+           IF ( grho1 > epsg ) THEN
               !
-              segno = SIGN( 1.D0, rhoout(k,1) )
+              segno = SIGN( 1.D0, rhoout_d(k,1) )
               !
-              CALL gcxc_gpu( arho, grho2(1), sx, sc, v1x, v2x, v1c, v2c )
+              !CALL gcxc_gpu( arho, grho1, sx, sc, v1x, v2x, v1c, v2c )
+              if (arho <= small) then
+                 sx = 0.0_DP
+                 v1x = 0.0_DP
+                 v2x = 0.0_DP
+              else
+            !     call pbex (rho, grho, 1, sx, v1x, v2x)
+                 agrho = sqrt (grho1)
+                 kf = c2 * arho**third
+                 dsg = 0.5_DP / kf
+                 s1 = agrho * dsg / arho
+                 s2 = s1 * s1
+                 ds = - c5 * s1
+                 f1 = s2 * mu1 / k1
+                 f2 = 1._DP + f1
+                 f3 = k1 / f2
+                 fx = k1 - f3
+                 exunif = - c1 * kf
+                 sx = exunif * fx
+                 dxunif = exunif * third
+                 dfx1 = f2 * f2
+                 dfx = 2._DP * mu1 * s1 / dfx1
+                 v1x = sx + dxunif * fx + exunif * dfx * ds
+                 v2x = exunif * dfx * dsg / agrho
+                 sx = sx * arho
+              endif
+
+              if (arho.le.small) then
+                 sc = 0.0_DP
+                 v1c = 0.0_DP
+                 v2c = 0.0_DP
+              else
+                 !call pbec (rho, grho, 1, sc, v1c, v2c)
+                 rs = pi34 / arho**third
+                 !
+                 !call pw_gpu (rs, ec, vc)
+                 rs12 = sqrt (rs)
+                 rs32 = rs * rs12
+                 rs2 = rs**2
+                 om = 2.d0 * a * (b1 * rs12 + b2 * rs + b31 * rs32 + b41 * rs2)
+                 dom = 2.d0 * a * (0.5d0 * b1 * rs12 + b2 * rs + 1.5d0 * b31 * rs32 + 2.d0 * b41 * rs2)
+                 olog = log (1.d0 + 1.0d0 / om)
+                 ec = - 2.d0 * a * (1.d0 + a11 * rs) * olog
+                 vc = - 2.d0 * a * (1.d0 + 2.d0 / 3.d0 * a11 * rs) &
+                      * olog - 2.d0 / 3.d0 * a * (1.d0 + a11 * rs) * dom / (om * (om + 1.d0) )
+                 !
+                 kf = xkf / rs
+                 ks = xks * sqrt (kf)
+                 t = sqrt (grho1) / (2.d0 * ks * arho)
+                 expe = exp ( - ec / ga)
+                 af = be1 / ga * (1.d0 / (expe-1.d0) )
+                 bf = expe * (vc - ec)
+                 y = af * t * t
+                 xy = (1.d0 + y) / (1.d0 + y + y * y)
+                 qy = y * y * (2.d0 + y) / (1.d0 + y + y * y) **2
+                 s1 = 1.d0 + be1 / ga * t * t * xy
+                 h0 = ga * log (s1)
+                 dh0 = be1 * t * t / s1 * ( - 7.d0 / 3.d0 * xy - qy * (af * bf / &
+                      be1-7.d0 / 3.d0) )
+                 ddh0 = be1 / (2.d0 * ks * ks * arho) * (xy - qy) / s1
+                 sc = arho * h0
+                 v1c = h0 + dh0
+                 v2c = ddh0
+              endif
               !
               ! ... first term of the gradient correction : D(rho*Exc)/D(rho)
               !
-              v(k,1) = v(k,1) + e2 * ( v1x + v1c )
+              v_d(k,1) = v_d(k,1) + e2 * ( v1x + v1c )
               !
               ! ... h contains :
               !
               ! ...    D(rho*Exc) / D(|grad rho|) * (grad rho) / |grad rho|
               !
-              h(:,k,1) = e2 * ( v2x + v2c ) * grho(:,k,1)
+              h_d(:,k,1) = e2 * ( v2x + v2c ) * grho_d(:,k,1)
               !
-              vtxcgc = vtxcgc+e2*( v1x + v1c ) * ( rhoout(k,1) - rho_core(k) )
+              vtxcgc = vtxcgc+e2*( v1x + v1c ) * ( rhoout_d(k,1) - rho_core_d(k) )
               etxcgc = etxcgc+e2*( sx + sc ) * segno
               !
            ELSE
-              h(:,k,1)=0.D0
+              h_d(:,k,1)=0.D0
            END IF
            !
-        ELSE
-           !
-           h(:,k,1) = 0.D0
-           !
-        END IF
-        !
-     END DO
-     !
+          ELSE
+             !
+             h_d(:,k,1) = 0.D0
+             !
+          END IF
+          !
+       END DO
+
+    ELSE
+      print*, "gradcorr_gpu: should not be here!"; flush(6); stop
+!      !
+!      ! ... This is the spin-unpolarised case 
+!      !
+!      DO k = 1, dfftp%nnr
+!         !
+!         arho = ABS( rhoout(k,1) )
+!         !
+!         IF ( arho > epsr ) THEN
+!            !
+!            grho2(1) = grho(1,k,1)**2 + grho(2,k,1)**2 + grho(3,k,1)**2
+!            !
+!            IF ( grho2(1) > epsg ) THEN
+!               !
+!               segno = SIGN( 1.D0, rhoout(k,1) )
+!               !
+!               CALL gcxc( arho, grho2(1), sx, sc, v1x, v2x, v1c, v2c )
+!               !
+!               ! ... first term of the gradient correction : D(rho*Exc)/D(rho)
+!               !
+!               v(k,1) = v(k,1) + e2 * ( v1x + v1c )
+!               !
+!               ! ... h contains :
+!               !
+!               ! ...    D(rho*Exc) / D(|grad rho|) * (grad rho) / |grad rho|
+!               !
+!               h(:,k,1) = e2 * ( v2x + v2c ) * grho(:,k,1)
+!               !
+!               vtxcgc = vtxcgc+e2*( v1x + v1c ) * ( rhoout(k,1) - rho_core(k) )
+!               etxcgc = etxcgc+e2*( sx + sc ) * segno
+!               !
+!            ELSE
+!               h(:,k,1)=0.D0
+!            END IF
+!            !
+!         ELSE
+!            !
+!            h(:,k,1) = 0.D0
+!            !
+!         END IF
+!         !
+!      END DO
+    ENDIF
+!     !
   ELSE
      !
      ! ... spin-polarised case
      !
-!$omp parallel do private( rh, grho2, sx, v1xup, v1xdw, v2xup, v2xdw, rup, rdw, &
-!$omp             grhoup, grhodw, grhoud, sc, v1cup, v1cdw, v2cup, v2cdw, v2cud, &
-!$omp             zeta, grh2, v2c, grup, grdw  ), &
-!$omp             reduction(+:etxcgc,vtxcgc)
-     DO k = 1, dfftp%nnr
-        !
-        rh = rhoout(k,1) + rhoout(k,2)
-        !
-        grho2(:) = grho(1,k,:)**2 + grho(2,k,:)**2 + grho(3,k,:)**2
-        !
-        CALL gcx_spin( rhoout(k,1), rhoout(k,2), grho2(1), &
-                       grho2(2), sx, v1xup, v1xdw, v2xup, v2xdw )
-        !
-        IF ( rh > epsr ) THEN
-           !
-           IF ( igcc_is_lyp() ) THEN
-              !
-              rup = rhoout(k,1)
-              rdw = rhoout(k,2)
-              !
-              grhoup = grho(1,k,1)**2 + grho(2,k,1)**2 + grho(3,k,1)**2
-              grhodw = grho(1,k,2)**2 + grho(2,k,2)**2 + grho(3,k,2)**2
-              !
-              grhoud = grho(1,k,1) * grho(1,k,2) + &
-                       grho(2,k,1) * grho(2,k,2) + &
-                       grho(3,k,1) * grho(3,k,2)
-              !
-              CALL gcc_spin_more( rup, rdw, grhoup, grhodw, grhoud, &
-                                  sc, v1cup, v1cdw, v2cup, v2cdw, v2cud )
-              !
-           ELSE
-              !
-              zeta = ( rhoout(k,1) - rhoout(k,2) ) / rh
-              if (nspin.eq.4.and.domag) zeta=abs(zeta)*segni(k)
-              !
-              grh2 = ( grho(1,k,1) + grho(1,k,2) )**2 + &
-                     ( grho(2,k,1) + grho(2,k,2) )**2 + &
-                     ( grho(3,k,1) + grho(3,k,2) )**2
-              !
-              CALL gcc_spin( rh, zeta, grh2, sc, v1cup, v1cdw, v2c )
-              !
-              v2cup = v2c
-              v2cdw = v2c
-              v2cud = v2c
-              !
-           END IF
-           !
-        ELSE
-           !
-           sc    = 0.D0
-           v1cup = 0.D0
-           v1cdw = 0.D0
-           v2c   = 0.D0
-           v2cup = 0.D0
-           v2cdw = 0.D0
-           v2cud = 0.D0
-           !
-        ENDIF
-        !
-        ! ... first term of the gradient correction : D(rho*Exc)/D(rho)
-        !
-        v(k,1) = v(k,1) + e2 * ( v1xup + v1cup )
-        v(k,2) = v(k,2) + e2 * ( v1xdw + v1cdw )
-        !
-        ! ... h contains D(rho*Exc)/D(|grad rho|) * (grad rho) / |grad rho|
-        !
-        DO ipol = 1, 3
-           !
-           grup = grho(ipol,k,1)
-           grdw = grho(ipol,k,2)
-           h(ipol,k,1) = e2 * ( ( v2xup + v2cup ) * grup + v2cud * grdw )
-           h(ipol,k,2) = e2 * ( ( v2xdw + v2cdw ) * grdw + v2cud * grup )
-           !
-        END DO
-        !
-        vtxcgc = vtxcgc + &
-                 e2 * ( v1xup + v1cup ) * ( rhoout(k,1) - rho_core(k) * fac )
-        vtxcgc = vtxcgc + &
-                 e2 * ( v1xdw + v1cdw ) * ( rhoout(k,2) - rho_core(k) * fac )
-        etxcgc = etxcgc + e2 * ( sx + sc )
-        !
-     END DO
-!$omp end parallel do
+     print*, "gradcorr_gpu: SPIN POLARISED not supported!"; flush(6); stop
+!!$omp parallel do private( rh, grho2, sx, v1xup, v1xdw, v2xup, v2xdw, rup, rdw, &
+!!$omp             grhoup, grhodw, grhoud, sc, v1cup, v1cdw, v2cup, v2cdw, v2cud, &
+!!$omp             zeta, grh2, v2c, grup, grdw  ), &
+!!$omp             reduction(+:etxcgc,vtxcgc)
+!     DO k = 1, dfftp%nnr
+!        !
+!        rh = rhoout(k,1) + rhoout(k,2)
+!        !
+!        grho2(:) = grho(1,k,:)**2 + grho(2,k,:)**2 + grho(3,k,:)**2
+!        !
+!        CALL gcx_spin( rhoout(k,1), rhoout(k,2), grho2(1), &
+!                       grho2(2), sx, v1xup, v1xdw, v2xup, v2xdw )
+!        !
+!        IF ( rh > epsr ) THEN
+!           !
+!           IF ( igcc_is_lyp() ) THEN
+!              !
+!              rup = rhoout(k,1)
+!              rdw = rhoout(k,2)
+!              !
+!              grhoup = grho(1,k,1)**2 + grho(2,k,1)**2 + grho(3,k,1)**2
+!              grhodw = grho(1,k,2)**2 + grho(2,k,2)**2 + grho(3,k,2)**2
+!              !
+!              grhoud = grho(1,k,1) * grho(1,k,2) + &
+!                       grho(2,k,1) * grho(2,k,2) + &
+!                       grho(3,k,1) * grho(3,k,2)
+!              !
+!              CALL gcc_spin_more( rup, rdw, grhoup, grhodw, grhoud, &
+!                                  sc, v1cup, v1cdw, v2cup, v2cdw, v2cud )
+!              !
+!           ELSE
+!              !
+!              zeta = ( rhoout(k,1) - rhoout(k,2) ) / rh
+!              if (nspin.eq.4.and.domag) zeta=abs(zeta)*segni(k)
+!              !
+!              grh2 = ( grho(1,k,1) + grho(1,k,2) )**2 + &
+!                     ( grho(2,k,1) + grho(2,k,2) )**2 + &
+!                     ( grho(3,k,1) + grho(3,k,2) )**2
+!              !
+!              CALL gcc_spin( rh, zeta, grh2, sc, v1cup, v1cdw, v2c )
+!              !
+!              v2cup = v2c
+!              v2cdw = v2c
+!              v2cud = v2c
+!              !
+!           END IF
+!           !
+!        ELSE
+!           !
+!           sc    = 0.D0
+!           v1cup = 0.D0
+!           v1cdw = 0.D0
+!           v2c   = 0.D0
+!           v2cup = 0.D0
+!           v2cdw = 0.D0
+!           v2cud = 0.D0
+!           !
+!        ENDIF
+!        !
+!        ! ... first term of the gradient correction : D(rho*Exc)/D(rho)
+!        !
+!        v(k,1) = v(k,1) + e2 * ( v1xup + v1cup )
+!        v(k,2) = v(k,2) + e2 * ( v1xdw + v1cdw )
+!        !
+!        ! ... h contains D(rho*Exc)/D(|grad rho|) * (grad rho) / |grad rho|
+!        !
+!        DO ipol = 1, 3
+!           !
+!           grup = grho(ipol,k,1)
+!           grdw = grho(ipol,k,2)
+!           h(ipol,k,1) = e2 * ( ( v2xup + v2cup ) * grup + v2cud * grdw )
+!           h(ipol,k,2) = e2 * ( ( v2xdw + v2cdw ) * grdw + v2cud * grup )
+!           !
+!        END DO
+!        !
+!        vtxcgc = vtxcgc + &
+!                 e2 * ( v1xup + v1cup ) * ( rhoout(k,1) - rho_core(k) * fac )
+!        vtxcgc = vtxcgc + &
+!                 e2 * ( v1xdw + v1cdw ) * ( rhoout(k,2) - rho_core(k) * fac )
+!        etxcgc = etxcgc + e2 * ( sx + sc )
+!        !
+!     END DO
+!!$omp end parallel do
      !
   END IF
   !
-  DO is = 1, nspin0
-     !
-     rhoout(:,is) = rhoout(:,is) - fac * rho_core(:)
-     !
-  END DO
+  !$cuf kernel do(2)
+  do is = 1, nspin0
+    do i = lbound(rhoout_d, 1), ubound(rhoout_d,1)
+      rhoout_d(i,is) = rhoout_d(i,is) - fac * rho_core_d(i)
+    end do
+  end do
   !
-  DEALLOCATE( grho )
+  DEALLOCATE( grho_d )
   !
-  ALLOCATE( dh( dfftp%nnr ) )    
+  ALLOCATE( dh_d( dfftp%nnr ) )    
   !
   ! ... second term of the gradient correction :
   ! ... \sum_alpha (D / D r_alpha) ( D(rho*Exc)/D(grad_alpha rho) )
@@ -1326,44 +1480,50 @@ call stop_clock( 'gradrho' )
   DO is = 1, nspin0
      !
 call start_clock( 'graddot' )
-     CALL grad_dot( dfftp%nnr, h(1,1,is), ngm, g, nl, alat, dh )
+     CALL grad_dot_gpu( dfftp%nnr, h_d(1,1,is), ngm, g_d, nl_d, alat, dh_d )
 call stop_clock( 'graddot' )
      !
-     v(:,is) = v(:,is) - dh(:)
+     !$cuf kernel do(1)
+     do i = lbound(v_d, 1), ubound(v_d,1)
+       v_d(i,is) = v_d(i,is) - dh_d(i)
+     end do
      !
-     vtxcgc = vtxcgc - SUM( dh(:) * rhoout(:,is) )
+     !$cuf kernel do(1)
+     do i = lbound(dh_d, 1), ubound(dh_d,1)
+       vtxcgc = vtxcgc - dh_d(i) * rhoout_d(i,is)
+     end do
      !
   END DO
+
   !
   vtxc = vtxc + omega * vtxcgc / ( dfftp%nr1 * dfftp%nr2 * dfftp%nr3 )
   etxc = etxc + omega * etxcgc / ( dfftp%nr1 * dfftp%nr2 * dfftp%nr3 )
 
-  IF (nspin==4.AND.domag) THEN
-     DO is=1,nspin0
-        vgg(:,is)=v(:,is)
-     ENDDO
-     v=vsave
-     DO k=1,dfftp%nnr
-        v(k,1)=v(k,1)+0.5d0*(vgg(k,1)+vgg(k,2))
-        amag=sqrt(rho(k,2)**2+rho(k,3)**2+rho(k,4)**2)
-        IF (amag.GT.1.d-12) THEN
-           v(k,2)=v(k,2)+segni(k)*0.5d0*(vgg(k,1)-vgg(k,2))*rho(k,2)/amag
-           v(k,3)=v(k,3)+segni(k)*0.5d0*(vgg(k,1)-vgg(k,2))*rho(k,3)/amag
-           v(k,4)=v(k,4)+segni(k)*0.5d0*(vgg(k,1)-vgg(k,2))*rho(k,4)/amag
-        ENDIF
-     ENDDO
-  ENDIF
+!  IF (nspin==4.AND.domag) THEN
+!     DO is=1,nspin0
+!        vgg(:,is)=v(:,is)
+!     ENDDO
+!     v=vsave
+!     DO k=1,dfftp%nnr
+!        v(k,1)=v(k,1)+0.5d0*(vgg(k,1)+vgg(k,2))
+!        amag=sqrt(rho(k,2)**2+rho(k,3)**2+rho(k,4)**2)
+!        IF (amag.GT.1.d-12) THEN
+!           v(k,2)=v(k,2)+segni(k)*0.5d0*(vgg(k,1)-vgg(k,2))*rho(k,2)/amag
+!           v(k,3)=v(k,3)+segni(k)*0.5d0*(vgg(k,1)-vgg(k,2))*rho(k,3)/amag
+!           v(k,4)=v(k,4)+segni(k)*0.5d0*(vgg(k,1)-vgg(k,2))*rho(k,4)/amag
+!        ENDIF
+!     ENDDO
+!  ENDIF
   !
-  DEALLOCATE( dh )
-  DEALLOCATE( h )
-  DEALLOCATE( rhoout )
+  DEALLOCATE( dh_d )
+  DEALLOCATE( h_d )
+  DEALLOCATE( rhoout_d )
   IF (nspin==4.and.domag) THEN
      DEALLOCATE( vgg )
      DEALLOCATE( vsave )
      DEALLOCATE( segni )
   ENDIF
   !
-
   call stop_clock( 'gradcorr' )
   RETURN
   !
@@ -1387,16 +1547,17 @@ SUBROUTINE gradrho_gpu( nrxx, a, ngm, g, nl, ga )
   IMPLICIT NONE
   !
   INTEGER,     INTENT(IN)  :: nrxx
-  INTEGER,     INTENT(IN)  :: ngm, nl(ngm)
-  COMPLEX(DP), INTENT(IN)  :: a(ngm)
-  REAL(DP),    INTENT(IN)  :: g(3,ngm)
-  REAL(DP),    INTENT(OUT) :: ga(3,nrxx)
+  INTEGER,     INTENT(IN)  :: ngm
+  INTEGER,     INTENT(IN), device  :: nl(ngm)
+  COMPLEX(DP), INTENT(IN), device  :: a(ngm)
+  REAL(DP),    INTENT(IN), device  :: g(3,ngm)
+  REAL(DP),    INTENT(OUT), device :: ga(3,nrxx)
   !
-  INTEGER                  :: ipol
-  COMPLEX(DP), ALLOCATABLE :: gaux(:)
+  INTEGER                  :: i, ipol
+  COMPLEX(DP), ALLOCATABLE, device :: gaux_d(:)
   !
   !
-  ALLOCATE( gaux( nrxx ) )
+  ALLOCATE( gaux_d (nrxx) )
   !
   ! ... multiply by (iG) to get (\grad_ipol a)(G) ...
   !
@@ -1404,27 +1565,35 @@ SUBROUTINE gradrho_gpu( nrxx, a, ngm, g, nl, ga )
   !
   DO ipol = 1, 3
      !
-     gaux(:) = CMPLX(0.d0,0.d0,kind=dp)
+     gaux_d(:) = CMPLX(0.d0,0.d0,kind=dp)
      !
-     gaux(nl(:)) = g(ipol,:) * CMPLX( -AIMAG( a(:) ), REAL( a(:) ) ,kind=DP)
+     !$cuf kernel do(1) <<<*,*>>>
+     do i = lbound(a,1), ubound(a,1)
+       gaux_d(nl(i)) = g(ipol,i) * CMPLX( -AIMAG( a(i) ), REAL( a(i) ) ,kind=DP)
+     end do
      !
      IF ( gamma_only ) THEN
+        print*, "gradrho_gpu: GAMMA_ONLY not implemented!"
+        flush(6); stop
         !
-        gaux(nlm(:)) = CMPLX( REAL( gaux(nl(:)) ), -AIMAG( gaux(nl(:)) ) ,kind=DP)
+        !gaux(nlm(:)) = CMPLX( REAL( gaux(nl(:)) ), -AIMAG( gaux(nl(:)) ) ,kind=DP)
         !
      END IF
      !
      ! ... bring back to R-space, (\grad_ipol a)(r) ...
      !
-     CALL invfft ('Dense', gaux, dfftp)
+     CALL invfft ('Dense', gaux_d, dfftp)
      !
      ! ...and add the factor 2\pi/a  missing in the definition of G
      !
-     ga(ipol,:) = ga(ipol,:) + tpiba * REAL( gaux(:) )
+     !$cuf kernel do(1) <<<*,*>>>
+     do i = lbound(ga,2), ubound(ga,2)
+       ga(ipol,i) = ga(ipol,i) + tpiba * REAL( gaux_d(i) )
+     end do
      !
   END DO
   !
-  DEALLOCATE( gaux )
+  DEALLOCATE( gaux_d )
   !
   RETURN
   !
@@ -1512,54 +1681,65 @@ SUBROUTINE grad_dot_gpu( nrxx, a, ngm, g, nl, alat, da )
   !
   IMPLICIT NONE
   !
-  INTEGER,  INTENT(IN)     :: nrxx, ngm, nl(ngm)
-  REAL(DP), INTENT(IN)     :: a(3,nrxx), g(3,ngm), alat
-  REAL(DP), INTENT(OUT)    :: da(nrxx)
+  INTEGER,  INTENT(IN)     :: nrxx, ngm
+  INTEGER,  INTENT(IN), device     :: nl(ngm)
+  REAL(DP), INTENT(IN)     ::  alat
+  REAL(DP), INTENT(IN), device     :: a(3,nrxx), g(3,ngm)
+  REAL(DP), INTENT(OUT), device    :: da(nrxx)
   !
-  INTEGER                  :: n, ipol
-  COMPLEX(DP), ALLOCATABLE :: aux(:), gaux(:)
+  INTEGER                  :: n, ipol, i
+  COMPLEX(DP), ALLOCATABLE, device :: aux_d(:), gaux_d(:)
   !
   !
-  ALLOCATE( aux( nrxx ), gaux( nrxx ) )
+  ALLOCATE( aux_d( nrxx ), gaux_d( nrxx ) )
   !
-  gaux(:) = CMPLX(0.d0,0.d0, kind=dp)
+  gaux_d(:) = CMPLX(0.d0,0.d0, kind=dp)
   !
   DO ipol = 1, 3
      !
-     aux = CMPLX( a(ipol,:), 0.D0 ,kind=DP)
+     !$cuf kernel do(1) <<<*,*>>>
+     do i = lbound(a,2), ubound(a,2)
+       aux_d(i) = CMPLX( a(ipol,i), 0.D0 ,kind=DP)
+     end do
      !
      ! ... bring a(ipol,r) to G-space, a(G) ...
      !
-     CALL fwfft ('Dense', aux, dfftp)
+     CALL fwfft ('Dense', aux_d, dfftp)
      !
+     !$cuf kernel do(1) <<<*,*>>>
      DO n = 1, ngm
         !
-        gaux(nl(n)) = gaux(nl(n)) + g(ipol,n) * &
-                      CMPLX( -AIMAG( aux(nl(n)) ), REAL( aux(nl(n)) ) ,kind=DP)
+        gaux_d(nl(n)) = gaux_d(nl(n)) + g(ipol,n) * &
+                      CMPLX( -AIMAG( aux_d(nl(n)) ), REAL( aux_d(nl(n)) ) ,kind=DP)
         !
      END DO
     !
   END DO
   !
   IF ( gamma_only ) THEN
+     print*, "grad_dot_gpu: GAMMA_ONLY not implemented!!"
+     flush(6); stop
      !
-     DO n = 1, ngm
-        !
-        gaux(nlm(n)) = CONJG( gaux(nl(n)) )
-        !
-     END DO
+     !DO n = 1, ngm
+     !   !
+     !   gaux(nlm(n)) = CONJG( gaux(nl(n)) )
+     !   !
+     !END DO
      !
   END IF
   !
   ! ... bring back to R-space, (\grad_ipol a)(r) ...
   !
-  CALL invfft ('Dense', gaux, dfftp)
+  CALL invfft ('Dense', gaux_d, dfftp)
   !
   ! ... add the factor 2\pi/a  missing in the definition of G and sum
   !
-  da(:) = tpiba * REAL( gaux(:) )
+  !$cuf kernel do(1) <<<*,*>>>
+  do i = lbound(da,1), ubound(da,1)
+    da(i) = tpiba * REAL( gaux_d(i) )
+  end do
   !
-  DEALLOCATE( aux, gaux )
+  DEALLOCATE( aux_d, gaux_d )
   !
   RETURN
   !

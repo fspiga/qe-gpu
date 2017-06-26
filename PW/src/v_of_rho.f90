@@ -513,7 +513,7 @@ SUBROUTINE v_xc( rho, rho_core, rhog_core, etxc, vtxc, v )
   !
   ! ... add gradient corrections (if any)
   !
-  CALL gradcorr( rho%of_r, rho%of_g, rho_core, rhog_core, etxc, vtxc, v )
+    CALL gradcorr( rho%of_r, rho%of_g, rho_core, rhog_core, etxc, vtxc, v )
   !
   ! ... add non local corrections (if any)
   !
@@ -1198,10 +1198,8 @@ SUBROUTINE gradv_h_of_rho_r( rho, gradv )
 END SUBROUTINE gradv_h_of_rho_r
 
 #ifdef USE_CUDA
-!#if 0
-
-SUBROUTINE v_of_rho_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d, &
-                     ehart, etxc, vtxc, eth, etotefield, charge, v )
+SUBROUTINE v_of_rho_gpu( rho, rho_core, rho_core_d, rhog_core, &
+                     rhog_core_d, ehart, etxc, vtxc, eth, etotefield, charge, v )
   !----------------------------------------------------------------------------
   !
   ! ... This routine computes the Hartree and Exchange and Correlation
@@ -1229,15 +1227,11 @@ SUBROUTINE v_of_rho_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d, &
   !!!!!!!!!!!!!!!!! not just OUT because otherwise their allocatable or pointer
   !!!!!!!!!!!!!!!!! components are NOT defined !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   REAL(DP), INTENT(IN) :: rho_core(dfftp%nnr)
+  REAL(DP), INTENT(IN), device :: rho_core_d(dfftp%nnr)
     ! the core charge
   COMPLEX(DP), INTENT(IN) :: rhog_core(ngm)
+  COMPLEX(DP), INTENT(IN), device :: rhog_core_d(ngm)
     ! the core charge in reciprocal space
-
-  REAL(DP), device, INTENT(IN) :: rho_core_d(dfftp%nnr)
-    ! the core charge
-  COMPLEX(DP), device, INTENT(IN) :: rhog_core_d(ngm)
-    ! the core charge in reciprocal space
-
   REAL(DP), INTENT(OUT) :: vtxc, etxc, ehart, eth, charge
     ! the integral V_xc * rho
     ! the E_xc energy
@@ -1254,20 +1248,30 @@ SUBROUTINE v_of_rho_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d, &
   ! ... calculate exchange-correlation potential
   !
   if (dft_is_meta()) then
-     print *,"dft_is_meta NOT implemented!!!!"
-     STOP
-     !call v_xc_meta( rho, rho_core, rhog_core, etxc, vtxc, v%of_r, v%kin_r )
+     print*, "v_of_rho_gpu: meta not implemented!"; flush(6); stop
+     call v_xc_meta( rho, rho_core, rhog_core, etxc, vtxc, v%of_r, v%kin_r )
   else
-     CALL v_xc_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d, etxc, vtxc, v%of_r, v%of_r_d )
+     CALL v_xc_gpu( rho, rho_core_d, rhog_core_d, etxc, vtxc, v%of_r_d )
   endif
   !
   ! ... add a magnetic field  (if any)
   !
+  !JR Need to uncomment memcopies if bfield present
+  !v%of_r = v%of_r_d
   CALL add_bfield( v%of_r, rho%of_r )
+  !v%of_r_d = v%of_r
+
   !
   ! ... calculate hartree potential
   !
-  CALL v_h( rho%of_g, ehart, charge, v%of_r )
+  !JR Note: Using v_h_gpu does impact last printed digits of total and HF estimate energy results.
+  CALL v_h_gpu(rho%of_g_d, ehart, charge, v%of_r_d )
+  v%of_r = v%of_r_d
+
+  !JR Replace with CPU call here if desired
+  !v%of_r = v%of_r_d
+  !CALL v_h(rho%of_g, ehart, charge, v%of_r )
+
   !
   ! ... LDA+U: build up Hubbard potential 
   !
@@ -1301,6 +1305,7 @@ SUBROUTINE v_of_rho_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d, &
   RETURN
   !
 END SUBROUTINE v_of_rho_gpu
+!
 !----------------------------------------------------------------------------
 SUBROUTINE v_xc_meta_gpu( rho, rho_core, rhog_core, etxc, vtxc, v, kedtaur )
   !----------------------------------------------------------------------------
@@ -1526,8 +1531,8 @@ SUBROUTINE v_xc_meta_gpu( rho, rho_core, rhog_core, etxc, vtxc, v, kedtaur )
   RETURN
   !
 END SUBROUTINE v_xc_meta_gpu
-!
-SUBROUTINE v_xc_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d, etxc, vtxc, v, v_d )
+
+SUBROUTINE v_xc_gpu( rho, rho_core_d, rhog_core_d,  etxc, vtxc, v_d )
   !----------------------------------------------------------------------------
   !
   ! ... Exchange-Correlation potential Vxc(r) from n(r)
@@ -1540,39 +1545,28 @@ SUBROUTINE v_xc_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d, etxc, vt
   USE lsda_mod,         ONLY : nspin
   USE cell_base,        ONLY : omega
   USE spin_orb,         ONLY : domag
-  USE funct,            ONLY : xc, xc_spin, nlc, dft_is_nonlocc
+  USE funct,            ONLY : xc, xc_spin, nlc, dft_is_nonlocc, get_iexch, get_icorr
   USE scf,              ONLY : scf_type
   USE mp_bands,         ONLY : intra_bgrp_comm
   USE mp,               ONLY : mp_sum
 
-  USE cudafor
-
   !
   IMPLICIT NONE
   !
-  TYPE (scf_type), INTENT(INOUT) :: rho
-  REAL(DP), INTENT(IN) :: rho_core(dfftp%nnr)
+  TYPE (scf_type), INTENT(INOUT), target :: rho
+  REAL(DP), INTENT(INOUT), device :: rho_core_d(dfftp%nnr)
     ! the core charge
-  COMPLEX(DP), INTENT(IN) :: rhog_core(ngm)
+  COMPLEX(DP), INTENT(IN), device :: rhog_core_d(ngm)
     ! input: the core charge in reciprocal space
-  REAL(DP), INTENT(OUT) :: v(dfftp%nnr,nspin), vtxc, etxc
+  REAL(DP), INTENT(OUT) :: vtxc, etxc
+  REAL(DP), INTENT(OUT), device :: v_d(dfftp%nnr,nspin)
     ! V_xc potential
     ! integral V_xc * rho
     ! E_xc energy
-
-  REAL(DP), DEVICE, INTENT(IN) :: rho_core_d(dfftp%nnr)
-    ! the core charge
-  COMPLEX(DP), DEVICE, INTENT(IN) :: rhog_core_d(ngm)
-    ! input: the core charge in reciprocal space
-  REAL(DP), DEVICE, INTENT(OUT) :: v_d(dfftp%nnr,nspin)
-    ! V_xc potential
-    ! integral V_xc * rho
-    ! E_xc energy
-
   !
   ! ... local variables
   !
-  REAL(DP) :: rhox, arhox, zeta, amag, vs, ex, ec, vx(2), vc(2), rhoneg(2)
+  REAL(DP) :: rhox, arhox, zeta, amag, vs, ex, ec, vx(2), vc(2), rhoneg(2), vx1, vc1, rhoneg1
     ! the total charge in each point
     ! the absolute value of the charge
     ! the absolute value of the charge
@@ -1586,160 +1580,218 @@ SUBROUTINE v_xc_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d, etxc, vt
   !
   REAL(DP), PARAMETER :: vanishing_charge = 1.D-10, &
                          vanishing_mag    = 1.D-20
+
+  integer :: iexch, icorr
+  real(DP), pointer, device :: rho_of_r_d(:,:)
+
+  ! parameters from expanded subroutines from xc
+  real(DP), parameter :: small = 1.E-10_DP,  third = 1.0_DP / 3.0_DP, &
+       pi34 = 0.6203504908994_DP  ! pi34=(3/4pi)^(1/3)
+  real(DP) :: rs
+  real(dp), parameter  :: f= -0.687247939924714d0, alpha = 2.0d0/3.0d0
+  ! f = -9/8*(3/2pi)^(2/3)
+  real(DP) :: a, b1, b2, c0, c1, c2, c3, d0, d1
+  parameter (a = 0.031091d0, b1 = 7.5957d0, b2 = 3.5876d0, c0 = a, &
+       c1 = 0.046644d0, c2 = 0.00664d0, c3 = 0.01043d0, d0 = 0.4335d0, &
+       d1 = 1.4408d0)
+  real(DP) :: lnrs, rs12, rs32, rs2, om, dom, olog
+  real(DP) :: a11, b31, b41
+  parameter (a11 = 0.21370d0, b31 = 1.6382d0, b41 = 0.49294d0)
   !
   !
   CALL start_clock( 'v_xc' )
   !
   etxc   = 0.D0
   vtxc   = 0.D0
-
-  v(:,:) = 0.D0
-  !v_d(:,:) = 0.D0
-
+  v_d(:,:) = 0.D0
   rhoneg = 0.D0
   !
-
-  !
+  CALL start_clock( 'spin' )
   IF ( nspin == 1 .OR. ( nspin == 4 .AND. .NOT. domag ) ) THEN
-     !
-     ! ... spin-unpolarized case
-     !
-!$omp parallel do private( rhox, arhox, ex, ec, vx, vc ), &
-!$omp             reduction(+:etxc,vtxc), reduction(-:rhoneg)
-     DO ir = 1, dfftp%nnr
-        !
-        rhox = rho%of_r(ir,1) + rho_core(ir)
-        !
-        arhox = ABS( rhox )
-        !
-        IF ( arhox > vanishing_charge ) THEN
-           !
-           CALL xc( arhox, ex, ec, vx(1), vc(1) )
-           !
-           v(ir,1) = e2*( vx(1) + vc(1) )
-           !
-           etxc = etxc + e2*( ex + ec ) * rhox
-           !
-           vtxc = vtxc + v(ir,1) * rho%of_r(ir,1)
-           !
-        ENDIF
-        !
-        IF ( rho%of_r(ir,1) < 0.D0 ) rhoneg(1) = rhoneg(1) - rho%of_r(ir,1)
-        !
-     END DO
-!$omp end parallel do
+     iexch = get_iexch
+     icorr = get_icorr
 
-#if 0
-!$cuf kernel do(1) <<<*,*>>>
-     DO ir = 1, dfftp%nnr
-        !
-        rhox = rho%of_r_d(ir,1) + rho_core_d(ir)
-        !
-        arhox = ABS( rhox )
-        !
-        IF ( arhox > vanishing_charge ) THEN
-           !
-           CALL xc( arhox, ex, ec, vx(1), vc(1) )
-           !
-           v(ir,1) = e2*( vx(1) + vc(1) )
-           !
-           etxc = etxc + e2*( ex + ec ) * rhox
-           !
-           vtxc = vtxc + v(ir,1) * rho%of_r(ir,1)
-           !
-        ENDIF
-        !
-        IF ( rho%of_r(ir,1) < 0.D0 ) rhoneg(1) = rhoneg(1) - rho%of_r(ir,1)
-        !
-     END DO
-#endif
+     IF (iexch .eq. 1 .and. icorr .eq. 4) THEN
+
+       rho_of_r_d => rho%of_r_d
+
+       !
+       ! ... spin-unpolarized case
+       !
+
+       !$cuf kernel do (1) <<<*,*>>>
+       DO ir = 1, dfftp%nnr
+          !
+          rhox = rho_of_r_d(ir,1) + rho_core_d(ir)
+          !
+          arhox = ABS( rhox )
+          !
+          IF ( arhox > vanishing_charge ) THEN
+            if (arhox <= small) then
+               ec = 0.0_DP
+               vc1 = 0.0_DP
+               ex = 0.0_DP
+               vx1 = 0.0_DP
+            else
+               rs = pi34 / arhox**third
+               !
+               !CALL xc( arhox, ex, ec, vx(1), vc(1) )
+               !call slater (rs, ex, vx(1))
+               ex = f * alpha / rs
+               vx1 = 4.d0 / 3.d0 * f * alpha / rs
+
+               !call pw (rs, 1, ec, vc(1))
+               ! interpolation formula
+               rs12 = sqrt (rs)
+               rs32 = rs * rs12
+               rs2 = rs**2
+               om = 2.d0 * a * (b1 * rs12 + b2 * rs + b31 * rs32 + b41 &
+                    * rs2)
+               dom = 2.d0 * a * (0.5d0 * b1 * rs12 + b2 * rs + 1.5d0 * b31 &
+                    * rs32 + 2.d0 * b41 * rs2)
+               olog = log (1.d0 + 1.0d0 / om)
+               ec = - 2.d0 * a * (1.d0 + a11 * rs) * olog
+               vc1 = - 2.d0 * a * (1.d0 + 2.d0 / 3.d0 * a11 * rs) &
+                    * olog - 2.d0 / 3.d0 * a * (1.d0 + a11 * rs) * dom / &
+                    (om * (om + 1.d0) )
+             endif
+             !
+             v_d(ir,1) = e2*( vx1 + vc1 )
+             !
+             etxc = etxc + e2*( ex + ec ) * rhox
+             !
+             vtxc = vtxc + v_d(ir,1) * rho_of_r_d(ir,1)
+             !
+          ENDIF
+          !
+          IF ( rho_of_r_d(ir,1) < 0.D0 ) rhoneg1 = rhoneg1 - rho_of_r_d(ir,1)
+          !
+       END DO
+
+       rhoneg(1) = rhoneg1 ! copy reduced variable
+     ELSE
+       print*, "v_xc_gpu: Should not be here!"; flush(6); stop
+
+!       !
+!       ! ... spin-unpolarized case
+!       !
+!!$omp parallel do private( rhox, arhox, ex, ec, vx, vc ), &
+!!$omp             reduction(+:etxc,vtxc), reduction(-:rhoneg)
+!       DO ir = 1, dfftp%nnr
+!          !
+!          rhox = rho%of_r(ir,1) + rho_core(ir)
+!          !
+!          arhox = ABS( rhox )
+!          !
+!          IF ( arhox > vanishing_charge ) THEN
+!             !
+!             CALL xc( arhox, ex, ec, vx(1), vc(1) )
+!             !
+!             v(ir,1) = e2*( vx(1) + vc(1) )
+!             !
+!             etxc = etxc + e2*( ex + ec ) * rhox
+!             !
+!             vtxc = vtxc + v(ir,1) * rho%of_r(ir,1)
+!             !
+!          ENDIF
+!          !
+!          IF ( rho%of_r(ir,1) < 0.D0 ) rhoneg(1) = rhoneg(1) - rho%of_r(ir,1)
+!          !
+!       END DO
+!!$omp end parallel do
+     END IF
      !
   ELSE IF ( nspin == 2 ) THEN
      !
      ! ... spin-polarized case
      !
-!$omp parallel do private( rhox, arhox, zeta, ex, ec, vx, vc ), &
-!$omp             reduction(+:etxc,vtxc), reduction(-:rhoneg)
-     DO ir = 1, dfftp%nnr
-        !
-        rhox = rho%of_r(ir,1) + rho%of_r(ir,2) + rho_core(ir)
-        !
-        arhox = ABS( rhox )
-        !
-        IF ( arhox > vanishing_charge ) THEN
-           !
-           zeta = ( rho%of_r(ir,1) - rho%of_r(ir,2) ) / arhox
-           !
-           IF ( ABS( zeta ) > 1.D0 ) zeta = SIGN( 1.D0, zeta )
-           !
-           IF ( rho%of_r(ir,1) < 0.D0 ) rhoneg(1) = rhoneg(1) - rho%of_r(ir,1)
-           IF ( rho%of_r(ir,2) < 0.D0 ) rhoneg(2) = rhoneg(2) - rho%of_r(ir,2)
-           !
-           CALL xc_spin( arhox, zeta, ex, ec, vx(1), vx(2), vc(1), vc(2) )
-           !
-           v(ir,:) = e2*( vx(:) + vc(:) )
-           !
-           etxc = etxc + e2*( ex + ec ) * rhox
-           !
-           vtxc = vtxc + ( v(ir,1)*rho%of_r(ir,1) + v(ir,2)*rho%of_r(ir,2) )
-           !
-        END IF
-        !
-     END DO
-!$omp end parallel do
+     print*,  "v_xc_gpu: SPIN POLOARIZED not supported!"; flush(6); STOP
+
+!!$omp parallel do private( rhox, arhox, zeta, ex, ec, vx, vc ), &
+!!$omp             reduction(+:etxc,vtxc), reduction(-:rhoneg)
+!     DO ir = 1, dfftp%nnr
+!        !
+!        rhox = rho%of_r(ir,1) + rho%of_r(ir,2) + rho_core(ir)
+!        !
+!        arhox = ABS( rhox )
+!        !
+!        IF ( arhox > vanishing_charge ) THEN
+!           !
+!           zeta = ( rho%of_r(ir,1) - rho%of_r(ir,2) ) / arhox
+!           !
+!           IF ( ABS( zeta ) > 1.D0 ) zeta = SIGN( 1.D0, zeta )
+!           !
+!           IF ( rho%of_r(ir,1) < 0.D0 ) rhoneg(1) = rhoneg(1) - rho%of_r(ir,1)
+!           IF ( rho%of_r(ir,2) < 0.D0 ) rhoneg(2) = rhoneg(2) - rho%of_r(ir,2)
+!           !
+!           CALL xc_spin( arhox, zeta, ex, ec, vx(1), vx(2), vc(1), vc(2) )
+!           !
+!           v(ir,:) = e2*( vx(:) + vc(:) )
+!           !
+!           etxc = etxc + e2*( ex + ec ) * rhox
+!           !
+!           vtxc = vtxc + ( v(ir,1)*rho%of_r(ir,1) + v(ir,2)*rho%of_r(ir,2) )
+!           !
+!        END IF
+!        !
+!     END DO
+!!$omp end parallel do
      !
   ELSE IF ( nspin == 4 ) THEN
      !
      ! ... noncolinear case
      !
-     DO ir = 1,dfftp%nnr
-        !
-        amag = SQRT( rho%of_r(ir,2)**2 + rho%of_r(ir,3)**2 + rho%of_r(ir,4)**2 )
-        !
-        rhox = rho%of_r(ir,1) + rho_core(ir)
-        !
-        IF ( rho%of_r(ir,1) < 0.D0 )  rhoneg(1) = rhoneg(1) - rho%of_r(ir,1)
-        !
-        arhox = ABS( rhox )
-        !
-        IF ( arhox > vanishing_charge ) THEN
-           !
-           zeta = amag / arhox
-           !
-           IF ( ABS( zeta ) > 1.D0 ) THEN
-              !
-              rhoneg(2) = rhoneg(2) + 1.D0 / omega
-              !
-              zeta = SIGN( 1.D0, zeta )
-              !
-           END IF
-           !
-           CALL xc_spin( arhox, zeta, ex, ec, vx(1), vx(2), vc(1), vc(2) )
-           !
-           vs = 0.5D0*( vx(1) + vc(1) - vx(2) - vc(2) )
-           !
-           v(ir,1) = e2*( 0.5D0*( vx(1) + vc(1) + vx(2) + vc(2 ) ) )
-           !
-           IF ( amag > vanishing_mag ) THEN
-              !
-              DO ipol = 2, 4
-                 !
-                 v(ir,ipol) = e2 * vs * rho%of_r(ir,ipol) / amag
-                 !
-                 vtxc = vtxc + v(ir,ipol) * rho%of_r(ir,ipol)
-                 !
-              END DO
-              !
-           END IF
-           !
-           etxc = etxc + e2*( ex + ec ) * rhox
-           vtxc = vtxc + v(ir,1) * rho%of_r(ir,1)
-           !
-        END IF
-        !
-     END DO
+     print*,  "v_xc_gpu: NONCOLINEAR not supported!"; flush(6); STOP
+
+!     DO ir = 1,dfftp%nnr
+!        !
+!        amag = SQRT( rho%of_r(ir,2)**2 + rho%of_r(ir,3)**2 + rho%of_r(ir,4)**2 )
+!        !
+!        rhox = rho%of_r(ir,1) + rho_core(ir)
+!        !
+!        IF ( rho%of_r(ir,1) < 0.D0 )  rhoneg(1) = rhoneg(1) - rho%of_r(ir,1)
+!        !
+!        arhox = ABS( rhox )
+!        !
+!        IF ( arhox > vanishing_charge ) THEN
+!           !
+!           zeta = amag / arhox
+!           !
+!           IF ( ABS( zeta ) > 1.D0 ) THEN
+!              !
+!              rhoneg(2) = rhoneg(2) + 1.D0 / omega
+!              !
+!              zeta = SIGN( 1.D0, zeta )
+!              !
+!           END IF
+!           !
+!           CALL xc_spin( arhox, zeta, ex, ec, vx(1), vx(2), vc(1), vc(2) )
+!           !
+!           vs = 0.5D0*( vx(1) + vc(1) - vx(2) - vc(2) )
+!           !
+!           v(ir,1) = e2*( 0.5D0*( vx(1) + vc(1) + vx(2) + vc(2 ) ) )
+!           !
+!           IF ( amag > vanishing_mag ) THEN
+!              !
+!              DO ipol = 2, 4
+!                 !
+!                 v(ir,ipol) = e2 * vs * rho%of_r(ir,ipol) / amag
+!                 !
+!                 vtxc = vtxc + v(ir,ipol) * rho%of_r(ir,ipol)
+!                 !
+!              END DO
+!              !
+!           END IF
+!           !
+!           etxc = etxc + e2*( ex + ec ) * rhox
+!           vtxc = vtxc + v(ir,1) * rho%of_r(ir,1)
+!           !
+!        END IF
+!        !
+!     END DO
      !
   END IF
+  CALL stop_clock( 'spin' )
   !
   CALL mp_sum(  rhoneg , intra_bgrp_comm )
   !
@@ -1755,16 +1807,15 @@ SUBROUTINE v_xc_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d, etxc, vt
   !
   ! ... add gradient corrections (if any)
   !
-  !rho%of_r_d = rho%of_r
-  !rho%of_g_d = rho%of_g
-  !rho_core_d = rho_core
-  !rhog_core_d = rhog_core
-  !v_d = v
-  CALL gradcorr_gpu( rho%of_r, rho%of_r_d, rho%of_g, rho%of_g_d, rho_core, rho_core_d, rhog_core, rhog_core_d, etxc, vtxc, v, v_d )
+  !CALL gradcorr_gpu( rho%of_r, rho%of_r_d, rho%of_g, rho%of_g_d, rho_core, rho_core_d, rhog_core, rhog_core_d, etxc, vtxc, v, v_d )
+  CALL gradcorr_gpu(rho%of_r_d, rho%of_g_d, rho_core_d, rhog_core_d, etxc, vtxc, v_d )
   !
   ! ... add non local corrections (if any)
   !
-  IF ( dft_is_nonlocc() ) CALL nlc( rho%of_r, rho_core, nspin, etxc, vtxc, v )
+  IF ( dft_is_nonlocc() ) THEN
+    print*, "v_xc_gpu: dft_is_nonlocc not implemented!"; flush(6); stop
+    !CALL nlc( rho%of_r, rho_core, nspin, etxc, vtxc, v )
+  END IF
   !
   CALL mp_sum(  vtxc , intra_bgrp_comm )
   CALL mp_sum(  etxc , intra_bgrp_comm )
@@ -1776,7 +1827,7 @@ SUBROUTINE v_xc_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d, etxc, vt
 END SUBROUTINE v_xc_gpu
 !
 !----------------------------------------------------------------------------
-SUBROUTINE v_h_gpu( rhog, ehart, charge, v )
+SUBROUTINE v_h_gpu( rhog_d, ehart, charge, v_d )
   !----------------------------------------------------------------------------
   !
   ! ... Hartree potential VH(r) from n(G)
@@ -1785,7 +1836,7 @@ SUBROUTINE v_h_gpu( rhog, ehart, charge, v )
   USE kinds,     ONLY : DP
   USE fft_base,  ONLY : dfftp
   USE fft_interfaces,ONLY : invfft
-  USE gvect,     ONLY : nl, nlm, ngm, gg, gstart
+  USE gvect,     ONLY : nl, nl_d, nlm, ngm, gg, gg_d, gstart
   USE lsda_mod,  ONLY : nspin
   USE cell_base, ONLY : omega, tpiba2
   USE control_flags, ONLY : gamma_only
@@ -1796,27 +1847,33 @@ SUBROUTINE v_h_gpu( rhog, ehart, charge, v )
   !
   IMPLICIT NONE
   !
-  COMPLEX(DP), INTENT(IN)  :: rhog(ngm,nspin)
-  REAL(DP),  INTENT(INOUT) :: v(dfftp%nnr,nspin)
+  COMPLEX(DP), INTENT(IN), device  :: rhog_d(ngm,nspin)
+  REAL(DP),  INTENT(INOUT), device :: v_d(dfftp%nnr,nspin)
   REAL(DP),    INTENT(OUT) :: ehart, charge
   !
   REAL(DP)              :: fac
-  REAL(DP), ALLOCATABLE :: aux1(:,:)
+  REAL(DP), ALLOCATABLE, device :: aux1_d(:,:)
   REAL(DP)              :: rgtot_re, rgtot_im, eh_corr
   INTEGER               :: is, ig
-  COMPLEX(DP), ALLOCATABLE :: aux(:), rgtot(:), vaux(:)
-  INTEGER               :: nt
+  COMPLEX(DP), ALLOCATABLE :: rgtot(:), vaux(:)
+  COMPLEX(DP), ALLOCATABLE, DEVICE :: aux_d(:)
+  INTEGER               :: nt, i
+  complex(DP) :: rhog11, rhog12
   !
   CALL start_clock( 'v_h' )
   !
-  ALLOCATE( aux( dfftp%nnr ), aux1( 2, ngm ) )
+  ALLOCATE( aux_d( dfftp%nnr ), aux1_d(2, ngm))
   charge = 0.D0
   !
   IF ( gstart == 2 ) THEN
      !
-     charge = omega*REAL( rhog(1,1) )
+     rhog11 = rhog_d(1,1)
+     charge = omega*REAL( rhog11 )
      !
-     IF ( nspin == 2 ) charge = charge + omega*REAL( rhog(1,2) )
+     IF ( nspin == 2 ) THEN
+       rhog12 = rhog_d(1,2)
+       charge = charge + omega*REAL( rhog12 )
+     END IF
      !
   END IF
   !
@@ -1825,44 +1882,48 @@ SUBROUTINE v_h_gpu( rhog, ehart, charge, v )
   ! ... calculate hartree potential in G-space (NB: V(G=0)=0 )
   !
   IF ( do_comp_esm .and. ( esm_bc .ne. 'pbc' ) ) THEN
+    print*, "vh_gpu: do_comp_esm not implemented!"; flush(6); stop
      !
      ! ... calculate modified Hartree potential for ESM
      !
-     CALL esm_hartree (rhog, ehart, aux)
+     !CALL esm_hartree (rhog, ehart, aux)
      !
   ELSE
      !
      ehart     = 0.D0
-     aux1(:,:) = 0.D0
+     aux1_d(:,:) = 0.D0
      !
-!$omp parallel do private( fac, rgtot_re, rgtot_im ), reduction(+:ehart)
+     !$cuf kernel do(1) <<<*,*>>>
      DO ig = gstart, ngm
         !
-        fac = 1.D0 / gg(ig)
+        fac = 1.D0 / gg_d(ig)
         !
-        rgtot_re = REAL(  rhog(ig,1) )
-        rgtot_im = AIMAG( rhog(ig,1) )
+        rgtot_re = REAL(  rhog_d(ig,1) )
+        rgtot_im = AIMAG( rhog_d(ig,1) )
         !
         IF ( nspin == 2 ) THEN
            !
-           rgtot_re = rgtot_re + REAL(  rhog(ig,2) )
-           rgtot_im = rgtot_im + AIMAG( rhog(ig,2) )
+           rgtot_re = rgtot_re + REAL(  rhog_d(ig,2) )
+           rgtot_im = rgtot_im + AIMAG( rhog_d(ig,2) )
            !
         END IF
         !
         ehart = ehart + ( rgtot_re**2 + rgtot_im**2 ) * fac
         !
-        aux1(1,ig) = rgtot_re * fac
-        aux1(2,ig) = rgtot_im * fac
+        aux1_d(1,ig) = rgtot_re * fac
+        aux1_d(2,ig) = rgtot_im * fac
         !
      ENDDO
-!$omp end parallel do
      !
      fac = e2 * fpi / tpiba2
      !
      ehart = ehart * fac
      !
-     aux1 = aux1 * fac
+     !$cuf kernel do(1) <<<*,*>>>
+     do i = lbound(aux1_d,2), ubound(aux1_d,2)
+       aux1_d(1,i) = aux1_d(1,i) * fac
+       aux1_d(2,i) = aux1_d(2,i) * fac
+     end do
      !
      IF ( gamma_only ) THEN
         !
@@ -1875,50 +1936,60 @@ SUBROUTINE v_h_gpu( rhog, ehart, charge, v )
      END IF
      ! 
      if (do_comp_mt) then
-        ALLOCATE( vaux( ngm ), rgtot(ngm) )
-        rgtot(:) = rhog(:,1)
-        if (nspin==2) rgtot(:) = rgtot(:) + rhog(:,2)
-        CALL wg_corr_h (omega, ngm, rgtot, vaux, eh_corr)
-        aux1(1,1:ngm) = aux1(1,1:ngm) + REAL( vaux(1:ngm))
-        aux1(2,1:ngm) = aux1(2,1:ngm) + AIMAG(vaux(1:ngm))
-        ehart = ehart + eh_corr
-        DEALLOCATE( rgtot, vaux )
+        print*, "v_h_gpu: do_comp_mt not implemented!"; flush(6); stop
+        !ALLOCATE( vaux( ngm ), rgtot(ngm) )
+        !rgtot(:) = rhog(:,1)
+        !if (nspin==2) rgtot(:) = rgtot(:) + rhog(:,2)
+        !CALL wg_corr_h (omega, ngm, rgtot, vaux, eh_corr)
+        !aux1(1,1:ngm) = aux1(1,1:ngm) + REAL( vaux(1:ngm))
+        !aux1(2,1:ngm) = aux1(2,1:ngm) + AIMAG(vaux(1:ngm))
+        !ehart = ehart + eh_corr
+        !DEALLOCATE( rgtot, vaux )
      end if
      !
      CALL mp_sum(  ehart , intra_bgrp_comm )
      ! 
-     aux(:) = 0.D0
+     aux_d(:) = 0.D0
      !
-     aux(nl(1:ngm)) = CMPLX ( aux1(1,1:ngm), aux1(2,1:ngm), KIND=dp )
+     !$cuf kernel do(1) <<<*,*>>>
+     do i = 1, ngm
+       aux_d(nl_d(i)) = CMPLX ( aux1_d(1,i), aux1_d(2,i), KIND=dp )
+     end do
      !
      IF ( gamma_only ) THEN
         !
-        aux(nlm(1:ngm)) = CMPLX ( aux1(1,1:ngm), -aux1(2,1:ngm), KIND=dp )
+        print*, "v_h_gpu: gamma only not implemented!"; flush(6); stop
+        !aux(nlm(1:ngm)) = CMPLX ( aux1_d(1,1:ngm), -aux1_d(2,1:ngm), KIND=dp )
         !
      END IF
   END IF
   !
   ! ... transform hartree potential to real space
   !
-  CALL invfft ('Dense', aux, dfftp)
+  CALL invfft ('Dense', aux_d, dfftp)
   !
   ! ... add hartree potential to the xc potential
   !
   IF ( nspin == 4 ) THEN
      !
-     v(:,1) = v(:,1) + DBLE (aux(:))
+     !$cuf kernel do(1) <<<*,*>>>
+     do i = lbound(v_d, 1), ubound(v_d, 1)
+       v_d(i,1) = v_d(i,1) + DBLE (aux_d(i))
+     end do
      !
   ELSE
      !
      DO is = 1, nspin
-        !
-        v(:,is) = v(:,is) + DBLE (aux(:))
-        !
+       !$cuf kernel do(1) <<<*,*>>>
+       do i = lbound(v_d, 1), ubound(v_d, 1)
+         v_d(i,is) = v_d(i,is) + DBLE (aux_d(i))
+       end do
      END DO
      !
   END IF
+
   !
-  DEALLOCATE( aux, aux1 )
+  DEALLOCATE( aux_d, aux1_d)
   !
   CALL stop_clock( 'v_h' )
   !

@@ -372,9 +372,10 @@ SUBROUTINE electrons_scf ( printout, exxen )
   USE plugin_variables,     ONLY : plugin_etot
   !
 #ifdef USE_CUDA
+  USE funct,                ONLY : get_iexch, get_icorr, get_igcx, get_igcc
   USE dfunct,               ONLY : newd_gpu
   USE cudafor
-  USE scf,                  ONLY : rho_core_d, rhog_core_d, vltot_d, vrs_d 
+  USE scf,                  ONLY : rho_core_d, rhog_core_d, vltot_d, vrs_d
 #endif
   IMPLICIT NONE
   !
@@ -402,7 +403,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
   LOGICAL :: &
       first, exst
 #ifdef USE_CUDA
-   INTEGER :: istat
+   INTEGER :: istat, iexch, icorr, igcx, igcc
 #endif
   !
   ! ... auxiliary variables for calculating and storing temporary copies of
@@ -650,8 +651,31 @@ SUBROUTINE electrons_scf ( printout, exxen )
            !CALL v_of_rho( rhoin, rho_core, rhog_core, &
            !               ehart, etxc, vtxc, eth, etotefield, charge, v)
 #else
+#ifdef USE_CUDA
+           iexch = get_iexch
+           icorr = get_icorr
+           igcx = get_igcx
+           igcc = get_igcc
+
+           ! If calling PBE functional configuration, use GPU path
+           if (iexch .eq. 1 .and. icorr .eq. 4 .and. igcx .eq. 3 .and. igcc .eq. 4) then
+             rho_core_d = rho_core
+             rhog_core_d = rhog_core
+             v%of_r_d = v%of_r
+             rhoin%of_r_d = rhoin%of_r
+             rhoin%of_g_d = rhoin%of_g
+             CALL v_of_rho_gpu( rhoin, rho_core, rho_core_d, rhog_core, rhog_core_d,&
+                            ehart, etxc, vtxc, eth, etotefield, charge, v)
+
+           ! Otherwise, fallback to CPU path
+           else
+             CALL v_of_rho( rhoin, rho_core, rhog_core, &
+                            ehart, etxc, vtxc, eth, etotefield, charge, v)
+           endif
+#else
            CALL v_of_rho( rhoin, rho_core, rhog_core, &
                           ehart, etxc, vtxc, eth, etotefield, charge, v)
+#endif
 #endif
            IF (okpaw) THEN
               CALL PAW_potential(rhoin%bec, ddd_paw, epaw,etot_cmp_paw)
@@ -708,15 +732,24 @@ SUBROUTINE electrons_scf ( printout, exxen )
      !
      ! ... define the total local potential (external + scf)
      !
+#ifdef USE_CUDA
+     v%of_r_d = v%of_r
+     vltot_d = vltot
+     CALL sum_vrs_gpu( dfftp%nnr, nspin, vltot_d, v%of_r_d, vrs_d )
+#else
      CALL sum_vrs( dfftp%nnr, nspin, vltot, v%of_r, vrs )
+#endif
      !
      ! ... interpolate the total local potential
      !
-     CALL interpolate_vrs( dfftp%nnr, nspin, doublegrid, kedtau, v%kin_r, vrs )
-     !
 #ifdef USE_CUDA
-     vrs_d = vrs
+       CALL interpolate_vrs_gpu( dfftp%nnr, nspin, doublegrid, kedtau, v%kin_r, vrs_d)
+       vrs = vrs_d
+#else
+       CALL interpolate_vrs( dfftp%nnr, nspin, doublegrid, kedtau, v%kin_r, vrs )
 #endif
+     !vrs_d = vrs
+     !
      ! ... in the US case we have to recompute the self-consistent
      ! ... term in the nonlocal potential
      ! ... PAW: newd contains PAW updates of NL coefficients

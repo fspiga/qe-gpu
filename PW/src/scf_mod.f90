@@ -66,7 +66,7 @@ MODULE scf
      REAL(DP)                 :: el_dipole  ! electrons dipole
   END TYPE mix_type
 
-  type (scf_type) :: rho  ! the charge density and its other components
+  type (scf_type), TARGET :: rho  ! the charge density and its other components
   type (scf_type) :: v    ! the scf potential
   type (scf_type) :: vnew ! used to correct the forces
 
@@ -83,7 +83,7 @@ MODULE scf
        rho_core_d(:),    &! the core charge in real space
        kedtau_d(:,:)      ! position dependent kinetic energy enhancement factor
 
-  COMPLEX(DP), ALLOCATABLE :: &
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: &
        rhog_core_d(:)     ! the core charge in reciprocal space
 
 #endif
@@ -220,7 +220,11 @@ CONTAINS
  end subroutine assign_scf_to_mix_type
  !
  subroutine assign_mix_to_scf_type(rho_m, rho_s)
+#ifdef USE_CUDA
+   USE wavefunctions_module, ONLY : psic => psic_d
+#else
    USE wavefunctions_module, ONLY : psic
+#endif
    USE control_flags,        ONLY : gamma_only
    USE gvect,                ONLY : nl, nlm
    IMPLICIT NONE
@@ -337,7 +341,11 @@ CONTAINS
  end subroutine mix_type_SCAL
  !
  subroutine high_frequency_mixing ( rhoin, input_rhout, alphamix )
+#ifdef USE_CUDA
+   USE wavefunctions_module, ONLY : psic => psic_d
+#else
    USE wavefunctions_module, ONLY : psic
+#endif
    USE control_flags,        ONLY : gamma_only
    USE gvect,                ONLY : nl, nlm
  IMPLICIT NONE
@@ -382,7 +390,6 @@ CONTAINS
 
    return
  end subroutine high_frequency_mixing 
-
 
  subroutine open_mix_file( iunit, extension, exst )
    USE control_flags,        ONLY : io_level

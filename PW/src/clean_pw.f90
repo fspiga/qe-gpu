@@ -73,7 +73,7 @@ SUBROUTINE clean_pw( lflag )
                                    eigts1_d, eigts2_d, eigts3_d
   USE gvecs,                ONLY : nls_d
   USE wvfct,                ONLY : g2kin_d, et_d, wg_d
-  USE us,                   ONLY : qrad_d
+  USE us,                   ONLY : qrad_d, tab_d, tab_d2y_d
 #endif
   IMPLICIT NONE
   !
@@ -150,6 +150,9 @@ SUBROUTINE clean_pw( lflag )
   IF ( ALLOCATED( vrs ) )        DEALLOCATE( vrs )
   if (spline_ps) then
     IF ( ALLOCATED( tab_d2y) )     DEALLOCATE( tab_d2y )
+#ifdef USE_CUDA
+    IF ( ALLOCATED( tab_d2y_d) )     DEALLOCATE( tab_d2y_d )
+#endif
   endif
   IF ( ALLOCATED( nls ) )     DEALLOCATE( nls )
   IF ( ALLOCATED( nlsm ) )   DEALLOCATE( nlsm )
@@ -178,6 +181,9 @@ SUBROUTINE clean_pw( lflag )
   IF ( ALLOCATED( qrad ) )       DEALLOCATE( qrad )
   IF ( ALLOCATED( tab ) )        DEALLOCATE( tab )
   IF ( ALLOCATED( tab_at ) )     DEALLOCATE( tab_at )
+#ifdef USE_CUDA
+  IF ( ALLOCATED( tab_d ) )        DEALLOCATE( tab_d )
+#endif
   IF ( lspinorb ) THEN
      IF ( ALLOCATED( fcoef ) )   DEALLOCATE( fcoef )
   END IF

@@ -1280,6 +1280,7 @@ SUBROUTINE sum_band_gpu()
              ik,   &! counter on k points
              ibnd_start, ibnd_end, this_bgrp_nbnd ! first, last and number of band in this bgrp
   REAL (DP), ALLOCATABLE :: kplusg (:)
+  integer :: i
   !
   !
   CALL start_clock( 'sum_band' )
@@ -1405,10 +1406,23 @@ SUBROUTINE sum_band_gpu()
   !
   ! ... bring the (unsymmetrized) rho(r) to G-space (use psic as work array)
   !
+  !DO is = 1, nspin
+  !   psic(:) = rho%of_r(:,is)
+  !   CALL fwfft ('Dense', psic, dfftp)
+  !   rho%of_g(:,is) = psic(nl(:))
+  !END DO
+
+  !rho%of_r_d(:,:) = rho%of_r(:,:)
+
   DO is = 1, nspin
-     psic(:) = rho%of_r(:,is)
-     CALL fwfft ('Dense', psic, dfftp)
-     rho%of_g(:,is) = psic(nl(:))
+     psic_d(:) = rho%of_r(:,is) !JR: This memcopy is very slow
+     !!$cuf kernel do(1) <<<*, *>>>
+     !do i = lbound(psic_d,1), ubound(psic_d,1)
+     !  psic_d(i) = rho%of_r_d(i,is)
+     !end do
+
+     CALL fwfft ('Dense', psic_d, dfftp)
+     rho%of_g(:,is) = psic_d(nl(:))
   END DO
   !
   ! ... symmetrize rho(G)
@@ -1430,11 +1444,11 @@ SUBROUTINE sum_band_gpu()
   !
   DO is = 1, nspin_mag
      !
-     psic(:) = ( 0.D0, 0.D0 )
-     psic(nl(:)) = rho%of_g(:,is)
-     IF ( gamma_only ) psic(nlm(:)) = CONJG( rho%of_g(:,is) )
-     CALL invfft ('Dense', psic, dfftp)
-     rho%of_r(:,is) = psic(:)
+     psic_d(:) = ( 0.D0, 0.D0 )
+     psic_d(nl(:)) = rho%of_g(:,is)
+     IF ( gamma_only ) psic_d(nlm(:)) = CONJG( rho%of_g(:,is) )
+     CALL invfft ('Dense', psic_d, dfftp)
+     rho%of_r(:,is) = psic_d(:)
      !
   END DO
   !
