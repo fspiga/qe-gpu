@@ -1,6 +1,8 @@
-FLAGS = -O3 -mp -pgf90libs -Mcuda=cc@gpu_arch_num@,cuda8.0,ptxinfo,maxregcount:64 -Mlarge_arrays
-CUFLAGS = -O3 -arch=sm_@gpu_arch_num@
-FLAGS2 = -O3 -mp -pgf90libs -Mcuda=cc@gpu_arch_num@,cuda8.0,ptxinfo,maxregcount:64,nollvm -Mlarge_arrays
+include ../../make.inc
+
+FLAGS = -O3 -mp -pgf90libs -Mcuda=cc$(GPU_ARCH),cuda8.0,ptxinfo,maxregcount:64 -Mlarge_arrays
+CUFLAGS = -O3 -arch=sm_$(GPU_ARCH)
+FLAGS2 = -O3 -mp -pgf90libs -Mcuda=cc$(GPU_ARCH),cuda8.0,ptxinfo,maxregcount:64,nollvm -Mlarge_arrays
 #OPTFLAGS = -DUSE_NVTX
 
 .NOTPARALLEL: all
@@ -20,4 +22,4 @@ lib_eigsolve.a: $(OBJS)
 	ar -cr lib_eigsolve.a $(OBJS)
 
 clean:
-	rm lib_eigsolve.a *.mod *.o
+	rm -f lib_eigsolve.a *.mod *.o

@@ -253,10 +253,18 @@ wannier_occ.o \
 wannier_enrg.o \
 wyckoff.o       
 
+
 QEMODS=../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.a
 
 TLDEPS=bindir mods libs liblapack libblas
 
+# If F90FLAGS_WORKAROUND is defined some files are compiled differently
+# # as workaround for compiler bugs
+ifdef F90FLAGS_WORKAROUND
+read_file_new.o pw_restart.o :
+	$(MPIF90) $(F90FLAGS_WORKAROUND) -c $(*).f90 -o $(*).o
+endif
+         
 all : tldeps pw.x manypw.x generate_vdW_kernel_table.x generate_rVV10_kernel_table.x
 
 pw.x : $(PWOBJS) libpw.a $(LIBOBJS) $(QEMODS)

@@ -49,11 +49,11 @@ default :
 # If "|| exit 1" is not present, the error code from make in subdirectories
 # is not returned and make goes on even if compilation has failed
 
-pw : bindir libfft libla mods liblapack libs libiotk 
+pw : bindir libfft libla mods libs libiotk 
 	if test -d PW ; then \
 	( cd PW ; $(MAKE) TLDEPS= all || exit 1) ; fi
 
-pw-lib : bindir libfft libla mods liblapack libs libiotk
+pw-lib : bindir libfft libla mods libs libiotk
 	if test -d PW ; then \
 	( cd PW ; $(MAKE) TLDEPS= pw-lib || exit 1) ; fi
 
@@ -117,7 +117,7 @@ all	:	pw
 # compile modules, libraries, directory for binaries, etc
 ###########################################################
 
-libla : touch-dummy libeigensolver_gpu liblapack
+libla : touch-dummy libeigensolver_gpu
 	( cd LAXlib ; $(MAKE) TLDEPS= all || exit 1 )
 
 libfft : touch-dummy
@@ -139,10 +139,10 @@ bindir :
 # Targets for external libraries
 ############################################################
 
-libblas : liblapack
+#libblas : liblapack
 
-liblapack: touch-dummy
-	cd install ; $(MAKE) -f extlibs_makefile $@
+#liblapack: touch-dummy
+#	cd install ; $(MAKE) -f extlibs_makefile $@
 
 libeigensolver_gpu: touch-dummy
 	cd install ; $(MAKE) -f extlibs_makefile $@
@@ -213,19 +213,12 @@ clean :
 veryclean : clean
 	- @(cd install ; $(MAKE) -f extlibs_makefile veryclean)
 	- rm -rf install/patch-plumed
-	- cd install ; rm -f config.log configure.msg config.status \
-		CPV/version.h ChangeLog* intel.pcl */intel.pcl
-	- rm -rf include/configure.h install/make_wannier90.inc
-	- cd install ; rm -fr autom4te.cache
-	- cd pseudo; ./clean_ps ; cd -
+	- cd install ; rm -f CPV/version.h ChangeLog* intel.pcl */intel.pcl
 	- cd install; ./clean.sh ; cd -
-	- cd include; ./clean.sh ; cd -
 	- rm -f espresso.tar.gz
-	- rm -rf make.inc
+#	- rm -rf make.inc
 
-# remove everything not in the original distribution
 distclean : veryclean
-#	( cd install ; $(MAKE) -f plugins_makefile $@ || exit 1 )
 
 tar :
 	@if test -f espresso.tar.gz ; then /bin/rm espresso.tar.gz ; fi

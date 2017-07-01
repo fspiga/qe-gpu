@@ -32,21 +32,18 @@ strongly recommend for its memory capacity and performance.
 This version of QE-GPU runs **exclusively** in parallel, Open MPI is required
 and also Intel MKL.
 
+
 ### Installation
 
-The installation process follows the same procedure as Quantum ESPRESSO suite:
+To compile QE-GPU, copy a `make.inc` template from "install/" directory into the main directory and run make.
 
-```
-./configure --enable-gpu
-make pw
-```
+These make.inc templates are available:
+* `make.inc_x86-64` to compile on any x86-64 machines with NVIDIA GPU (`GPU_ARCH={35, 60}`)
+* `make.inc_x86-64_CPU-only` to compile on x86-64 without GPU support
+* `make.inc_CRAY_PizDaint` to compile on Piz Daint at CSCS, CRAY XC30 with P100 PCI GPU support (`GPU_ARCH=60`)
+* `make.inc_POWER_DAVIDE` to compile on PRACE D.A.V.I.D.E. at E4, POWER8 system with GPU support (`GPU_ARCH=60`)
 
-"make" alone prints a list of acceptable targets with various level of GPU
-support. Binaries go in "bin/". Additional configure options are made
-available to customize the building process:
-
-* `--enable-gpu=<kepler|pascal>` to enable GPU support (default: "pascal"
-architecture selected)
+By invoking _make_ alone a list of acceptable targets will be displayed. Binaries go in "bin/". Read comments in the `make.inc` templates to customize it further based on your ebvironment and where math libraries are located. The architectures/environments supported are x86-64, POWER and CRAY.
 
 The QE-GPU package has been reduced in size to the minimum essential. For more
 information, please refer to the general documentation provided with the full

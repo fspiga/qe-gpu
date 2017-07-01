@@ -1,6 +1,3 @@
-# Machine : DAVIDE
-# Date    : 13/06/2017
-
 # For a verbose description of these fields please refer to the original 
 # Quantum ESPRESSO make.inc file
 
@@ -23,41 +20,47 @@
 	$(CC) $(CFLAGS)  -c $<
 
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
-# TOPDIR = /home/fspiga/fs395/qe-gpu
+# TOPDIR = /home/fs395/scratch/QE/qe-gpu
 
 # See include/defs.h.README for a list of options and their meaning
-DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
+DFLAGS         =  -D__OPENMP -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
-IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve
+IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve
 
 MOD_FLAG      = -I
 
 MPIF90         = mpif90
 #F90           = pgf90
 CC             = pgcc
-F77            = pgf90
+F77            = pgf77
 
-CFLAGS         = -O2 -Mpreprocess $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O2 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-FFLAGS         = -O2 -Mpreprocess  
+# Kepler = 35, Pascal = 60 (suggested)
+#GPU_ARCH=35
+GPU_ARCH=60
+
+CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O3 -Mpreprocess -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+FFLAGS         = -O3 -Mpreprocess -mp
 
 FFLAGS_NOOPT   = -O0
 FFLAGS_NOMAIN   = -Mnomain
 
 LD             = mpif90
-LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
-LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a
+LDFLAGS        = -pgf90libs  -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays
+LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a
 
-MATH_LIBS      = -L/opt/ibm/xlf/15.1.5/lib -lessl -lxl -lxlf90_r -lxlfmath $(TOPDIR)/LAPACK/liblapack.a $(TOPDIR)/LAPACK/libblas.a
+MATH_LIBS      = -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -pgf90libs -lmkl_core -lmkl_pgi_thread
 
-NETLIB_LIBS_SWITCH = internal
+EIGENSOLVER_VERSION	= 0.2
+
+NETLIB_LIBS_SWITCH = external
 
 SCALAPACK_LIBS = 
 
 AR             = ar
 ARFLAGS        = ruv
-RANLIB         = ranlib
+RANLIB				 = ranlib
 
 FLIB_TARGETS   = all
 
