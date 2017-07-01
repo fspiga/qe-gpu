@@ -35,8 +35,9 @@ MPIF90         = mpif90
 CC             = pgcc
 F77            = pgf77
 
-GPU_ARCH=35
-#GPU_ARCH=60
+# Kepler = 35, Pascal = 60 (suggested)
+#GPU_ARCH=35
+GPU_ARCH=60
 
 CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
 F90FLAGS       = -O3 -Mpreprocess -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
