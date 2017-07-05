@@ -53,7 +53,8 @@ Quantum ESPRESSO suite or visit the official web site
 
 ### Citation
 
-A Zenodo citation will be uploaded soon.
+Zenodo: [![DOI](https://zenodo.org/badge/80047177.svg)](https://zenodo.org/badge/latestdoi/80047177)
+
 
 
 ### License
