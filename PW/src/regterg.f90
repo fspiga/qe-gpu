@@ -216,7 +216,7 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
 !call flush(6)
 !#endif
 
-  ALLOCATE(  psi_d( npwx, npol, nvecx ), STAT=ierr )
+  ALLOCATE(  psi_d( npwx, nvecx ), STAT=ierr )
   IF( ierr /= 0 ) &
      CALL errore( ' cegterg ',' cannot allocate psi_d ', ABS(ierr) )
 
@@ -231,7 +231,7 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
 !call flush(6)
 !#endif
 
-  ALLOCATE( hpsi_d( npwx, npol, nvecx ), STAT=ierr )
+  ALLOCATE( hpsi_d( npwx, nvecx ), STAT=ierr )
   IF( ierr /= 0 ) &
      CALL errore( ' cegterg ',' cannot allocate hpsi_d ', ABS(ierr) )
   !
@@ -244,8 +244,31 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
 !print *," "
 !call flush(6)
 #endif
-  IF ( uspp ) spsi = ZERO
+
+
   !
+  IF ( uspp ) then
+#ifdef USE_CUDA
+    spsi_d = ZERO
+#else
+    spsi = ZERO
+#endif
+  END IF
+  !
+
+#ifdef USE_CUDA
+  hpsi_d = ZERO
+  psi_d  = ZERO
+ !$cuf kernel do(3) <<<*,*>>>
+  Do j=1,nvec
+      Do i=lbound(psi_d,1), ubound(psi_d,1)
+        psi_d(i,j) = evc_d(i,j)
+      end do
+  end do
+
+  IF ( gstart == 2 ) psi_d(1,1:nvec) = CMPLX( DBLE( psi_d(1,1:nvec) ), 0.D0 ,kind=DP) !TODO
+  CALL h_psi( npwx, npw, nvec, psi_d, hpsi_d )
+#else
   hpsi = ZERO
   psi  = ZERO
   psi(:,1:nvec) = evc(:,1:nvec)
@@ -255,15 +278,32 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
   ! ... hpsi contains h times the basis vectors
   !
   CALL h_psi( npwx, npw, nvec, psi, hpsi )
+
+#endif
+
   !
-  IF ( uspp ) CALL s_psi( npwx, npw, nvec, psi, spsi )
+  IF ( uspp ) THEN
+#ifdef USE_CUDA
+!    call compare(spsi, spsi_d, "spsi")
+    CALL s_psi( npwx, npw, nvec, psi_d, spsi_d )
+!    spsi = spsi_d
+#else
+    CALL s_psi( npwx, npw, nvec, psi, spsi )
+#endif
+  END IF
   !
   ! ... hr contains the projection of the hamiltonian onto the reduced
   ! ... space vr contains the eigenvectors of hr
   !
-  hr(:,:) = 0.D0
-  sr(:,:) = 0.D0
-  vr(:,:) = 0.D0
+#ifdef USE_CUDA
+  hr_d(:,:) = ZERO
+  sr_d(:,:) = ZERO
+  vr_d(:,:) = ZERO
+#else
+  hr(:,:) = ZERO
+  sr(:,:) = ZERO
+  vr(:,:) = ZERO
+#endif
   !
   CALL DGEMM( 'T', 'N', nbase, nbase, npw2, 2.D0 , &
               psi, npwx2, hpsi, npwx2, 0.D0, hr, nvecx )
