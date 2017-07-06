@@ -10,8 +10,13 @@
 !
 !
 !----------------------------------------------------------------------------
+#ifdef USE_CUDA
+SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, evc_d, ethr, &
+                    uspp, gstart, e, e_d, btype, notcnv, lrot, dav_iter )
+#else
 SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
                     uspp, gstart, e, btype, notcnv, lrot, dav_iter )
+#endif
   !----------------------------------------------------------------------------
   !
   ! ... iterative solution of the eigenvalue problem:
@@ -27,6 +32,11 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
   USE mp_bands,      ONLY : intra_bgrp_comm, inter_bgrp_comm, root_bgrp_id, nbgrp, my_bgrp_id
   USE mp,            ONLY : mp_sum, mp_bcast
   USE cpu_gpu_interface
+#ifdef USE_CUDA
+  USE cudafor
+  USE cublas!,        ONLY : cublasZgemm, cublasDdot
+!  USE ep_debug, ONLY : compare, MPI_Wtime
+#endif
   !
   IMPLICIT NONE
   !
@@ -38,6 +48,10 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
     !    (the basis set is refreshed when its dimension would exceed nvecx)
   COMPLEX(DP), INTENT(INOUT) :: evc(npwx,nvec)
     !  evc   contains the  refined estimates of the eigenvectors
+#ifdef USE_CUDA
+  COMPLEX(DP), DEVICE, INTENT(INOUT) :: evc_d(npwx,npol,nvec)
+  REAL(DP), DEVICE, INTENT(OUT) :: e_d(nvec)
+#endif
   REAL(DP), INTENT(IN) :: ethr
     ! energy threshold for convergence: root improvement is stopped,
     ! when two consecutive estimates of the root differ by less than ethr.
@@ -80,7 +94,24 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
     ! threshold for empty bands
   INTEGER :: npw2, npwx2
   !
+#ifndef USE_CUDA
   REAL(DP), EXTERNAL :: ddot
+#endif
+#ifdef USE_CUDA
+  attributes(pinned) :: vr
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: hr_d(:,:), sr_d(:,:), vr_d(:,:), vr_temp_d(:,:)
+  COMPLEX(DP), PINNED, ALLOCATABLE :: comm_h_c(:,:)
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:,:), hpsi_d(:,:,:), spsi_d(:,:,:)
+  REAL(DP), DEVICE, ALLOCATABLE :: ew_d(:)
+  REAL(DP), PINNED, ALLOCATABLE :: comm_h_r(:)
+  LOGICAL, DEVICE, ALLOCATABLE :: conv_d(:)
+  INTEGER, DEVICE :: conv_idx_d(nvec)
+  INTEGER :: istat, i, j, k
+  INTEGER(KIND=8) :: freeMem,totalMem
+  REAL(DP) :: rFreeMem,rUsedMem,rTotalMem,minUsedMem,maxUsedMem,minFreeMem,maxFreeMem
+  REAL(DP) :: ew_temp1, ew_temp2
+!  REAL(DP) :: timer !, it_timer
+#endif
   !
   ! EXTERNAL  h_psi, s_psi, g_psi
     ! h_psi(npwx,npw,nvec,psi,hpsi)
@@ -111,6 +142,11 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      ALLOCATE( spsi( npwx, nvecx ), STAT=ierr )
      IF( ierr /= 0 ) &
         CALL errore( ' regterg ',' cannot allocate spsi ', ABS(ierr) )
+#ifdef USE_CUDA
+     ALLOCATE( spsi_d( npwx, nvecx ), STAT=ierr )
+     IF( ierr /= 0 ) &
+        CALL errore( ' cegterg ',' cannot allocate spsi_d ', ABS(ierr) )
+#endif
   END IF
   !
   ALLOCATE( sr( nvecx, nvecx ), STAT=ierr )
@@ -135,6 +171,79 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
   nbase  = nvec
   conv   = .FALSE.
   !
+#ifdef USE_CUDA
+
+  ALLOCATE( ew_d( nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate ew_d ', ABS(ierr) )
+
+  ALLOCATE( comm_h_r( nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate comm_h_r ', ABS(ierr) )
+
+  ALLOCATE( conv_d( nvec ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate conv_d ', ABS(ierr) )
+
+  ALLOCATE( sr_d( nvecx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate sc_d ', ABS(ierr) )
+  ALLOCATE( hr_d( nvecx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate hc_d ', ABS(ierr) )
+  ALLOCATE( vr_d( nvecx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate vc_d ', ABS(ierr) )
+
+  ALLOCATE( vr_temp_d( nvecx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate vc_temp_d ', ABS(ierr) )
+
+  ALLOCATE( comm_h_c( nvecx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate comm_h_c ', ABS(ierr) )
+
+!#if 0
+!      istat=CudaMemGetInfo(freeMem,totalMem)
+!      rTotalMem = totalMem/(10.**6)
+!      rFreeMem = freeMem/(10.**6);            MinFreeMem = rFreeMem; MaxFreeMem = rFreeMem
+!      rUsedMem = (totalMem-freeMem)/(10.**6); MaxUsedMem = rUsedMem; MinUsedMem = rUsedMem
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory used: ",minUsedMem," - ",maxUsedMem," / ",rTotalMem," MBytes"
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
+!print *," "
+!call flush(6)
+!print *,"psi_d: ",npwx,npol,nvecx
+!call flush(6)
+!#endif
+
+  ALLOCATE(  psi_d( npwx, npol, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate psi_d ', ABS(ierr) )
+
+!#if 0
+!      istat=CudaMemGetInfo(freeMem,totalMem)
+!      rTotalMem = totalMem/(10.**6)
+!      rFreeMem = freeMem/(10.**6);            MinFreeMem = rFreeMem; MaxFreeMem = rFreeMem
+!      rUsedMem = (totalMem-freeMem)/(10.**6); MaxUsedMem = rUsedMem; MinUsedMem = rUsedMem
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory used: ",minUsedMem," - ",maxUsedMem," / ",rTotalMem," MBytes"
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
+!print *," "
+!call flush(6)
+!#endif
+
+  ALLOCATE( hpsi_d( npwx, npol, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate hpsi_d ', ABS(ierr) )
+  !
+      istat=CudaMemGetInfo(freeMem,totalMem)
+      rTotalMem = totalMem/(10.**6)
+      rFreeMem = freeMem/(10.**6);            MinFreeMem = rFreeMem; MaxFreeMem = rFreeMem
+      rUsedMem = (totalMem-freeMem)/(10.**6); MaxUsedMem = rUsedMem; MinUsedMem = rUsedMem
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory used: ",minUsedMem," - ",maxUsedMem," / ",rTotalMem," MBytes"
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
+!print *," "
+!call flush(6)
+#endif
   IF ( uspp ) spsi = ZERO
   !
   hpsi = ZERO
