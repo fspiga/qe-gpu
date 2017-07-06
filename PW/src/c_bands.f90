@@ -289,6 +289,11 @@ CONTAINS
     !
     ! ... Diagonalization of a real Hamiltonian
     !
+#ifdef USE_CUDA                                                                       
+#ifdef USE_NVTX                                                                       
+    use nvtx                                                                          
+#endif                                                                                
+#endif
     IMPLICIT NONE
     !
     IF ( isolve == 1 ) THEN
@@ -340,7 +345,14 @@ CONTAINS
        !
        h_diag(1:npw, 1) = g2kin(1:npw) + v_of_0
        !
-       CALL usnldiag( npw, h_diag, s_diag )
+#ifdef USE_CUDA                                                                       
+!#if 0                                                                                
+! TODO: evc_d = evc can overlap usnldiag_gpu (need to create h2d_stream)  istat = cud 
+       CALL usnldiag_gpu( npw, h_diag, h_diag_d, s_diag, s_diag_d )                        
+!call nvtxEndRange                                                                    
+#else                                                                                 
+       CALL usnldiag( npw, h_diag, s_diag )                                                
+#endif 
        !
        ntry = 0
        !
@@ -357,9 +369,24 @@ CONTAINS
              !
           ELSE
              !
+#ifdef USE_CUDA                                                                       
+!#if 0                                                                                
+             et_d(:,ik) = et(:,ik)                                                    
+             evc_d = evc                                                              
+                                                                                      
+!             h_diag_d = h_diag                                                       
+!             s_diag_d = s_diag                                                       
+                                                                                      
+             CALL regterg ( npw, npwx, nbnd, nbndx, evc, evc_d, ethr, &         
+                         okvan, gstart, et(1,ik), et_d(1,ik), btype(1,ik), &                  
+                         notconv, lrot, dav_iter )                                    
+!             et = et_d                                                               
+!             evc = evc_d                                                             
+#else                                                                                 
              CALL regterg ( npw, npwx, nbnd, nbndx, evc, ethr, &
                          okvan, gstart, et(1,ik), btype(1,ik), &
                          notconv, lrot, dav_iter )
+#endif                                                                                
           END IF
           !
           avg_iter = avg_iter + dav_iter
