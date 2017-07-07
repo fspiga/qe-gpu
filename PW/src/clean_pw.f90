@@ -68,6 +68,7 @@ SUBROUTINE clean_pw( lflag )
   USE tsvdw_module,         ONLY : tsvdw_finalize
   !
 #ifdef USE_CUDA
+  USE vlocal,               ONLY : vloc_d
   USE wavefunctions_module, ONLY : evc_d, psic_d
   USE gvect,                ONLY : g_d, gg_d, nl_d, mill_d, &
                                    eigts1_d, eigts2_d, eigts3_d
@@ -170,6 +171,7 @@ SUBROUTINE clean_pw( lflag )
   IF ( ALLOCATED( eigts2 ) )     DEALLOCATE( eigts2 )
   IF ( ALLOCATED( eigts3 ) )     DEALLOCATE( eigts3 )
 #ifdef USE_CUDA
+  IF ( ALLOCATED( vloc_d ) )       DEALLOCATE( vloc_d )
   IF ( ALLOCATED( eigts1_d ) )     DEALLOCATE( eigts1_d )
   IF ( ALLOCATED( eigts2_d ) )     DEALLOCATE( eigts2_d )
   IF ( ALLOCATED( eigts3_d ) )     DEALLOCATE( eigts3_d )

@@ -20,6 +20,9 @@ subroutine init_vloc()
   USE ions_base,  ONLY : ntyp => nsp
   USE cell_base,  ONLY : omega, tpiba2
   USE vlocal,     ONLY : vloc
+#ifdef USE_CUDA
+  USE vlocal,     ONLY : vloc_d
+#endif
   USE gvect,      ONLY : ngl, gl
   !
   implicit none
@@ -58,6 +61,10 @@ subroutine init_vloc()
         !
      END IF
   enddo
+
+#ifdef USE_CUDA
+  ALLOCATE(vloc_d, source=vloc)
+#endif
   call stop_clock ('init_vloc')
   return
 end subroutine init_vloc

@@ -234,7 +234,6 @@ SUBROUTINE addusforce_g_gpu (forcenl)
   REAL(DP), POINTER, device :: v_of_r_d(:,:)
   REAL(DP) :: fq1, fq2, fq3
   !
-  print*, "calling addusforce gpu!"
   IF (.not.okvan) RETURN
   !
   ALLOCATE ( forceq(3,nat) )

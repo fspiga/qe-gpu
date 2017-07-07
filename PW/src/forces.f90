@@ -102,9 +102,11 @@ SUBROUTINE forces()
   ! ... The local contribution
   !
   CALL start_clock( 'forces_lc' )
-  CALL force_lc( nat, tau, ityp, alat, omega, ngm, ngl, igtongl, &
-                 g, rho%of_r, nl, nspin, gstart, gamma_only, vloc, &
-                 forcelc )
+#ifdef USE_CUDA
+  CALL force_lc_gpu( forcelc )
+#else
+  CALL force_lc( forcelc )
+#endif
   CALL stop_clock( 'forces_lc' )
   !
   ! ... The NLCC contribution
