@@ -381,6 +381,7 @@ set_signal.o : mp.o
 set_signal.o : mp_world.o
 setqf.o : kind.o
 simpsn.o : kind.o
+simpsn.o : constants.o
 sort.o : kind.o
 space_group.o : kind.o
 sph_bes.o : constants.o

@@ -52,6 +52,53 @@ SUBROUTINE simpson(mesh, func, rab, asum)
 
   RETURN
 END SUBROUTINE simpson
+#ifdef USE_CUDA
+SUBROUTINE simpson_gpu(mesh, func_d, rab_d, asum)
+  !-----------------------------------------------------------------------
+  !
+  !     simpson's rule integration. On input:
+  !       mesh = the number of grid points (should be odd)
+  !       func(i)= function to be integrated
+  !       rab(i) = r(i) * dr(i)/di * di
+  !     For the logarithmic grid not including r=0 :
+  !       r(i) = r_0*exp((i-1)*dx) ==> rab(i)=r(i)*dx
+  !     For the logarithmic grid including r=0 :
+  !       r(i) = a(exp((i-1)*dx)-1) ==> rab(i)=(r(i)+a)*dx
+  !     Output in asum = \sum_i c_i f(i)*rab(i) = \int_0^\infty f(r) dr
+  !     where c_i are alternativaly 2/3, 4/3 except c_1 = c_mesh = 1/3
+  !
+  IMPLICIT NONE
+  INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
+  INTEGER, INTENT(in) :: mesh
+  real(DP), INTENT(in), device :: rab_d (mesh), func_d (mesh)
+  real(DP), INTENT(out):: asum
+  !
+  real(DP) :: f1, f2, f3, r12
+  INTEGER :: i
+  !
+  asum = 0.0d0
+  r12 = 1.0d0 / 3.0d0
+
+  !$cuf kernel do (1) <<<*, *>>>
+  do i = 2, mesh-1, 2
+    asum = asum + func_d(i-1)*rab_d(i-1) + 4.0d0*func_d(i)*rab_d(i) + func_d(i+1)*rab_d(i+1)
+  end do
+
+  asum = asum*r12
+  !
+  ! if mesh is not odd, use open formula instead:
+  ! ... 2/3*f(n-5) + 4/3*f(n-4) + 13/12*f(n-3) + 0*f(n-2) + 27/12*f(n-1)
+  !!! Under testing
+  !
+  !IF ( MOD(mesh,2) == 0 ) THEN
+  !   print *, 'mesh even: correction:', f1*5.d0/4.d0-4.d0*f2+23.d0*f3/4.d0, &
+  !                                      func(mesh)*rab(mesh), asum
+  !   asum = asum + f1*5.d0/4.d0 - 4.d0*f2 + 23.d0*f3/4.d0
+  !END IF
+
+  RETURN
+END SUBROUTINE simpson_gpu
+#endif
 
 !=-----------------------------------------------------------------------
 SUBROUTINE simpson_cp90( mesh, func, rab, asum )
@@ -136,3 +183,87 @@ SUBROUTINE herman_skillman_int(mesh,func,rab,asum)
   !
   RETURN
 END SUBROUTINE herman_skillman_int
+
+#ifdef USE_CUDA
+module simpson_gpu_m
+  contains
+    attributes(global) subroutine simpson_gpu_1_kernel(n, tpiba2, omega, gl, r, rhoc, rab, mesh, rhocg)
+      use cudafor
+      use kinds
+      use constants, ONLY : pi, fpi, eps14
+      implicit none
+
+      integer, value :: n, mesh
+      real(DP), value :: tpiba2, omega
+      real(DP), device, intent(in) :: gl(n), r(mesh), rhoc(mesh), rab(mesh)
+      real(DP), device, intent(out) :: rhocg(n)
+
+      integer :: tx, ty, igl, ir
+      real(DP) :: mysum, val, gx, x
+
+      tx = threadIdx%x
+      ty = threadIdx%y
+
+      igl = (blockIdx%x - 1) * blockDim%y + ty
+
+      if (igl > n) return
+
+      gx = sqrt(gl(igl) * tpiba2)
+      mysum = 0.d0
+
+
+      if (abs(gx) < eps14) then
+        do ir = tx, mesh, blockDim%x 
+          val = r(ir) * r(ir) * rhoc(ir) * rab(ir)
+
+          if (ir == 1 .or. ir == mesh) then
+            mysum = mysum + val
+          else if (mod(ir,2)) then
+            mysum = mysum + 4.d0*val
+          else
+            mysum = mysum + 2.d0*val
+          endif
+        end do
+      else
+        do ir = tx, mesh, blockDim%x 
+          x = gx * r(ir)
+          if (abs(x) > 0.5_DP) then
+            val = sin (x) / (x) * r(ir) * r(ir) * rhoc(ir)
+          else
+            val = ( 1.0_dp - x*x/6.0_dp * &
+                  ( 1.0_dp - x*x/20.0_dp * &
+                  ( 1.0_dp - x*x/42.0_dp * &
+                  ( 1.0_dp - x*x/72.0_dp ) ) ) ) * r(ir) * r(ir) * rhoc(ir)
+          endif
+
+          val = val * rab(ir)
+
+          if (ir == 1 .or. ir == mesh) then
+            mysum = mysum + val
+          else if (mod(ir,2)) then
+            mysum = mysum + 4.d0*val
+          else
+            mysum = mysum + 2.d0*val
+          endif
+        end do
+      endif
+
+      ! Reduce by warp
+      val = __shfl_down(mysum,1)
+      mysum = mysum + val
+      val = __shfl_down(mysum,2)
+      mysum = mysum + val
+      val = __shfl_down(mysum,4)
+      mysum = mysum + val
+      val = __shfl_down(mysum,8)
+      mysum = mysum + val
+      val = __shfl_down(mysum,16)
+      mysum = mysum + val
+
+      if (tx == 1) then
+        rhocg(igl) = fpi * mysum / (3.d0 * omega)
+      endif
+
+    end subroutine simpson_gpu_1_kernel
+end module
+#endif

@@ -55,6 +55,10 @@
      !
      REAL(DP), POINTER :: gl(:) 
      INTEGER, ALLOCATABLE, TARGET :: igtongl(:) 
+#ifdef USE_CUDA
+     REAL(DP), DEVICE, POINTER :: gl_d(:) 
+     INTEGER, DEVICE, ALLOCATABLE, TARGET :: igtongl_d(:) 
+#endif
      !
      !     G-vectors cartesian components ( in units tpiba =(2pi/a)  )
      !
@@ -118,6 +122,7 @@
        ALLOCATE( g_d(3, ngm) )
        ALLOCATE( mill_d(3, ngm) )
        ALLOCATE( nl_d (ngm) )
+       ALLOCATE( igtongl_d(ngm) )
 #endif
        ALLOCATE( nlm(ngm) )
        ALLOCATE( ig_l2g(ngm) )
@@ -146,6 +151,7 @@
        IF( ALLOCATED( eigts3 ) ) DEALLOCATE( eigts3 )
        IF( ALLOCATED( nl ) ) DEALLOCATE( nl )
 #ifdef USE_CUDA
+       IF( ALLOCATED( igtongl_d ) ) DEALLOCATE( igtongl_d )
        IF( ALLOCATED( eigts1_d ) ) DEALLOCATE( eigts1_d )
        IF( ALLOCATED( eigts2_d ) ) DEALLOCATE( eigts2_d )
        IF( ALLOCATED( eigts3_d ) ) DEALLOCATE( eigts3_d )
