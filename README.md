@@ -42,6 +42,7 @@ These make.inc templates are available:
 * `make.inc_x86-64_CPU-only` to compile on x86-64 without GPU support
 * `make.inc_CRAY_PizDaint` to compile on Piz Daint at CSCS, CRAY XC30 with P100 PCI GPU support (`GPU_ARCH=60`)
 * `make.inc_POWER_DAVIDE` to compile on PRACE D.A.V.I.D.E. at E4, POWER8 system with GPU support (`GPU_ARCH=60`)
+* `make.inc_POWER_SUMMITDEV` to compile on ORNL early access system in preparation of next OLCF's next big supercomputer, SUMMIT (`GPU_ARCH=60`)
 
 By invoking _make_ alone a list of acceptable targets will be displayed. Binaries go in "bin/". Read comments in the `make.inc` templates to customize it further based on your ebvironment and where math libraries are located. The architectures/environments supported are x86-64, POWER and CRAY.
 
