@@ -135,6 +135,7 @@ subroutine force_cc_gpu (forcecc)
   USE wavefunctions_module, ONLY : psic, psic_d
   USE mp_bands,             ONLY : intra_bgrp_comm
   USE mp,                   ONLY : mp_sum
+  USE funct,                ONLY : get_iexch, get_icorr
   USE cudafor
   !
   implicit none
@@ -152,11 +153,14 @@ subroutine force_cc_gpu (forcecc)
   ! counter on atoms
 
   real(DP), allocatable, device :: vxc_d (:,:), rhocg_d (:)
+  real(DP), allocatable :: vxc (:,:)
   ! exchange-correlation potential
   ! radial fourier trasform of rho core
   real(DP)  ::  arg, fact, prod
   real(DP)  ::  tau1, tau2, tau3
   real(DP)  ::  fcc1, fcc2, fcc3
+  integer   :: iexch, icorr
+
 
   !
   forcecc(:,:) = 0.d0
@@ -179,12 +183,25 @@ subroutine force_cc_gpu (forcecc)
   !
   allocate ( vxc_d(dfftp%nnr,nspin) )
   !
-  !TODO Might be able to remove some of these copies
-  rho_core_d = rho_core
-  rhog_core_d = rhog_core
-  rho%of_r_d = rho%of_r
-  rho%of_g_d = rho%of_g
-  CALL v_xc_gpu( rho, rho_core_d, rhog_core_d, etxc, vtxc, vxc_d)
+  iexch = get_iexch
+  icorr = get_icorr
+
+  ! If calling PBE functional configuration, use GPU path
+  if (iexch .eq. 1 .and. icorr .eq. 4 .and. nspin == 1) then
+    !TODO Might be able to remove some of these copies
+    rho_core_d = rho_core
+    rhog_core_d = rhog_core
+    rho%of_r_d = rho%of_r
+    rho%of_g_d = rho%of_g
+    CALL v_xc_gpu( rho, rho_core_d, rhog_core_d, etxc, vtxc, vxc_d)
+
+  ! Otherwise fall back to CPU path
+  else
+    allocate ( vxc(dfftp%nnr,nspin) )
+    CALL v_xc( rho, rho_core, rhog_core, etxc, vtxc, vxc)
+    vxc_d = vxc
+    deallocate(vxc)
+  endif
   !
   psic_d=cmplx(0, 0, DP)
   if (nspin == 1 .or. nspin == 4) then
