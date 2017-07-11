@@ -1705,7 +1705,7 @@ SUBROUTINE v_xc_gpu( rho, rho_core_d, rhog_core_d,  etxc, vtxc, v_d )
      !
      ! ... spin-polarized case
      !
-     print*,  "v_xc_gpu: SPIN POLOARIZED not supported!"; flush(6); STOP
+     print*,  "v_xc_gpu: SPIN POLARIZED not supported!"; flush(6); STOP
 
 !!$omp parallel do private( rhox, arhox, zeta, ex, ec, vx, vc ), &
 !!$omp             reduction(+:etxc,vtxc), reduction(-:rhoneg)
