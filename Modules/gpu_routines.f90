@@ -10,8 +10,48 @@
 ! gpu_routines module contains subroutines which wrap problematic CUF kernels in cdiaghg.F90.
 ! This is a temporary workaround.
 module gpu_routines
+  use cublas_v2
+  use iso_c_binding
+
+  interface
+    integer(c_int) function cublaszgemm3m(handle, transa, transb, m, n, k, &
+      alpha, A, lda, B, ldb, beta, C, ldc) bind(C, name='cublasZgemm3m')
+      use cudafor
+      use cublas_v2
+
+      type(cublasHandle), value :: handle
+      integer(c_int), value :: transa
+      integer(c_int), value :: transb
+      integer(c_int), value :: m
+      integer(c_int), value :: n
+      integer(c_int), value :: k
+      complex(8) :: alpha
+      complex(8), device :: A(*)
+      integer(c_int), value :: lda
+      complex(8), device :: B(*)
+      integer(c_int), value :: ldb
+      complex(8) :: beta
+      complex(8), device :: C(*)
+      integer(c_int), value :: ldc
+      end function cublaszgemm3m
+  end interface cublaszgemm3m
+
+  type(cublasHandle) :: cublasH
 !=----------------------------------------------------------------------=!
 contains
+  SUBROUTINE setupCublasHandle()
+    use cublas_v2
+    implicit none
+
+    integer :: istat
+
+    istat = cublasCreate(cublasH)
+
+    if (istat .ne. 0) then
+      print*, "setupCublasHandle failed!"; flush(6); stop
+    endif
+    
+  END SUBROUTINE setupCublasHandle
 
   SUBROUTINE cufMemcpy2D( dst, dpitch, src, spitch, n, m )
     USE kinds

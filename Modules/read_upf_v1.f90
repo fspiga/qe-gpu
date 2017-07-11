@@ -112,9 +112,6 @@ subroutine read_upf_v1 (iunps, upf, grid, ierr, header_only)
      ALLOCATE( upf%rho_atc( upf%mesh ) )
      upf%rho_atc = 0.0_DP
   endif
-#ifdef USE_CUDA
-   ALLOCATE(upf%rho_atc_d(upf%mesh), source=upf%rho_atc)
-#endif
   !-------->Fake 1/r potential: do not read PP
   if (.not. matches ("1/r", upf%typ) ) then
   !-------->Search for Local potential
@@ -158,6 +155,11 @@ subroutine read_upf_v1 (iunps, upf, grid, ierr, header_only)
      call scan_end (iunps, "INFO")
   ENDIF
   ENDIF
+
+#ifdef USE_CUDA
+   ALLOCATE(upf%rho_at_d(upf%mesh), source=upf%rho_at)
+   ALLOCATE(upf%rho_atc_d(upf%mesh), source=upf%rho_atc)
+#endif
 
 200 return
 

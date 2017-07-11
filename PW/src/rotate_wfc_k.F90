@@ -23,7 +23,7 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_k )( npwx, npw, nstart, nbnd, npol, psi, overl
   USE cpu_gpu_interface
 #ifdef USE_GPU
   USE cudafor
-  USE cublas
+  USE gpu_routines
 #endif
   !
   IMPLICIT NONE
@@ -48,7 +48,7 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_k )( npwx, npw, nstart, nbnd, npol, psi, overl
   !
   ! ... local variables
   !
-  INTEGER :: kdim, kdmx, i, j
+  INTEGER :: kdim, kdmx, i, j, istat
   COMPLEX(DP), ALLOCATABLE :: aux(:,:), hc(:,:), sc(:,:), vc(:,:)
   REAL(DP),    ALLOCATABLE :: en(:)
 #ifdef USE_GPU
@@ -80,7 +80,11 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_k )( npwx, npw, nstart, nbnd, npol, psi, overl
   !
   CALL h_psi( npwx, npw, nstart, psi, aux )
   !
+#ifdef USE_GPU
+  istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx,  aux, kdmx, ( 0.D0, 0.D0 ), hc, nstart )
+#else
   call ZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx,  aux, kdmx, ( 0.D0, 0.D0 ), hc, nstart )
+#endif
   !            
   CALL mp_sum(  hc , intra_bgrp_comm )
   !
@@ -88,11 +92,19 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_k )( npwx, npw, nstart, nbnd, npol, psi, overl
      !
      CALL s_psi( npwx, npw, nstart, psi, aux )
      !
+#ifdef USE_GPU
+     istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx,  aux, kdmx, ( 0.D0, 0.D0 ), sc, nstart )
+#else
      CALL ZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx,  aux, kdmx, ( 0.D0, 0.D0 ), sc, nstart )
+#endif
      !
   ELSE
      !
+#ifdef USE_GPU
+     istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx, psi, kdmx, ( 0.D0, 0.D0 ), sc, nstart )
+#else
      CALL ZGEMM( 'C', 'N', nstart, nstart, kdim, ( 1.D0, 0.D0 ), psi, kdmx, psi, kdmx, ( 0.D0, 0.D0 ), sc, nstart )
+#endif
      !  
   END IF
   !
@@ -112,7 +124,11 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_k )( npwx, npw, nstart, nbnd, npol, psi, overl
   !
   ! ...  update the basis set
   !  
+#ifdef USE_GPU
+  istat = cublasZgemm3m( cublasH, CUBLAS_OP_N, CUBLAS_OP_N, kdim, nbnd, nstart, ( 1.D0, 0.D0 ), psi, kdmx, vc, nstart, ( 0.D0, 0.D0 ), aux, kdmx )
+#else
   CALL ZGEMM( 'N', 'N', kdim, nbnd, nstart, ( 1.D0, 0.D0 ), psi, kdmx, vc, nstart, ( 0.D0, 0.D0 ), aux, kdmx )
+#endif
   !   
 #ifdef USE_GPU
 !$cuf kernel do(1) <<<*,*>>>

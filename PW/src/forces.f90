@@ -91,33 +91,33 @@ SUBROUTINE forces()
   !
   ! ... The nonlocal contribution is computed here
   !
-  CALL start_clock( 'forces_us' )
+  CALL start_clock( 'forces:us' )
 #ifdef USE_CUDA
   CALL force_us_gpu( forcenl )
 #else
   CALL force_us( forcenl )
 #endif
-  CALL stop_clock( 'forces_us' )
+  CALL stop_clock( 'forces:us' )
   !
   ! ... The local contribution
   !
-  CALL start_clock( 'forces_lc' )
+  CALL start_clock( 'forces:lc' )
 #ifdef USE_CUDA
   CALL force_lc_gpu( forcelc )
 #else
   CALL force_lc( forcelc )
 #endif
-  CALL stop_clock( 'forces_lc' )
+  CALL stop_clock( 'forces:lc' )
   !
   ! ... The NLCC contribution
   !
-  CALL start_clock( 'forces_cc' )
+  CALL start_clock( 'forces:cc' )
 #ifdef USE_CUDA
   CALL force_cc_gpu( forcecc )
 #else
   CALL force_cc( forcecc )
 #endif
-  CALL stop_clock( 'forces_cc' )
+  CALL stop_clock( 'forces:cc' )
   !
   ! ... The Hubbard contribution
   !     (included by force_us if using beta as local projectors)
@@ -126,14 +126,14 @@ SUBROUTINE forces()
   !
   ! ... The ionic contribution is computed here
   !
-  CALL start_clock( 'forces_ew' )
+  CALL start_clock( 'forces:ew' )
   IF( do_comp_esm ) THEN
      CALL esm_force_ew( forceion )
   ELSE
      CALL force_ew( alat, nat, ntyp, ityp, zv, at, bg, tau, omega, g, &
                     gg, ngm, gstart, gamma_only, gcutm, strf, forceion )
   END IF
-  CALL stop_clock( 'forces_ew' )
+  CALL stop_clock( 'forces:ew' )
   !
   ! ... the semi-empirical dispersion correction
   !
@@ -153,9 +153,9 @@ SUBROUTINE forces()
   !
   ! ... The SCF contribution
   !
-  CALL start_clock( 'forces_corr' )
+  CALL start_clock( 'forces:corr' )
   CALL force_corr( forcescc )
-  CALL stop_clock( 'forces_corr' )
+  CALL stop_clock( 'forces:corr' )
   !
   IF (do_comp_mt) THEN
     !

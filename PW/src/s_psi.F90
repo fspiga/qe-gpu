@@ -97,7 +97,7 @@ SUBROUTINE MY_ROUTINE(s_psi_)( lda, n, m, psi, spsi )
   USE becmod,     ONLY : becp
 #ifdef USE_GPU
   USE cudafor
-  USE cublas
+  USE gpu_routines
   USE uspp,       ONLY : vkb=>vkb_d, nkb, okvan, qq=>qq_d, qq_so, indv_ijkb0
 #else
   USE uspp,       ONLY : vkb, nkb, okvan, qq, qq_so, indv_ijkb0
@@ -312,7 +312,7 @@ SUBROUTINE MY_ROUTINE(s_psi_)( lda, n, m, psi, spsi )
        !
        ! ... local variables
        !
-       INTEGER :: ikb, jkb, ih, jh, na, nt, ibnd, ierr, j, k
+       INTEGER :: ikb, jkb, ih, jh, na, nt, ibnd, ierr, j, k, istat
          ! counters
        COMPLEX(DP), ALLOCATABLE :: ps(:,:), qqc(:,:)
        COMPLEX(DP), POINTER :: becp_k(:,:)
@@ -352,9 +352,15 @@ SUBROUTINE MY_ROUTINE(s_psi_)( lda, n, m, psi, spsi )
 
              DO na = 1, nat
                 IF ( ityp(na) == nt ) THEN
+#ifdef USE_GPU
+                   istat = cublasZgemm3m(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, nh(nt), m, nh(nt), (1.0_dp,0.0_dp), &
+                        qqc, nh(nt), becp_k(indv_ijkb0(na)+1,1), nkb, &
+                        (0.0_dp,0.0_dp), ps(indv_ijkb0(na)+1,1), nkb )
+#else
                    CALL ZGEMM('N','N', nh(nt), m, nh(nt), (1.0_dp,0.0_dp), &
                         qqc, nh(nt), becp_k(indv_ijkb0(na)+1,1), nkb, &
                         (0.0_dp,0.0_dp), ps(indv_ijkb0(na)+1,1), nkb )
+#endif
                    !
                 END IF
              END DO
@@ -369,8 +375,13 @@ SUBROUTINE MY_ROUTINE(s_psi_)( lda, n, m, psi, spsi )
           !
        ELSE
           !
+#ifdef USE_GPU
+          istat = cublasZgemm3m(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, n, m, nkb, ( 1.D0, 0.D0 ), vkb, &
+                      lda, ps, nkb, ( 1.D0, 0.D0 ), spsi, lda )
+#else
           CALL ZGEMM( 'N', 'N', n, m, nkb, ( 1.D0, 0.D0 ), vkb, &
                       lda, ps, nkb, ( 1.D0, 0.D0 ), spsi, lda )
+#endif
           !
        END IF
        !

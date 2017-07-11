@@ -351,7 +351,7 @@ CONTAINS
     !
     USE mp_bands, ONLY : intra_bgrp_comm
     USE mp,       ONLY : mp_sum
-    USE cublas
+    USE gpu_routines
 
     IMPLICIT NONE
     COMPLEX (DP), INTENT (in) :: beta(:,:), psi(:,:)
@@ -361,7 +361,7 @@ CONTAINS
     INTEGER, INTENT (in) :: npw
     INTEGER, OPTIONAL :: nbnd
     !
-    INTEGER :: nkb, npwx, m
+    INTEGER :: nkb, npwx, m, istat
     !
     nkb = size (beta, 2)
     IF ( nkb == 0 ) RETURN
@@ -386,7 +386,7 @@ CONTAINS
     !
     IF ( npw == 0 ) betapsi(:,:)=(0.0_DP,0.0_DP)
 
-    CALL ZGEMM( 'C', 'N', nkb, m, npw, (1.0_DP,0.0_DP), &
+    istat = cublasZgemm3m(cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nkb, m, npw, (1.0_DP,0.0_DP), &
                  beta, npwx, psi, npwx, (0.0_DP,0.0_DP), betapsi, nkb )
 
 

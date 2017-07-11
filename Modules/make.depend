@@ -12,6 +12,7 @@ becmod.o : mp.o
 becmod.o : mp_bands.o
 becmod.o : noncol.o
 becmod.o : recvec.o
+becmod.o : gpu_routines.o
 bfgs_module.o : basic_algebra_routines.o
 bfgs_module.o : cell_base.o
 bfgs_module.o : constants.o

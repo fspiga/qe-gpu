@@ -73,14 +73,97 @@ subroutine drhoc (ngl, gl, omega, tpiba2, mesh, r, rab, rhoc, rhocg)
   !
   return
 end subroutine drhoc
+
 #ifdef USE_CUDA
+module compute_rhocg_gpu_m
+  contains
+    attributes(global) subroutine compute_rhocg_gpu(n, tpiba2, omega, gl, r, rhoc, rab, mesh, rhocg)
+      use cudafor
+      use kinds
+      use constants, ONLY : pi, fpi, eps14
+      implicit none
+
+      integer, value :: n, mesh
+      real(DP), value :: tpiba2, omega
+      real(DP), device, intent(in) :: gl(n), r(mesh), rhoc(mesh), rab(mesh)
+      real(DP), device, intent(out) :: rhocg(n)
+
+      integer :: tx, ty, igl, ir
+      real(DP) :: mysum, val, gx, x
+
+      tx = threadIdx%x
+      ty = threadIdx%y
+
+      igl = (blockIdx%x - 1) * blockDim%y + ty
+
+      if (igl > n) return
+
+      gx = sqrt(gl(igl) * tpiba2)
+      mysum = 0.d0
+
+
+      if (abs(gx) < eps14) then
+        do ir = tx, mesh, blockDim%x 
+          val = r(ir) * r(ir) * rhoc(ir) * rab(ir)
+
+          if (ir == 1 .or. ir == mesh) then
+            mysum = mysum + val
+          else if (mod(ir,2)) then
+            mysum = mysum + 4.d0*val
+          else
+            mysum = mysum + 2.d0*val
+          endif
+        end do
+      else
+        do ir = tx, mesh, blockDim%x 
+          x = gx * r(ir)
+          if (abs(x) > 0.5_DP) then
+            val = sin (x) / (x) * r(ir) * r(ir) * rhoc(ir)
+          else
+            val = ( 1.0_dp - x*x/6.0_dp * &
+                  ( 1.0_dp - x*x/20.0_dp * &
+                  ( 1.0_dp - x*x/42.0_dp * &
+                  ( 1.0_dp - x*x/72.0_dp ) ) ) ) * r(ir) * r(ir) * rhoc(ir)
+          endif
+
+          val = val * rab(ir)
+
+          if (ir == 1 .or. ir == mesh) then
+            mysum = mysum + val
+          else if (mod(ir,2)) then
+            mysum = mysum + 4.d0*val
+          else
+            mysum = mysum + 2.d0*val
+          endif
+        end do
+      endif
+
+      ! Reduce by warp
+      val = __shfl_down(mysum,1)
+      mysum = mysum + val
+      val = __shfl_down(mysum,2)
+      mysum = mysum + val
+      val = __shfl_down(mysum,4)
+      mysum = mysum + val
+      val = __shfl_down(mysum,8)
+      mysum = mysum + val
+      val = __shfl_down(mysum,16)
+      mysum = mysum + val
+
+      if (tx == 1) then
+        rhocg(igl) = fpi * mysum / (3.d0 * omega)
+      endif
+
+    end subroutine compute_rhocg_gpu
+end module
+
 subroutine drhoc_gpu (ngl, gl_d, omega, tpiba2, mesh, r_d, rab_d, rhoc_d, rhocg_d)
   !-----------------------------------------------------------------------
   !
   USE kinds
   USE constants, ONLY : pi, fpi, eps14
   use cudafor
-  use simpson_gpu_m, ONLY: simpson_gpu_1_kernel
+  use compute_rhocg_gpu_m
   implicit none
   !
   !    first the dummy variables
@@ -139,7 +222,7 @@ subroutine drhoc_gpu (ngl, gl_d, omega, tpiba2, mesh, r_d, rab_d, rhoc_d, rhocg_
   !
   threads = dim3(32, 8, 1)
   blocks = ceiling(real(ngl - igl0 + 1)/8)
-  call simpson_gpu_1_kernel<<<blocks, threads>>>(ngl - igl0 + 1, tpiba2, omega, gl_d(igl0), r_d, rhoc_d, rab_d, mesh, rhocg_d(igl0))
+  call compute_rhocg_gpu<<<blocks, threads>>>(ngl - igl0 + 1, tpiba2, omega, gl_d(igl0), r_d, rhoc_d, rab_d, mesh, rhocg_d(igl0))
 
   deallocate(aux_d)
   !

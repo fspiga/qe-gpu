@@ -127,6 +127,7 @@ subroutine force_lc_gpu ( forcelc )
   real(DP), device, pointer :: rho_of_r_d(:,:)
   real(DP) :: tau1, tau2, tau3
   real(DP) :: flc1, flc2, flc3
+  real(DP) :: prod
   !
   ! contribution to the force from the local part of the bare potential
   ! F_loc = Omega \Sum_G n*(G) d V_loc(G)/d R_i
@@ -176,14 +177,11 @@ subroutine force_lc_gpu ( forcelc )
         arg = (g_d (1, ig) * tau1 + g_d (2, ig) * tau2 + &
                g_d (3, ig) * tau3) * tpi
 
-        flc1 = flc1 + g_d (1, ig) * vloc_d (igtongl_d (ig), it ) * &
-             (sin(arg)*DBLE(aux_d(nl_d(ig))) + cos(arg)*AIMAG(aux_d(nl_d(ig))) )
+        prod = vloc_d (igtongl_d (ig), it ) * DBLE(cmplx(sin(arg), cos(arg), DP) * conjg(aux_d(nl_d(ig))))
 
-        flc2 = flc2 + g_d (2, ig) * vloc_d (igtongl_d (ig), it ) * &
-             (sin(arg)*DBLE(aux_d(nl_d(ig))) + cos(arg)*AIMAG(aux_d(nl_d(ig))) )
-
-        flc3 = flc3 + g_d (3, ig) * vloc_d (igtongl_d (ig), it ) * &
-             (sin(arg)*DBLE(aux_d(nl_d(ig))) + cos(arg)*AIMAG(aux_d(nl_d(ig))) )
+        flc1 = flc1 + g_d (1, ig) * prod
+        flc2 = flc2 + g_d (2, ig) * prod
+        flc3 = flc3 + g_d (3, ig) * prod
      enddo
      forcelc (1, na) = fact * flc1 * omega * tpi / alat
      forcelc (2, na) = fact * flc2 * omega * tpi / alat

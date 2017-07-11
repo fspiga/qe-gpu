@@ -33,7 +33,7 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
   USE noncollin_module
 #ifdef USE_GPU
   USE cudafor
-  USE cublas
+  USE gpu_routines
   USE uspp,          ONLY: vkb=>vkb_d, nkb, deeq=>deeq_d, deeq_nc, indv_ijkb0
 #else
   USE uspp,          ONLY: vkb, nkb, deeq, deeq_nc, indv_ijkb0
@@ -204,7 +204,7 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
        IMPLICIT NONE
        COMPLEX(DP), ALLOCATABLE :: ps (:,:), deeaux (:,:)
        COMPLEX(DP), POINTER :: becp_k(:,:)
-       INTEGER :: ierr, j, k
+       INTEGER :: ierr, j, k, istat
 #ifdef USE_GPU
        ATTRIBUTES( DEVICE ) :: ps, deeaux,becp_k
        becp_k => becp%k_d
@@ -244,9 +244,15 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
 ! add openmp here
 #endif
 
+#ifdef USE_GPU
+                istat = cublasZgemm3m(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, nh(nt), m, nh(nt), (1.0_dp,0.0_dp), &
+                           deeaux, nh(nt), becp_k(indv_ijkb0(na)+1,1), nkb, &
+                          (0.0_dp, 0.0_dp), ps(indv_ijkb0(na)+1,1), nkb )
+#else
                 CALL ZGEMM('N','N', nh(nt), m, nh(nt), (1.0_dp,0.0_dp), &
                            deeaux, nh(nt), becp_k(indv_ijkb0(na)+1,1), nkb, &
                           (0.0_dp, 0.0_dp), ps(indv_ijkb0(na)+1,1), nkb )
+#endif
                 !
              END IF
              !
@@ -255,8 +261,13 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
           !
        END DO
        !
+#ifdef USE_GPU
+       istat = cublasZgemm3m(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, n, m, nkb, ( 1.D0, 0.D0 ) , vkb, &
+                   lda, ps, nkb, ( 1.D0, 0.D0 ) , hpsi, lda )
+#else
        CALL ZGEMM( 'N', 'N', n, m, nkb, ( 1.D0, 0.D0 ) , vkb, &
                    lda, ps, nkb, ( 1.D0, 0.D0 ) , hpsi, lda )
+#endif
        !
        DEALLOCATE (ps)
        !

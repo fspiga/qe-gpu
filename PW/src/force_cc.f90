@@ -113,6 +113,7 @@ subroutine force_cc (forcecc)
   !
   return
 end subroutine force_cc
+
 #ifdef USE_CUDA
 subroutine force_cc_gpu (forcecc)
   !----------------------------------------------------------------------

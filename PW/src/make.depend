@@ -249,7 +249,7 @@ cdiaghg.o : ../../Modules/kind.o
 cdiaghg.o : ../../Modules/mp.o
 cdiaghg.o : ../../Modules/mp_bands.o
 cdiaghg.o : ../../Modules/mp_diag.o
-cdiaghg.o : gpu_routines.o
+cdiaghg.o : ../../Modules/gpu_routines.o
 cegterg.o : ../../LAXlib/la_types.o
 cegterg.o : ../../LAXlib/ptoolkit.o
 cegterg.o : ../../Modules/io_global.o
@@ -1549,6 +1549,7 @@ pwscf.o : ../../Modules/command_line_options.o
 pwscf.o : ../../Modules/environment.o
 pwscf.o : ../../Modules/mp_global.o
 pwscf.o : ../../Modules/read_input.o
+pwscf.o : ../../Modules/gpu_routines.o
 qvan2.o : ../../Modules/kind.o
 qvan2.o : ../../Modules/uspp.o
 qvan2.o : pwcom.o

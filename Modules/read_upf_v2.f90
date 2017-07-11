@@ -115,6 +115,11 @@ SUBROUTINE read_upf_v2(u, upf, grid, ierr)             !
    !
    ! Close the file (not the unit!)
    CALL iotk_close_read(u)
+
+#ifdef USE_CUDA
+   ALLOCATE(upf%rho_at_d, source=upf%rho_at)
+   ALLOCATE(upf%rho_atc_d, source=upf%rho_atc)
+#endif
    !
    IF( present(ierr) ) ierr=0
 

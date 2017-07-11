@@ -34,6 +34,7 @@ fft_custom.o \
 fsockets.o \
 funct.o \
 generate_function.o \
+gpu_routines.o \
 gth.o \
 gvecw.o \
 input_parameters.o \

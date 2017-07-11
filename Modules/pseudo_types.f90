@@ -89,6 +89,9 @@ MODULE pseudo_types
      ! Chi and rho_at are only used for initial density and initial wfcs:
      REAL(DP), POINTER :: chi(:,:)   ! chi(mesh,nwfc) atomic wavefcts
      REAL(DP), POINTER :: rho_at(:)  ! rho_at(mesh) atomic charge
+#ifdef USE_CUDA
+     REAL(DP), POINTER, DEVICE :: rho_at_d(:) ! rho_atc(mesh) atomic charge
+#endif
      ! Minimal radial grid:
      INTEGER :: mesh               ! number of points in the radial mesh
      REAL(DP) :: xmin              ! the minimum x of the linear mesh

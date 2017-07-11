@@ -68,7 +68,7 @@ MODULE scf
 
   type (scf_type), TARGET :: rho  ! the charge density and its other components
   type (scf_type), TARGET :: v    ! the scf potential
-  type (scf_type) :: vnew ! used to correct the forces
+  type (scf_type), TARGET :: vnew ! used to correct the forces
 
   REAL(DP) :: v_of_0    ! vltot(G=0)      
   REAL(DP), ALLOCATABLE :: &

@@ -35,6 +35,7 @@ PROGRAM pwscf
 #ifdef USE_CUDA
 !  USE mpiDeviceUtil, ONLY : assignDevice
   USE mpiDeviceUtil, ONLY : assignDevice
+  USE gpu_routines, ONLY : setupCublasHandle
 #endif
   !
   IMPLICIT NONE
@@ -52,6 +53,7 @@ PROGRAM pwscf
 #ifdef USE_CUDA
   ! This routine assigns a different GPU to each MPI rank in the same server
   CALL assignDevice( dev )
+  CALL setupCublasHandle()
 #if defined(__GPU_DEBUG)
   print *,"Running on GPU dev = ",dev
 #endif

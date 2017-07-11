@@ -330,6 +330,7 @@ SUBROUTINE force_us_gpu( forcenl )
   !
   ! ... the forces are a sum over the K points and over the bands
   !   
+  vkb_d = vkb
   DO ik = 1, nks
      !
      IF ( lsda ) current_spin = isk(ik)
@@ -341,6 +342,7 @@ SUBROUTINE force_us_gpu( forcenl )
         IF ( nkb > 0 ) &
              CALL init_us_2_gpu( npw, igk_k_d(1,ik), xk(1,ik), vkb_d )
      END IF
+     
      !
      CALL calbec ( npw, vkb_d, evc_d, becp )
      becp%k = becp%k_d

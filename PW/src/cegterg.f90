@@ -57,7 +57,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   USE cpu_gpu_interface
 #ifdef USE_CUDA
   USE cudafor
-  USE cublas!,        ONLY : cublasZgemm, cublasDdot
+  USE gpu_routines
 !  USE ep_debug, ONLY : compare, MPI_Wtime
 #endif
   !
@@ -363,7 +363,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #endif
   !
 #ifdef USE_CUDA
-  CALL ZGEMM( 'C', 'N', nbase, nbase, kdim, ONE, &
+  istat = cublasZgemm3m(cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nbase, nbase, kdim, ONE, &
               psi_d, kdmx, hpsi_d, kdmx, ZERO, hc_d, nvecx )
 
   comm_h_c( :, 1:nbase ) = hc_d( :, 1:nbase )
@@ -380,12 +380,12 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #ifdef USE_CUDA
   IF ( uspp ) THEN
      !
-     CALL cublasZgemm( 'C', 'N', nbase, nbase, kdim, ONE, &
+     istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nbase, nbase, kdim, ONE, &
                  psi_d, kdmx, spsi_d, kdmx, ZERO, sc_d, nvecx )
      !     
   ELSE
      !
-     CALL cublasZgemm( 'C', 'N', nbase, nbase, kdim, ONE, &
+     istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nbase, nbase, kdim, ONE, &
                  psi_d, kdmx, psi_d, kdmx, ZERO, sc_d, nvecx )
      !
   END IF
@@ -547,12 +547,12 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #ifdef USE_CUDA
      IF ( uspp ) THEN
         !
-        CALL cublasZgemm( 'N', 'N', kdim, notcnv, nbase, ONE, spsi_d, &
+        istat = cublasZgemm3m( cublasH, CUBLAS_OP_N, CUBLAS_OP_N, kdim, notcnv, nbase, ONE, spsi_d, &
                     kdmx, vc_d, nvecx, ZERO, psi_d(1,1,nb1), kdmx )
         !     
      ELSE
         !
-        CALL cublasZgemm( 'N', 'N', kdim, notcnv, nbase, ONE, psi_d, &
+        istat = cublasZgemm3m( cublasH, CUBLAS_OP_N, CUBLAS_OP_N, kdim, notcnv, nbase, ONE, psi_d, &
                     kdmx, vc_d, nvecx, ZERO, psi_d(1,1,nb1), kdmx )
         !
      END IF
@@ -590,7 +590,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #endif
 
 #ifdef USE_CUDA
-     CALL cublasZgemm( 'N', 'N', kdim, notcnv, nbase, ONE, hpsi_d, &
+     istat = cublasZgemm3m( cublasH, CUBLAS_OP_N, CUBLAS_OP_N, kdim, notcnv, nbase, ONE, hpsi_d, &
                  kdmx, vc_d, nvecx, ONE, psi_d(1,1,nb1), kdmx )
 #else
      CALL ZGEMM( 'N', 'N', kdim, notcnv, nbase, ONE, hpsi, &
@@ -730,7 +730,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
      CALL start_clock( 'cegterg:overlap' )
      !
 #ifdef USE_CUDA
-     CALL cublasZgemm( 'C', 'N', nbase+notcnv, notcnv, kdim, ONE, psi_d, &
+     istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nbase+notcnv, notcnv, kdim, ONE, psi_d, &
                  kdmx, hpsi_d(1,1,nb1), kdmx, ZERO, hc_d(1,nb1), nvecx )
 
       comm_h_c( :, nb1:nb1+notcnv-1 ) =  hc_d( :, nb1:nb1+notcnv-1 )
@@ -748,12 +748,12 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #ifdef USE_CUDA
      IF ( uspp ) THEN
         !
-        CALL cublasZgemm( 'C', 'N', nbase+notcnv, notcnv, kdim, ONE, psi_d, &
+        istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nbase+notcnv, notcnv, kdim, ONE, psi_d, &
                     kdmx, spsi_d(1,1,nb1), kdmx, ZERO, sc_d(1,nb1), nvecx )
         !     
      ELSE
         !
-        CALL cublasZgemm( 'C', 'N', nbase+notcnv, notcnv, kdim, ONE, psi_d, &
+        istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nbase+notcnv, notcnv, kdim, ONE, psi_d, &
                     kdmx, psi_d(1,1,nb1), kdmx, ZERO, sc_d(1,nb1), nvecx )
         !
      END IF
@@ -893,7 +893,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
         CALL start_clock( 'cegterg:last' )
         !
 #ifdef USE_CUDA
-        CALL cublasZgemm( 'N', 'N', kdim, nvec, nbase, ONE, &
+        istat = cublasZgemm3m(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, kdim, nvec, nbase, ONE, &
                     psi_d, kdmx, vc_d, nvecx, ZERO, evc_d, kdmx )
 #else
         CALL ZGEMM( 'N', 'N', kdim, nvec, nbase, ONE, &
@@ -939,7 +939,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
         IF ( uspp ) THEN
            !
 #ifdef USE_CUDA
-           CALL cublasZgemm( 'N', 'N', kdim, nvec, nbase, ONE, spsi_d, &
+           istat = cublasZgemm3m( cublasH, CUBLAS_OP_N, CUBLAS_OP_N, kdim, nvec, nbase, ONE, spsi_d, &
                        kdmx, vc_d, nvecx, ZERO, psi_d(1,1,nvec+1), kdmx )
 #else
            CALL ZGEMM( 'N', 'N', kdim, nvec, nbase, ONE, spsi, &
@@ -962,7 +962,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
         END IF
         !
 #ifdef USE_CUDA
-        CALL cublasZgemm( 'N', 'N', kdim, nvec, nbase, ONE, hpsi_d, &
+        istat = cublasZgemm3m(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, kdim, nvec, nbase, ONE, hpsi_d, &
                     kdmx, vc_d, nvecx, ZERO, psi_d(1,1,nvec+1), kdmx )
 #else
         CALL ZGEMM( 'N', 'N', kdim, nvec, nbase, ONE, hpsi, &
