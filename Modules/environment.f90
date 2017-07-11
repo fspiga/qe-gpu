@@ -207,9 +207,6 @@ CONTAINS
     WRITE( stdout, '(/5X,"Parallel version (MPI), running on ",&
          &I5," processors")' ) nproc 
 #endif
-#if defined(USE_CUDA)
-    WRITE( stdout, '(/5X,"GPU accelerated version",/5x)')
-#endif 
     !
 #if defined(USE_CUDA)
     WRITE( stdout, '(/5X,"GPU accelerated version",/5x)')
