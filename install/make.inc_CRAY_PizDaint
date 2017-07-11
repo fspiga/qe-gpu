@@ -10,7 +10,7 @@
 # files in your home directory. We basically need to instruct the PGI compiler
 # to use a newer linker.
 #
-# From a Linux computer with the PGI 17.4 version installed ( let’s assume that
+# From a Linux computer with the PGI 17.4 version installed ( let's assume that
 # the installation in in /opt/pgi),
 # we will tar the directory /opt/pgi/linux-64/2017/cuda/8.0/bin
 #
@@ -32,7 +32,7 @@
 #   lrwxrwxrwx 1 mfatica g33   49 Jun  1 20:36 libnvvp -> /opt/pgi/16.9.0/linux86-64/2016/cuda/8.0/libnvvp/
 #   lrwxrwxrwx 1 mfatica g33   46 Jun  1 20:36 nvvm -> /opt/pgi/16.9.0/linux86-64/2016/cuda/8.0/nvvm/
 #
-# Once we create a file called “.mypgirc” with this content, the PGI compiler
+# Once we create a file called ".mypgirc" with this content, the PGI compiler
 # will use the new linker and it will be able to compile QE-GPU:
 #
 #   mfatica@daint102:~> cat  .mypgirc
@@ -54,19 +54,19 @@
 .SUFFIXES : .o .c .f .f90 .F90
 
 .F90.o:
-    $(MPIF90) $(F90FLAGS) -c $< -o $(*)_cpu.o ; \
-    $(MPIF90) $(F90FLAGS) -c -DUSE_GPU $< -o $(*)_gpu.o ; \
-    ld -r $(*)_cpu.o $(*)_gpu.o -o $(*).o ; \
-    rm $(*)_cpu.o $(*)_gpu.o
+	$(MPIF90) $(F90FLAGS) -c $< -o $(*)_cpu.o ; \
+	$(MPIF90) $(F90FLAGS) -c -DUSE_GPU $< -o $(*)_gpu.o ; \
+	ld -r $(*)_cpu.o $(*)_gpu.o -o $(*).o ; \
+	rm $(*)_cpu.o $(*)_gpu.o
 
 .f90.o:
-    $(MPIF90) $(F90FLAGS) -c $(*).f90 -o $(*).o
+	$(MPIF90) $(F90FLAGS) -c $(*).f90 -o $(*).o
 
 .f.o:
-    $(F77) $(FFLAGS) -c $<
+	$(F77) $(FFLAGS) -c $<
 
 .c.o:
-    $(CC) $(CFLAGS)  -c $<
+	$(CC) $(CFLAGS)  -c $<
 
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 # TOPDIR = /home/fspiga/fs395/qe-gpu
@@ -74,7 +74,7 @@ TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
-IFLAGS         = -I$(TOPDIR)/include -I../include/ -In/lib_eigsolve
+IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve
 
 MOD_FLAG      = -I
 
@@ -85,9 +85,9 @@ F77            = pgf90
 
 GPU_ARCH=60
 
-CFLAGS         = -O3 —mp Mpreprocess $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O3 —mp Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-FFLAGS         = -O3 -Mpreprocess
+CFLAGS         = -O3 -mp -Mpreprocess -fPIC $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O3 -mp -Mpreprocess -fPIC -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+FFLAGS         = -O3 -Mpreprocess -fPIC
 
 FFLAGS_NOOPT   = -O0
 FFLAGS_NOMAIN   = -Mnomain
