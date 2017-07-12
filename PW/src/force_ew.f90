@@ -7,8 +7,9 @@
 !
 !
 !-----------------------------------------------------------------------
-subroutine force_ew (alat, nat, ntyp, ityp, zv, at, bg, tau, &
-     omega, g, gg, ngm, gstart, gamma_only, gcutm, strf, forceion)
+!subroutine force_ew (alat, nat, ntyp, ityp, zv, at, bg, tau, &
+!     omega, g, gg, ngm, gstart, gamma_only, gcutm, strf, forceion)
+subroutine force_ew ( forceion)
   !-----------------------------------------------------------------------
   !
   !  This routine computes the Ewald contribution to the forces,
@@ -16,23 +17,28 @@ subroutine force_ew (alat, nat, ntyp, ityp, zv, at, bg, tau, &
   !
   USE kinds
   USE constants, ONLY : tpi, e2
+  USE cell_base, ONLY : alat, at, bg,  omega
+  USE ions_base, ONLY : nat, ntyp => nsp, ityp, tau, zv
+#ifdef USE_CUDA
+  USE ions_base, ONLY : zv_d
+  USE gvect,     ONLY : ngm, gstart,  g=>g_d, gg=>gg_d, gcutm 
+  USE vlocal,    ONLY : strf=>strf_d
+#else
+  USE gvect,     ONLY : ngm, gstart,  g, gg, gcutm 
+  USE vlocal,    ONLY : strf
+#endif
   USE mp_bands,  ONLY : intra_bgrp_comm
   USE mp,        ONLY : mp_sum
+  USE control_flags, ONLY : gamma_only
   implicit none
   !
-  !   First the dummy variables
-  !
 
-  integer :: nat, ntyp, ngm, ityp (nat), gstart
   ! input: the number of atoms
   ! input: the number of types of atom
   ! input: the number of G vectors
   ! input: the type of each atom
   ! input: first non-zero G vector
-  logical :: gamma_only
 
-  real(DP) :: factor, tau (3, nat), g (3, ngm), gg (ngm), zv (ntyp), &
-       at (3, 3), bg (3, 3), omega, gcutm, alat
   ! input: the coordinates of the atoms
   ! input: the G vectors
   ! input: the moduli of G vectors
@@ -43,7 +49,6 @@ subroutine force_ew (alat, nat, ntyp, ityp, zv, at, bg, tau, &
   ! input: cut-off of g vectors
   ! input: the edge of the cell
   !
-  complex(DP) :: strf (ngm, ntyp)
   ! input: the structure factor on the potential
   !
   real(DP) :: forceion (3, nat)
@@ -76,8 +81,12 @@ subroutine force_ew (alat, nat, ntyp, ityp, zv, at, bg, tau, &
   ! used to determine alpha
 
   complex(DP), allocatable :: aux (:)
+#ifdef USE_CUDA
+  attributes(device):: aux
+#endif
   ! auxiliary space
   real(DP), external :: qe_erfc
+  real(DP) :: factor, tau1, tau2, tau3, fion1, fion2, fion3
   !
   forceion(:,:) = 0.d0
   tpiba2 = (tpi / alat) **2
@@ -101,6 +110,19 @@ subroutine force_ew (alat, nat, ntyp, ityp, zv, at, bg, tau, &
   allocate(aux(ngm))
   aux(:) = (0.d0, 0.d0)
 
+#ifdef USE_CUDA
+  do nt = 1, ntyp
+ !$cuf kernel do(1) <<<*,*>>>
+     do ig = gstart, ngm
+        aux (ig) = aux (ig) + zv_d (nt) * CONJG(strf (ig, nt) )
+     enddo
+  enddo
+ !$cuf kernel do(1) <<<*,*>>>
+  do ig = gstart, ngm
+     aux (ig) = aux (ig) * exp ( - gg (ig) * tpiba2 / alpha / 4.d0) &
+          / (gg (ig) * tpiba2)
+  enddo
+#else
   do nt = 1, ntyp
      do ig = gstart, ngm
         aux (ig) = aux (ig) + zv (nt) * CONJG(strf (ig, nt) )
@@ -110,20 +132,40 @@ subroutine force_ew (alat, nat, ntyp, ityp, zv, at, bg, tau, &
      aux (ig) = aux (ig) * exp ( - gg (ig) * tpiba2 / alpha / 4.d0) &
           / (gg (ig) * tpiba2)
   enddo
+#endif
+
   if (gamma_only) then
      fact = 4.d0
   else
      fact = 2.d0
   end if
   do na = 1, nat
+     tau1 = tau(1,na)
+     tau2 = tau(2,na)
+     tau3 = tau(3,na)
+     fion1 = 0.d0
+     fion2 = 0.d0
+     fion3 = 0.d0
+
+#ifdef USE_CUDA
+          !$cuf kernel do(1) <<<*,*>>>
+#else
+          !$omp parallel do
+          !default(shared),private(arg,sumb),reduction(+:fion1,fion2,fion3)
+#endif
      do ig = gstart, ngm
-        arg = tpi * (g (1, ig) * tau (1, na) + g (2, ig) * tau (2, na) &
-             + g (3, ig) * tau (3, na) )
+        arg = tpi * (g (1, ig) * tau1 + g (2, ig) * tau2 + g (3, ig) * tau3 )
         sumnb = cos (arg) * AIMAG (aux(ig)) - sin (arg) *  DBLE (aux(ig) )
-        forceion (1, na) = forceion (1, na) + g (1, ig) * sumnb
-        forceion (2, na) = forceion (2, na) + g (2, ig) * sumnb
-        forceion (3, na) = forceion (3, na) + g (3, ig) * sumnb
+        fion1 = fion1 + g (1, ig) * sumnb
+        fion2 = fion2 + g (2, ig) * sumnb
+        fion3 = fion3 + g (3, ig) * sumnb
      enddo
+#ifndef USE_CUDA
+          !$omp end parallel do 
+#endif
+     forceion (1, na) = forceion (1, na) + fion1
+     forceion (2, na) = forceion (2, na) + fion2
+     forceion (3, na) = forceion (3, na) + fion3
      do ipol = 1, 3
         forceion (ipol, na) = - zv (ityp (na) ) * fact * e2 * tpi**2 / &
              omega / alat * forceion (ipol, na)

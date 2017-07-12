@@ -30,14 +30,16 @@ SUBROUTINE print_clock_pw()
    CALL print_clock( 'electrons' )
    CALL print_clock( 'update_pot' )
    CALL print_clock( 'forces' )
+   CALL print_clock( 'stress' )
+   !
    IF ( iverbosity > 0 ) THEN
+    WRITE( stdout, '(/5x,"Called by forces:")' )
      CALL print_clock( 'forces:us' )
      CALL print_clock( 'forces:lc' )
      CALL print_clock( 'forces:cc' )
      CALL print_clock( 'forces:ew' )
      CALL print_clock( 'forces:corr' )
    ENDIF
-   CALL print_clock( 'stress' )
    !
    WRITE( stdout, '(/5x,"Called by init_run:")' )
    CALL print_clock( 'wfcinit' )

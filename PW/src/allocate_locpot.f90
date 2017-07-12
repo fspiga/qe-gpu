@@ -19,6 +19,7 @@ subroutine allocate_locpot
   USE fft_base , ONLY : dfftp
   !
 #ifdef USE_CUDA
+  USE vlocal,    ONLY : strf_d
   USE gvect,     ONLY : eigts1_d, eigts2_d, eigts3_d
 #endif
   !
@@ -32,6 +33,7 @@ subroutine allocate_locpot
   allocate( eigts3(-dfftp%nr3:dfftp%nr3,nat) )
 
 #ifdef USE_CUDA
+  allocate (strf_d( ngm, ntyp))    
   allocate( eigts1_d(-dfftp%nr1:dfftp%nr1,nat) )
   allocate( eigts2_d(-dfftp%nr2:dfftp%nr2,nat) )
   allocate( eigts3_d(-dfftp%nr3:dfftp%nr3,nat) )

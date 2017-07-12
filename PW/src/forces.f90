@@ -130,8 +130,9 @@ SUBROUTINE forces()
   IF( do_comp_esm ) THEN
      CALL esm_force_ew( forceion )
   ELSE
-     CALL force_ew( alat, nat, ntyp, ityp, zv, at, bg, tau, omega, g, &
-                    gg, ngm, gstart, gamma_only, gcutm, strf, forceion )
+     CALL force_ew( forceion )
+     !CALL force_ew( alat, nat, ntyp, ityp, zv, at, bg, tau, omega, g, &
+    !              gg, ngm, gstart, gamma_only, gcutm, strf, forceion )
   END IF
   CALL stop_clock( 'forces:ew' )
   !

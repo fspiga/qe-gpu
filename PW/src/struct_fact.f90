@@ -17,6 +17,7 @@ subroutine struc_fact (nat, tau, ntyp, ityp, ngm, g, bg, nr1, nr2, &
   USE kinds
   USE constants, ONLY : tpi
 #ifdef USE_CUDA
+  USE vlocal, ONLY : strf_d      
   USE gvect,        ONLY : eigts1_d, eigts2_d, eigts3_d
 #endif
 
@@ -97,6 +98,7 @@ subroutine struc_fact (nat, tau, ntyp, ityp, ngm, g, bg, nr1, nr2, &
   enddo
 
 #ifdef USE_CUDA
+  strf_d   = strf
   eigts1_d = eigts1
   eigts2_d = eigts2
   eigts3_d = eigts3

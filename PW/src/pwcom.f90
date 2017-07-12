@@ -201,6 +201,8 @@ MODULE vlocal
   REAL(DP), ALLOCATABLE :: &
        vloc(:,:)              ! the local potential for each atom type
 #ifdef USE_CUDA
+  COMPLEX(DP), DEVICE,  ALLOCATABLE :: &
+       strf_d(:,:)              ! the structure factor
   REAL(DP), DEVICE, ALLOCATABLE :: &
        vloc_d(:,:)              ! the local potential for each atom type
 #endif

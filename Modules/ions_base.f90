@@ -32,6 +32,10 @@
       REAL(DP) :: zv(ntypx)    = 0.0_DP
       REAL(DP) :: amass(ntypx) = 0.0_DP
       REAL(DP) :: rcmax(ntypx) = 0.0_DP
+#ifdef USE_CUDA
+      REAL(DP), DEVICE :: zv_d(ntypx)    ! It is only allocated. Once zv isinitialized 
+                                          !the content will be copied over in setup.f90
+#endif 
 
       !     ityp( i ) = the type of i-th atom in stdin
       !     atm( j )  = name of the type of the j-th atomic specie
