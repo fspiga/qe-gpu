@@ -151,7 +151,7 @@ subroutine force_ew ( forceion)
           !$cuf kernel do(1) <<<*,*>>>
 #else
           !$omp parallel do
-          !default(shared),private(arg,sumb),reduction(+:fion1,fion2,fion3)
+          !default(shared),private(arg,sumnb),reduction(+:fion1,fion2,fion3)
 #endif
      do ig = gstart, ngm
         arg = tpi * (g (1, ig) * tau1 + g (2, ig) * tau2 + g (3, ig) * tau3 )
