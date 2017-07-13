@@ -548,6 +548,7 @@ force_ew.o : ../../Modules/constants.o
 force_ew.o : ../../Modules/kind.o
 force_ew.o : ../../Modules/mp.o
 force_ew.o : ../../Modules/mp_bands.o
+force_ew.o : pwcom.o
 force_hub.o : ../../Modules/becmod.o
 force_hub.o : ../../Modules/cell_base.o
 force_hub.o : ../../Modules/control_flags.o
@@ -1998,6 +1999,7 @@ stress.o : symme.o
 stress.o : xdm_dispersion.o
 struct_fact.o : ../../Modules/constants.o
 struct_fact.o : ../../Modules/kind.o
+struct_fact.o : pwcom.o
 sum_band.o : ../../FFTXlib/fft_interfaces.o
 sum_band.o : ../../Modules/becmod.o
 sum_band.o : ../../Modules/cell_base.o
