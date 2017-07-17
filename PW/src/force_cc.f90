@@ -135,7 +135,7 @@ subroutine force_cc_gpu (forcecc)
   USE wavefunctions_module, ONLY : psic, psic_d
   USE mp_bands,             ONLY : intra_bgrp_comm
   USE mp,                   ONLY : mp_sum
-  USE funct,                ONLY : get_iexch, get_icorr
+  USE funct,                ONLY : get_iexch, get_icorr, get_igcx, get_igcc
   USE cudafor
   !
   implicit none
@@ -159,7 +159,7 @@ subroutine force_cc_gpu (forcecc)
   real(DP)  ::  arg, fact, prod
   real(DP)  ::  tau1, tau2, tau3
   real(DP)  ::  fcc1, fcc2, fcc3
-  integer   :: iexch, icorr
+  integer   :: iexch, icorr, igcx, igcc
 
 
   !
@@ -185,9 +185,11 @@ subroutine force_cc_gpu (forcecc)
   !
   iexch = get_iexch
   icorr = get_icorr
+  igcx = get_igcx
+  igcc = get_igcc
 
   ! If calling PBE functional configuration, use GPU path
-  if (iexch .eq. 1 .and. icorr .eq. 4 .and. nspin == 1) then
+  if (iexch .eq. 1 .and. icorr .eq. 4 .and. igcx .eq. 3 .and. igcc .eq. 4 .and. nspin == 1) then
     !TODO Might be able to remove some of these copies
     rho_core_d = rho_core
     rhog_core_d = rhog_core

@@ -330,7 +330,6 @@ SUBROUTINE force_us_gpu( forcenl )
   !
   ! ... the forces are a sum over the K points and over the bands
   !   
-  vkb_d = vkb
   DO ik = 1, nks
      !
      IF ( lsda ) current_spin = isk(ik)
