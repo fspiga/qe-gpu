@@ -14,8 +14,15 @@ module gpu_routines
   use iso_c_binding
 
   interface
-    integer(c_int) function cublaszgemm3m(handle, transa, transb, m, n, k, &
-      alpha, A, lda, B, ldb, beta, C, ldc) bind(C, name='cublasZgemm3m')
+#if (GPU_ARCH == 35)
+   ! Works for Kepler
+   integer(c_int) function cublaszgemm3m(handle, transa, transb, m, n, k, &
+     alpha, A, lda, B, ldb, beta, C, ldc) bind(C, name='cublasZgemm_v2')
+#else
+   ! Works for pascal, Volta and beyond
+   integer(c_int) function cublaszgemm3m(handle, transa, transb, m, n, k, &
+     alpha, A, lda, B, ldb, beta, C, ldc) bind(C, name='cublasZgemm3m')
+#endif
       use cudafor
       use cublas_v2
 
