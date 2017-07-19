@@ -163,14 +163,25 @@ deviatoric.o
 
 TLDEPS=libfft
 
+default : all
+
 all : version.o libqemod.a
+
+# Passing GPU_ARCH, see gpu_routines.f90
+ifeq ($(GPU_ARCH),35)
+gpu_routines.o :
+	$(MPIF90) $(F90FLAGS) -DGPU_ARCH=35 -c $(*).f90 -o $(*).o
+else
+gpu_routines.o :
+	$(MPIF90) $(F90FLAGS) -c $(*).f90 -o $(*).o
+endif
 
 ## The following is needed only for lapack compiled from sources
 
 dlamch.o : dlamch.f
 	$(F77) $(FFLAGS_NOOPT) -c $<
 
-libqemod.a: 	$(MODULES) $(OBJS)
+libqemod.a: $(MODULES) $(OBJS)
 	$(AR) $(ARFLAGS) $@ $?       
 	$(RANLIB) $@    
 
