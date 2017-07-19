@@ -173,6 +173,16 @@ SUBROUTINE print_clock_pw()
    CALL print_clock( 'ALLTOALL' )
 #endif
    !
+#if defined (__FFT_CLOCKS)
+   IF ( iverbosity > 0 )  THEN
+   WRITE( stdout, '(/,5X,"FFT compute routines")' )
+      CALL print_clock( 'cft_1z' )
+      CALL print_clock( 'cft_2xy' )
+      CALL print_clock( 'GPU_cft_1z' )
+      CALL print_clock( 'GPU_cft_2xy' )
+   ENDIF
+#endif
+   !
    IF ( lda_plus_U ) THEN
       WRITE( stdout, '(/,5X,"Hubbard U routines")' )
       CALL print_clock( 'new_ns' )
