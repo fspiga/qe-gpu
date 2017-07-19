@@ -113,6 +113,7 @@ generate_function.o : kind.o
 generate_function.o : mp.o
 generate_function.o : mp_bands.o
 generate_k_along_lines.o : kind.o
+gpu_routines.o	:	kind.o
 gth.o : cell_base.o
 gth.o : constants.o
 gth.o : funct.o
