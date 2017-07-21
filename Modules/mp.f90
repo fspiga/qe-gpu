@@ -167,7 +167,6 @@
         CALL mpi_comm_size(group,numtask,ierr)
         IF (ierr/=0) CALL mp_stop( 8006 )
 #  endif
-print *,"mp_start rank= ",taskid,"procs= ",numtask
         RETURN
       END SUBROUTINE mp_start
 !------------------------------------------------------------------------------!
