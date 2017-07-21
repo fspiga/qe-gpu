@@ -209,7 +209,12 @@ CONTAINS
 #endif
     !
 #if defined(USE_CUDA)
-    WRITE( stdout, '(/5X,"GPU accelerated version",/5x)')
+    WRITE( stdout, '(/5X,"GPU accelerated version")')
+#if defined(USE_GPU_MPI)
+    WRITE( stdout, '(5x,"with CUDA aware MPI enabled",/5x)')
+#else
+    WRITE( stdout, '(/5X)')
+#endif 
 #endif 
     !
     IF ( nimage > 1 ) WRITE( stdout, &
