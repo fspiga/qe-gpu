@@ -260,7 +260,7 @@ TLDEPS=bindir mods libs liblapack libblas
 # If F90FLAGS_WORKAROUND is defined some files are compiled differently
 # # as workaround for compiler bugs
 ifdef F90FLAGS_WORKAROUND
-read_file_new.o pw_restart.o :
+read_file_new.o pw_restart.o paw_onecenter.o :
 	$(MPIF90) $(F90FLAGS_WORKAROUND) -c $(*).f90 -o $(*).o
 endif
          
