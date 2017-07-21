@@ -92,6 +92,56 @@ END SUBROUTINE mp_synchronize
         RETURN
    END SUBROUTINE bcast_real 
 
+#ifdef USE_CUDA
+   SUBROUTINE bcast_real_gpu( array, n, root, gid )
+        USE kinds, ONLY: DP
+        USE parallel_include  
+        IMPLICIT NONE
+        INTEGER, INTENT(IN) :: n, root, gid
+        REAL(DP), DEVICE :: array( n )
+#if defined __MPI
+        INTEGER :: msgsiz_max = __BCAST_MSGSIZ_MAX
+        INTEGER :: nblk, blksiz, iblk, istart, ierr
+
+#if defined __TRACE
+        write(*,*) 'BCAST_REAL IN'
+#endif
+        IF( n <= 0 ) GO TO 1
+
+#if defined __USE_BARRIER
+        CALL mp_synchronize( gid )
+#endif
+
+        IF( n <= msgsiz_max ) THEN
+           CALL MPI_BCAST( array, n, MPI_DOUBLE_PRECISION, root, gid, ierr )
+           IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 1 ', ierr )
+        ELSE
+           nblk   = n / msgsiz_max
+           blksiz = msgsiz_max
+           DO iblk = 1, nblk
+              istart = (iblk-1)*msgsiz_max + 1
+              CALL MPI_BCAST( array( istart ), blksiz, MPI_DOUBLE_PRECISION, root, gid, ierr )
+              IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 2 ', ierr )
+           END DO
+           blksiz = MOD( n, msgsiz_max )
+           IF( blksiz > 0 ) THEN
+              istart = nblk * msgsiz_max + 1
+              CALL MPI_BCAST( array( istart ), blksiz, MPI_DOUBLE_PRECISION, root, gid, ierr )
+              IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 3 ', ierr )
+           END IF
+        END IF
+
+1       CONTINUE
+#if defined __TRACE
+        write(*,*) 'BCAST_REAL OUT'
+#endif
+
+#endif
+
+        RETURN
+   END SUBROUTINE bcast_real_gpu
+#endif 
+
 
    SUBROUTINE bcast_integer( array, n, root, gid )
         USE parallel_include  
@@ -189,6 +239,7 @@ END SUBROUTINE mp_synchronize
 !
 ! ... "reduce"-like subroutines
 !
+
 #if defined (__USE_INPLACE_MPI)
 !
 !----------------------------------------------------------------------------
@@ -345,7 +396,172 @@ SUBROUTINE reduce_base_real( dim, ps, comm, root )
 END SUBROUTINE reduce_base_real
 !
 #endif
+
+#ifdef USE_CUDA
+
+#if defined (__USE_INPLACE_MPI)
 !
+!----------------------------------------------------------------------------
+SUBROUTINE reduce_base_real_gpu( dim, ps, comm, root )
+  !----------------------------------------------------------------------------
+  !
+  ! ... sums a distributed variable ps(dim) over the processors.
+  ! ... This version uses a fixed-length buffer of appropriate (?) dim
+  !
+  USE kinds, ONLY : DP
+  USE parallel_include  
+  !
+  IMPLICIT NONE
+  !
+  INTEGER,  INTENT(IN)    :: dim     ! size of the array
+  REAL(DP), DEVICE        :: ps(dim) ! array whose elements have to be reduced
+  INTEGER,  INTENT(IN)    :: comm    ! communicator
+  INTEGER,  INTENT(IN)    :: root    ! if root <  0 perform a reduction to all procs
+                                     ! if root >= 0 perform a reduce only to root proc.
+  !
+#if defined (__MPI)  
+  !
+  INTEGER            :: info
+  !
+#if defined __TRACE
+  write(*,*) 'reduce_base_real IN'
+#endif
+  !
+  IF ( dim <= 0 ) GO TO 1  ! go to the end of the subroutine
+  !
+  ! ... synchronize processes
+  !
+#if defined __USE_BARRIER
+  CALL mp_synchronize( comm )
+#endif
+  !
+  IF( root >= 0 ) THEN
+     CALL MPI_REDUCE( MPI_IN_PLACE, ps, dim, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, info )
+     IF( info /= 0 ) CALL errore( 'reduce_base_real', 'error in mpi_reduce 1', info )
+  ELSE
+     CALL MPI_ALLREDUCE( MPI_IN_PLACE, ps, dim, MPI_DOUBLE_PRECISION, MPI_SUM, comm, info )
+     IF( info /= 0 ) CALL errore( 'reduce_base_real', 'error in mpi_allreduce 1', info )
+  END IF
+  !
+1 CONTINUE
+  !
+#if defined __TRACE
+  write(*,*) 'reduce_base_real OUT'
+#endif
+  !
+#endif
+  !
+  RETURN
+  !
+END SUBROUTINE reduce_base_real_gpu
+!
+#else
+!
+!----------------------------------------------------------------------------
+SUBROUTINE reduce_base_real_gpu( dim, ps, comm, root )
+  !----------------------------------------------------------------------------
+  !
+  ! ... sums a distributed variable ps(dim) over the processors.
+  ! ... This version uses a fixed-length buffer of appropriate (?) dim
+  !
+  USE kinds, ONLY : DP
+  USE parallel_include  
+  USE mp,    ONLY : mp_buff_r
+  USE cudafor
+  !
+  IMPLICIT NONE
+  !
+  INTEGER,  INTENT(IN)    :: dim     ! size of the array
+  REAL(DP), DEVICE        :: ps(dim) ! array whose elements have to be reduced
+  INTEGER,  INTENT(IN)    :: comm    ! communicator
+  INTEGER,  INTENT(IN)    :: root    ! if root <  0 perform a reduction to all procs
+                                     ! if root >= 0 perform a reduce only to root proc.
+  !
+#if defined (__MPI)  
+  !
+  INTEGER            :: info, n, nbuf, nproc, myid, istat
+  INTEGER, PARAMETER :: maxb = __MSGSIZ_MAX
+  !
+  if( .not. allocated(mp_buff_r) ) allocate( mp_buff_r( maxb ) )
+  !
+#if defined __TRACE
+  write(*,*) 'reduce_base_real IN'
+#endif
+
+  CALL mpi_comm_size( comm, nproc, info )
+  IF( info /= 0 ) CALL errore( 'reduce_base_real', 'error in mpi_comm_size', info )
+
+  CALL mpi_comm_rank( comm, myid, info )
+  IF( info /= 0 ) CALL errore( 'reduce_base_real', 'error in mpi_comm_rank', info )
+  !
+  IF ( dim <= 0 .OR. nproc <= 1 ) GO TO 1  ! go to the end of the subroutine
+  !
+  ! ... synchronize processes
+  !
+#if defined __USE_BARRIER
+  CALL mp_synchronize( comm )
+#endif
+  !
+  nbuf = dim / maxb
+  !
+  DO n = 1, nbuf
+     !
+     IF( root >= 0 ) THEN
+        CALL MPI_REDUCE( ps(1+(n-1)*maxb), mp_buff_r, maxb, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, info )
+        IF( info /= 0 ) CALL errore( 'reduce_base_real', 'error in mpi_reduce 1', info )
+     ELSE
+        CALL MPI_ALLREDUCE( ps(1+(n-1)*maxb), mp_buff_r, maxb, MPI_DOUBLE_PRECISION, MPI_SUM, comm, info )
+        IF( info /= 0 ) CALL errore( 'reduce_base_real', 'error in mpi_allreduce 1', info )
+     END IF
+     !                    
+     IF( root < 0 ) THEN
+        istat = cudaMemcpy( ps((1+(n-1)*maxb)), mp_buff_r(1), maxb, cudaMemcpyDeviceToDevice )
+        !ps((1+(n-1)*maxb):(n*maxb)) = mp_buff_r(1:maxb)
+     ELSE IF( root == myid ) THEN
+        istat = cudaMemcpy( ps((1+(n-1)*maxb)), mp_buff_r(1), maxb, cudaMemcpyDeviceToDevice )
+        !ps((1+(n-1)*maxb):(n*maxb)) = mp_buff_r(1:maxb)
+     END IF
+     !
+  END DO
+  !
+  ! ... possible remaining elements < maxb
+  !
+  IF ( ( dim - nbuf * maxb ) > 0 ) THEN
+     !
+     IF( root >= 0 ) THEN
+        CALL MPI_REDUCE( ps(1+nbuf*maxb), mp_buff_r, (dim-nbuf*maxb), MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, info )
+        IF( info /= 0 ) CALL errore( 'reduce_base_real', 'error in mpi_reduce 2', info )
+     ELSE
+        CALL MPI_ALLREDUCE( ps(1+nbuf*maxb), mp_buff_r, (dim-nbuf*maxb), MPI_DOUBLE_PRECISION, MPI_SUM, comm, info )
+        IF( info /= 0 ) CALL errore( 'reduce_base_real', 'error in mpi_allreduce 2', info )
+     END IF
+     !
+     IF( root < 0 ) THEN
+        istat = cudaMemcpy( ps((1+nbuf*maxb)), mp_buff_r(1), dim-nbuf*maxb, cudaMemcpyDeviceToDevice )
+        !ps((1+nbuf*maxb):dim) = mp_buff_r(1:(dim-nbuf*maxb))
+     ELSE IF( root == myid ) THEN
+        istat = cudaMemcpy( ps((1+nbuf*maxb)), mp_buff_r(1), dim-nbuf*maxb, cudaMemcpyDeviceToDevice )
+        !ps((1+nbuf*maxb):dim) = mp_buff_r(1:(dim-nbuf*maxb))
+     END IF
+     !
+  END IF
+  !
+1 CONTINUE
+  !
+#if defined __TRACE
+  write(*,*) 'reduce_base_real OUT'
+#endif
+  !
+#endif
+  !
+  RETURN
+  !
+END SUBROUTINE reduce_base_real_gpu
+!
+#endif
+!
+#endif 
+
 !
 #if defined (__USE_INPLACE_MPI)
 !

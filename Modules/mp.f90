@@ -16,6 +16,13 @@
       USE parallel_include
       !
       IMPLICIT NONE
+
+      REAL(DP), ALLOCATABLE, dimension(:)  :: mp_buff_r
+#ifdef USE_CUDA
+      ATTRIBUTES( DEVICE ) :: mp_buff_r
+      PUBLIC :: mp_buff_r
+#endif
+
       PRIVATE
 
       PUBLIC :: mp_start, mp_abort, mp_stop, mp_end, &
@@ -160,7 +167,7 @@
         CALL mpi_comm_size(group,numtask,ierr)
         IF (ierr/=0) CALL mp_stop( 8006 )
 #  endif
-
+print *,"mp_start rank= ",taskid,"procs= ",numtask
         RETURN
       END SUBROUTINE mp_start
 !------------------------------------------------------------------------------!
@@ -382,7 +389,7 @@
         INTEGER :: msglen
         msglen = size(msg)
 #if defined(USE_GPU_MPI)
-        CALL bcast_real( msg, msglen, source, gid )
+        CALL bcast_real_gpu( msg, msglen, source, gid )
 #else
         ALLOCATE( msg_h, source=msg )
         CALL bcast_real( msg_h, msglen, source, gid )
@@ -508,7 +515,7 @@
         INTEGER :: msglen
         msglen = size(msg)
 #if defined(USE_GPU_MPI)
-        CALL bcast_real( msg, 2 * msglen, source, gid )
+        CALL bcast_real_gpu( msg, 2 * msglen, source, gid )
 #else
         ALLOCATE( msg_h, source=msg )
         CALL bcast_real( msg_h, 2 * msglen, source, gid )
@@ -1531,7 +1538,7 @@
         INTEGER :: msglen
         msglen = size(msg)
 #if defined(USE_GPU_MPI)
-        CALL reduce_base_real( 2 * msglen, msg, gid, -1 )
+        CALL reduce_base_real_gpu( 2 * msglen, msg, gid, -1 )
 #else
         ALLOCATE( msg_h, source=msg )
         CALL reduce_base_real( 2 * msglen, msg_h, gid, -1 )
