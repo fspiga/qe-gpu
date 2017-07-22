@@ -11,12 +11,10 @@ task_groups.o \
 scatter_mod.o  \
 fft_fwinv.o  \
 fft_scalar.o  \
-fft_scalar.ARM_LIB.o  \
 fft_scalar.DFTI.o  \
 fft_scalar.ESSL.o  \
 fft_scalar.FFTW.o  \
 fft_scalar.FFTW3.o  \
-fft_scalar.SX6.o  \
 fft_parallel.o  \
 fft_interfaces.o  \
 stick_base.o  \
