@@ -33,11 +33,8 @@ IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0
 MOD_FLAG      = -I
 
 MPIF90         = mpif90
-#F90           = pgf90
 CC             = pgcc
 F77            = pgf90
-
-GPU_ARCH=60
 
 CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
 F90FLAGS       = -O3 -Mpreprocess  -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS) 
@@ -45,9 +42,6 @@ FFLAGS         = -O3 -Mpreprocess
 
 # If this flag is present some files are compiled differently as workaround for compiler bugs
 F90FLAGS_WORKAROUND = -O3 -Mpreprocess  -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-
-FFLAGS_NOOPT   = -O0
-FFLAGS_NOMAIN   = -Mnomain
 
 LD             = mpif90
 LDFLAGS        =    -Mlarge_arrays
@@ -59,7 +53,6 @@ LD_LIBS        =  $(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a
 MATH_LIBS      = -L/sw/summitdev/essl/5.5.0-20161110/lib64 -lesslsmp -L/sw/summitdev/xl/20170404/xlf/16.1.0/lib  -lxlf90_r -lxl  -lxlfmath  -L/sw/summitdev/xl/20170404/xlsmp/5.1.0/lib  -lxlsmp -lblas   -llapack
 BLAS_LIBS_SWITCH = external
 
-
 EIGENSOLVER_VERSION     = 0.2
 
 SCALAPACK_LIBS = 
@@ -67,8 +60,6 @@ SCALAPACK_LIBS =
 AR             = ar
 ARFLAGS        = ruv
 RANLIB         = ranlib
-
-FLIB_TARGETS   = all
 
 LIBOBJS        = $(TOPDIR)/clib/clib.a $(TOPDIR)/iotk/src/libiotk.a
 LIBS           = $(SCALAPACK_LIBS) $(MATH_LIBS) $(LD_LIBS)

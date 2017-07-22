@@ -69,7 +69,6 @@
 	$(CC) $(CFLAGS)  -c $<
 
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
-# TOPDIR = /home/fspiga/fs395/qe-gpu
 
 DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
@@ -79,7 +78,6 @@ IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0
 MOD_FLAG      = -I
 
 MPIF90         = ftn
-#F90           = pgf90
 CC             = pgcc
 F77            = pgf90
 
@@ -88,9 +86,6 @@ GPU_ARCH=60
 CFLAGS         = -O3 -mp -Mpreprocess -fPIC $(DFLAGS) $(IFLAGS)
 F90FLAGS       = -O3 -mp -Mpreprocess -fPIC -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 FFLAGS         = -O3 -Mpreprocess -fPIC
-
-FFLAGS_NOOPT   = -O0
-FFLAGS_NOMAIN   = -Mnomain
 
 LD             = ftn
 LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
@@ -105,8 +100,6 @@ SCALAPACK_LIBS =
 AR             = ar
 ARFLAGS        = ruv
 RANLIB         = ranlib
-
-FLIB_TARGETS   = all
 
 LIBOBJS        = $(TOPDIR)/clib/clib.a $(TOPDIR)/iotk/src/libiotk.a
 LIBS           = $(SCALAPACK_LIBS) $(MATH_LIBS) $(LD_LIBS)

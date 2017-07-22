@@ -20,7 +20,6 @@
 	$(CC) $(CFLAGS)  -c $<
 
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
-# TOPDIR = /home/fspiga/fs395/qe-gpu
 
 # See include/defs.h.README for a list of options and their meaning
 DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI -D__OPENMP
@@ -31,7 +30,6 @@ IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0
 MOD_FLAG      = -I
 
 MPIF90         = mpif90
-#F90           = pgf90
 CC             = pgcc
 F77            = pgf90
 
@@ -43,9 +41,6 @@ FFLAGS         = -O3 -mp -Mpreprocess
 
 # If this flag is present some files are compiled differently as workaround for compiler bugs
 F90FLAGS_WORKAROUND = -O3 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-
-FFLAGS_NOOPT   = 
-FFLAGS_NOMAIN   = -Mnomain
 
 LD             = mpif90
 LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
@@ -61,8 +56,6 @@ SCALAPACK_LIBS =
 AR             = ar
 ARFLAGS        = ruv
 RANLIB         = ranlib
-
-FLIB_TARGETS   = all
 
 LIBOBJS        = $(TOPDIR)/clib/clib.a $(TOPDIR)/iotk/src/libiotk.a
 LIBS           = $(SCALAPACK_LIBS) $(MATH_LIBS) $(LD_LIBS)

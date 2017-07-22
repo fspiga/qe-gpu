@@ -19,7 +19,6 @@
 	$(CC) $(CFLAGS)  -c $<
 
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
-# TOPDIR = /home/fs395/scratch/QE/qe-gpu
 
 # See include/defs.h.README for a list of options and their meaning
 DFLAGS         =  -D__OPENMP -D__PGI -D__FFTW -D__MPI
@@ -30,19 +29,12 @@ IFLAGS         = -I$(TOPDIR)/include -I../include/
 MOD_FLAG      = -I
 
 MPIF90         = mpif90
-#F90           = pgf90
 CC             = pgcc
 F77            = pgf77
-
-#GPU_ARCH=35
-#GPU_ARCH=60
 
 CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
 F90FLAGS       = -O3 -Mpreprocess -mp -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 FFLAGS         = -O3 -Mpreprocess -mp
-
-FFLAGS_NOOPT   = -O0
-FFLAGS_NOMAIN   = -Mnomain
 
 LD             = mpif90
 LDFLAGS        = -pgf90libs -Mlarge_arrays
@@ -52,15 +44,11 @@ MATH_LIBS      = -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -pgf90libs -lmkl_core
 
 EIGENSOLVER_VERSION	=
 
-NETLIB_LIBS_SWITCH = external
-
 SCALAPACK_LIBS = 
 
 AR             = ar
 ARFLAGS        = ruv
 RANLIB				 = ranlib
-
-FLIB_TARGETS   = all
 
 LIBOBJS        = $(TOPDIR)/clib/clib.a $(TOPDIR)/iotk/src/libiotk.a
 LIBS           = $(SCALAPACK_LIBS) $(MATH_LIBS) $(LD_LIBS)
