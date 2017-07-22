@@ -774,7 +774,7 @@ SUBROUTINE v_hubbard(ns, v_hub, eth)
 !-- output of hubbard energies:
     IF ( iverbosity > 0 ) THEN
       write(stdout,*) '--- in v_hubbard ---'
-      write(stdout,'(''Hubbard energy '',f9.4)') eth
+      write(stdout,'("Hubbard energy ",f9.4)') eth
       write(stdout,*) '-------'
     ENDIF
 !--
@@ -870,7 +870,7 @@ SUBROUTINE v_hubbard(ns, v_hub, eth)
 !-- output of hubbard energies:
     IF ( iverbosity > 0 ) THEN
       write(stdout,*) '--- in v_hubbard ---'
-      write(stdout,'(''Hubbard energies (dc, U, total) '',3f9.4)') eth_dc, eth_u, eth
+      write(stdout,'("Hubbard energies (dc, U, total) ",3f9.4)') eth_dc, eth_u, eth
       write(stdout,*) '-------'
     ENDIF
 !--
@@ -1046,7 +1046,7 @@ SUBROUTINE v_hubbard_nc(ns, v_hub, eth)
 !-- output of hubbard energies:
   IF ( iverbosity > 0 ) THEN
     write(stdout,*) '--- in v_hubbard ---'
-    write(stdout,'(''Hub. E (dc, noflip, flip, total) '',4f9.4)') &
+    write(stdout,'("Hub. E (dc, noflip, flip, total) ",4f9.4)') &
                                  eth_dc, eth_noflip, eth_flip, eth 
     write(stdout,*) '-------'
   ENDIF
@@ -1136,7 +1136,7 @@ SUBROUTINE gradv_h_of_rho_r( rho, gradv )
   ! ... Bring rho to G space
   !
   ALLOCATE( rhoaux( dfftp%nnr ) )
-  rhoaux( : ) = CMPLX( rho( : ), 0.D0 ) 
+  rhoaux( : ) = CMPLX( rho( : ), 0.D0, KIND=dp ) 
   !
   CALL fwfft('Dense', rhoaux, dfftp)
   !
@@ -1146,7 +1146,7 @@ SUBROUTINE gradv_h_of_rho_r( rho, gradv )
   !
   DO ipol = 1, 3
     !
-    gaux(:) = CMPLX(0.d0,0.d0,kind=dp)
+    gaux(:) = (0.0_dp,0.0_dp)
     !
     DO ig = gstart, ngm
       !
