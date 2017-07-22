@@ -177,11 +177,6 @@ gpu_routines.o :
 	$(MPIF90) $(F90FLAGS) -c $(*).f90 -o $(*).o
 endif
 
-## The following is needed only for lapack compiled from sources
-
-dlamch.o : dlamch.f
-	$(F77) $(FFLAGS_NOOPT) -c $<
-
 libqemod.a: $(MODULES) $(OBJS)
 	$(AR) $(ARFLAGS) $@ $?       
 	$(RANLIB) $@    
