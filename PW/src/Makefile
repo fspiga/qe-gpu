@@ -264,7 +264,7 @@ exx.o read_file_new.o pw_restart.o paw_onecenter.o :
 	$(MPIF90) $(F90FLAGS_WORKAROUND) -c $(*).f90 -o $(*).o
 endif
          
-all : tldeps pw.x manypw.x generate_vdW_kernel_table.x generate_rVV10_kernel_table.x
+all : tldeps pw.x
 
 pw.x : $(PWOBJS) libpw.a $(LIBOBJS) $(QEMODS)
 	$(LD) $(LDFLAGS) -o $@ \

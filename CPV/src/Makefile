@@ -122,7 +122,7 @@ QELA=../../LAXlib/libqela.a
 
 TLDEPS= bindir mods libs libiotk
 
-all : tldeps libcp.a manycp.x cp.x cppp.x wfdd.x
+all : tldeps libcp.a cp.x
 
 manycp.x : manycp.o libcp.a $(QEMODS) $(QEFFT) $(QELA) $(LIBOBJS)
 	$(LD) $(LDFLAGS) -o manycp.x manycp.o \
