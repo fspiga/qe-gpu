@@ -559,7 +559,7 @@ SUBROUTINE setup()
      !
      CALL find_sym ( nat, tau, ityp, magnetic_sym, m_loc, monopole )
      !
-     IF ( .NOT. allfrac ) CALL remove_sym ( dfftp%nr1, dfftp%nr1, dfftp%nr3 )
+     IF ( .NOT. allfrac ) CALL remove_sym ( dfftp%nr1, dfftp%nr2, dfftp%nr3 )
      !
   END IF
   !

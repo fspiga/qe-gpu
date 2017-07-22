@@ -2,7 +2,6 @@
 *.o
 *.mod
 *_tmp.f90
-*.F90
 *.x
 *.so
 *.pyc
