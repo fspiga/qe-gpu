@@ -173,6 +173,7 @@ mp.o : kind.o
 mp.o : parallel_include.o
 mp_bands.o : mp.o
 mp_bands.o : parallel_include.o
+mp_base.o : mp.o
 mp_base.o : kind.o
 mp_base.o : parallel_include.o
 mp_diag.o : mp.o
