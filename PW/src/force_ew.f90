@@ -149,9 +149,6 @@ subroutine force_ew ( forceion)
 
 #ifdef USE_CUDA
           !$cuf kernel do(1) <<<*,*>>>
-#else
-          !$omp parallel do
-          !default(shared),private(arg,sumnb),reduction(+:fion1,fion2,fion3)
 #endif
      do ig = gstart, ngm
         arg = tpi * (g (1, ig) * tau1 + g (2, ig) * tau2 + g (3, ig) * tau3 )
@@ -160,9 +157,6 @@ subroutine force_ew ( forceion)
         fion2 = fion2 + g (2, ig) * sumnb
         fion3 = fion3 + g (3, ig) * sumnb
      enddo
-#ifndef USE_CUDA
-          !$omp end parallel do 
-#endif
      forceion (1, na) = forceion (1, na) + fion1
      forceion (2, na) = forceion (2, na) + fion2
      forceion (3, na) = forceion (3, na) + fion3

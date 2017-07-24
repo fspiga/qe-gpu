@@ -197,8 +197,6 @@ subroutine force_corr (forcescc)
            fscc3 = 0.d0
 #ifdef USE_CUDA
           !$cuf kernel do(1) <<<*,*>>>
-#else
-          !$omp parallel do default(shared),private(arg,tmpf),reduction(+:fscc1,fscc2,fscc3)
 #endif
            do ig = gstart, ngm
               arg = (g (1, ig) * tau1 + &
@@ -210,9 +208,6 @@ subroutine force_corr (forcescc)
               fscc2 = fscc2 + tmpf *  g(2,ig)
               fscc3 = fscc3 + tmpf *  g(3,ig)
            enddo
-#ifndef USE_CUDA
-          !$omp end parallel do 
-#endif
            forcescc(1,na) = forcescc(1,na) + fscc1
            forcescc(2,na) = forcescc(2,na) + fscc2
            forcescc(3,na) = forcescc(3,na) + fscc3
