@@ -40,8 +40,6 @@ CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
 F90FLAGS       = -O3 -Mpreprocess -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 FFLAGS         = -O3 -Mpreprocess -mp
 
-# If this flag is present some files are compiled differently as workaround for compiler bugs
-F90FLAGS_WORKAROUND = -O3 -Mpreprocess -mp -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 
 LD             = mpif90
 LDFLAGS        = -pgf90libs  -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays

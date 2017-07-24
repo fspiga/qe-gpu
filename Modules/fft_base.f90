@@ -28,19 +28,19 @@
         ! ... about fft data distribution for a given
         ! ... potential grid, and its wave functions sub-grid.
 
-        TYPE ( fft_type_descriptor ) :: dfftp ! descriptor for dense grid
+        TYPE ( fft_type_descriptor ),target :: dfftp ! descriptor for dense grid
              !  Dimensions of the 3D real and reciprocal space FFT grid
              !  relative to the charge density and potential ("dense" grid)
-        TYPE ( fft_type_descriptor ) :: dffts ! descriptor for smooth grid
+        TYPE ( fft_type_descriptor ),target :: dffts ! descriptor for smooth grid
              !  Dimensions of the 3D real and reciprocal space
              !  FFT grid relative to the smooth part of the charge density
              !  (may differ from the full charge density grid for USPP )
-        TYPE ( fft_box_descriptor ) :: dfftb ! descriptor for box grids
+        TYPE ( fft_box_descriptor ),target :: dfftb ! descriptor for box grids
              !  Dimensions of the 3D real and reciprocal space
              !  FFT grid relative to the "small box" computation
              !  of the atomic augmentation part of the 
              !  charge density used in USPP (to speed up CPV iterations)
-        TYPE ( fft_type_descriptor ) :: dfft3d
+        TYPE ( fft_type_descriptor ),target :: dfft3d
              !
         TYPE ( task_groups_descriptor ) :: dtgs
              !  Dimensions of the task groups

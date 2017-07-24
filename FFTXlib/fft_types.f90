@@ -49,7 +49,7 @@ MODULE fft_types
     INTEGER, ALLOCATABLE :: isind(:) ! for each position in the plane indicate the stick index
     INTEGER, ALLOCATABLE :: ismap(:) ! for each stick in the plane indicate the position
 #ifdef USE_CUDA
-    INTEGER, ALLOCATABLE, DEVICE :: ismap_d(:)
+    INTEGER, ALLOCATABLE, DEVICE:: ismap_d(:)
     INTEGER(kind=cuda_stream_kind) :: a2a_comp, a2a_h2d, a2a_d2h
     TYPE(cudaEvent), allocatable, dimension(:) :: a2a_event
 #endif
@@ -753,7 +753,6 @@ CONTAINS
       RETURN
    
    END SUBROUTINE grid_set
-
 !=----------------------------------------------------------------------------=!
 END MODULE fft_types
 !=----------------------------------------------------------------------------=!
