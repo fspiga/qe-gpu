@@ -33,6 +33,7 @@ fft_base.o \
 fft_custom.o \
 fsockets.o \
 funct.o \
+funct_gpu.o \
 generate_function.o \
 gpu_routines.o \
 gth.o \
