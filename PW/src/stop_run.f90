@@ -81,7 +81,13 @@ SUBROUTINE do_stop( exit_status )
   ELSE IF ( exit_status == 1 ) THEN
      STOP 1
   ELSE IF ( exit_status == 2 ) THEN
+!STOP 2 interrupts the profiler buffer flush
+#ifdef USE_NVTX
+     print *,"exit_status == 2"
+     STOP
+#else
      STOP 2
+#endif
   ELSE IF ( exit_status == 3 ) THEN
      STOP 3
   ELSE IF ( exit_status == 4 ) THEN
