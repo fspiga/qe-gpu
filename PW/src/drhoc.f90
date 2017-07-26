@@ -117,7 +117,7 @@ module compute_rhocg_gpu_m
       else
         do ir = tx, mesh, blockDim%x 
           x = gx * r(ir)
-          if (abs(x) > 0.5_DP) then
+          if (abs(x) > 0.05_DP) then !from check on xseries = 0.05_DP
             val = sin (x) / (x) * r(ir) * r(ir) * rhoc(ir)
           else
             val = ( 1.0_dp - x*x/6.0_dp * &
