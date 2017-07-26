@@ -70,7 +70,7 @@
 
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 
-DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
+DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI -DCRAY
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
 IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve
