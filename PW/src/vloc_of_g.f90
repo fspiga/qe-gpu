@@ -75,7 +75,7 @@ subroutine vloc_of_g (mesh, msh, rab, r, vloc_at, zp, tpiba2, ngl, &
         enddo
      END IF
      call simpson (msh, aux, rab, vlcp)
-     vloc (1) = vlcp        
+     vloc (1) = vlcp * fpi / omega
      igl0 = 2
   else
      igl0 = 1
@@ -92,6 +92,8 @@ subroutine vloc_of_g (mesh, msh, rab, r, vloc_at, zp, tpiba2, ngl, &
   !    and here we perform the integral, after multiplying for the |G|
   !    dependent part
   !
+
+!$omp parallel do default(shared),private(gx,vlcp,aux)
   do igl = igl0, ngl
      gx = sqrt (gl (igl) * tpiba2)
      do ir = 1, msh
@@ -104,9 +106,10 @@ subroutine vloc_of_g (mesh, msh, rab, r, vloc_at, zp, tpiba2, ngl, &
         !
         vlcp = vlcp - fac * exp ( - gl (igl) * tpiba2 * 0.25d0) / gl (igl)
      END IF
-     vloc (igl) = vlcp
+     vloc (igl) = vlcp * fpi / omega
   enddo
-  vloc (:) = vloc(:) * fpi / omega
+!$omp end parallel  do
+  !vloc (:) = vloc(:) * fpi / omega    !scaling is now done when element is computed
   deallocate (aux, aux1)
 
 return
