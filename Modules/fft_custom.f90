@@ -411,7 +411,7 @@ CONTAINS
        
 #else
        fc%nltm(ng) = n1 + (n2 - 1) * fc%dfftt%nr1x + (n3 - 1) * fc&
-            &%dfftt%nr1x * fc%dfftt%nr1x
+            &%dfftt%nr1x * fc%dfftt%nr2x
        
 #endif
     ENDDO
