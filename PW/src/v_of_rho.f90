@@ -1210,8 +1210,7 @@ SUBROUTINE v_of_rho_gpu( rho, rho_core, rho_core_d, rhog_core, &
   USE kinds,            ONLY : DP
   USE fft_base,         ONLY : dfftp
   USE gvect,            ONLY : ngm
-  USE noncollin_module, ONLY : noncolin, nspin_lsda, i_cons
-  USE lsda_mod, ONLY : nspin
+  USE noncollin_module, ONLY : noncolin, nspin_lsda
   USE ions_base,        ONLY : nat, tau
   USE ldaU,             ONLY : lda_plus_U 
   USE funct,            ONLY : dft_is_meta
@@ -1257,11 +1256,10 @@ SUBROUTINE v_of_rho_gpu( rho, rho_core, rho_core_d, rhog_core, &
   !
   ! ... add a magnetic field  (if any)
   !
-  IF (nspin .ne. 1 .and. i_cons .ne. 0) THEN
-    v%of_r = v%of_r_d
-    CALL add_bfield( v%of_r, rho%of_r )
-    v%of_r_d = v%of_r
-  ENDIF
+  !JR Need to uncomment memcopies if bfield present
+  !v%of_r = v%of_r_d
+  CALL add_bfield( v%of_r, rho%of_r )
+  !v%of_r_d = v%of_r
 
   !
   ! ... calculate hartree potential
@@ -1534,83 +1532,6 @@ SUBROUTINE v_xc_meta_gpu( rho, rho_core, rhog_core, etxc, vtxc, v, kedtaur )
   !
 END SUBROUTINE v_xc_meta_gpu
 
-module v_xc_gpu_spin_kernels_m
-  use cudafor
-  use funct_gpu
-  contains
-    
-    attributes(global) subroutine v_xc_spin_upolar (nnr, iexch, icorr, e2, vanishing_charge, rho_of_r, rho_core, v, etxcs, vtxcs )
-      use kinds, only : DP
-      implicit none
-
-      integer, value :: nnr, iexch, icorr
-      real(DP), value :: e2, vanishing_charge
-      real(DP), device, intent(in) :: rho_of_r(nnr, 2), rho_core(nnr)
-      real(DP), device, intent(out) :: v(nnr, 2), etxcs(nnr), vtxcs(nnr)
-
-      integer :: ir
-      real(DP) :: rhox, arhox, ex, ec, vx1, vc1, r1, v1
-
-      ir = (blockIdx%x - 1) * blockDim%x + threadIdx%x
-
-      r1 = rho_of_r(ir, 1)
-      rhox = r1 + rho_core(ir)
-      !
-      arhox = ABS( rhox )
-      !
-      IF ( arhox > vanishing_charge ) THEN
-         !
-         CALL xc_dev( iexch, icorr, arhox, ex, ec, vx1, vc1)
-         !
-         v1 = e2*( vx1 + vc1 )
-         !
-         etxcs(ir) = e2*( ex + ec ) * rhox
-         !
-         vtxcs(ir) = v1 * r1
-         v(ir,1) = v1
-         !
-      ENDIF
-    end subroutine
-
-    attributes(global) subroutine v_xc_spin_polar (nnr, iexch, icorr, e2, vanishing_charge, rho_of_r, rho_core, v, etxcs, vtxcs )
-      use kinds, only : DP
-      implicit none
-
-      integer, value :: nnr, iexch, icorr
-      real(DP), value :: e2, vanishing_charge
-      real(DP), device, intent(in) :: rho_of_r(nnr, 2), rho_core(nnr)
-      real(DP), device, intent(out) :: v(nnr, 2), etxcs(nnr), vtxcs(nnr)
-
-      integer :: ir
-      real(DP) :: rhox, arhox, zeta, ex, ec, vx1, vx2, vc1, vc2
-
-      ir = (blockIdx%x - 1) * blockDim%x + threadIdx%x
-      !
-      rhox = rho_of_r(ir,1) + rho_of_r(ir,2) + rho_core(ir)
-      !
-      arhox = ABS( rhox )
-      !
-      IF ( arhox > vanishing_charge ) THEN
-         !
-         zeta = ( rho_of_r(ir,1) - rho_of_r(ir,2) ) / arhox
-         !
-         IF ( ABS( zeta ) > 1.D0 ) zeta = SIGN( 1.D0, zeta )
-         !
-         !
-         CALL xc_spin_dev( iexch, icorr, arhox, zeta, ex, ec, vx1, vx2, vc1, vc2 )
-         !
-         v(ir,1) = e2*( vx1 + vc1 )
-         v(ir,2) = e2*( vx2 + vc2 )
-         !
-         etxcs(ir) = e2*( ex + ec ) * rhox
-      
-         vtxcs(ir) = ( v(ir,1)*rho_of_r(ir,1) + v(ir,2)*rho_of_r(ir,2) )
-         !
-      END IF
-      !
-    end subroutine
-end module v_xc_gpu_spin_kernels_m
-
 SUBROUTINE v_xc_gpu( rho, rho_core_d, rhog_core_d,  etxc, vtxc, v_d )
   !----------------------------------------------------------------------------
   !
@@ -1628,8 +1549,6 @@ SUBROUTINE v_xc_gpu( rho, rho_core_d, rhog_core_d,  etxc, vtxc, v_d )
   USE scf,              ONLY : scf_type
   USE mp_bands,         ONLY : intra_bgrp_comm
   USE mp,               ONLY : mp_sum
-  USE funct_gpu
-  USE v_xc_gpu_spin_kernels_m
 
   !
   IMPLICIT NONE
@@ -1647,11 +1566,7 @@ SUBROUTINE v_xc_gpu( rho, rho_core_d, rhog_core_d,  etxc, vtxc, v_d )
   !
   ! ... local variables
   !
-  REAL(DP) :: rhoneg(2), rhoneg1, rhoneg2
-
-  REAL(DP), device, allocatable :: etxcs_d(:)
-  REAL(DP), device, allocatable :: vtxcs_d(:)
-
+  REAL(DP) :: rhox, arhox, zeta, amag, vs, ex, ec, vx(2), vc(2), rhoneg(2), vx1, vc1, rhoneg1
     ! the total charge in each point
     ! the absolute value of the charge
     ! the absolute value of the charge
@@ -1669,81 +1584,158 @@ SUBROUTINE v_xc_gpu( rho, rho_core_d, rhog_core_d,  etxc, vtxc, v_d )
   integer :: iexch, icorr
   real(DP), pointer, device :: rho_of_r_d(:,:)
 
-  integer :: blocks, threads
-
+  ! parameters from expanded subroutines from xc
+  real(DP), parameter :: small = 1.E-10_DP,  third = 1.0_DP / 3.0_DP, &
+       pi34 = 0.6203504908994_DP  ! pi34=(3/4pi)^(1/3)
+  real(DP) :: rs
+  real(dp), parameter  :: f= -0.687247939924714d0, alpha = 2.0d0/3.0d0
+  ! f = -9/8*(3/2pi)^(2/3)
+  real(DP) :: a, b1, b2, c0, c1, c2, c3, d0, d1
+  parameter (a = 0.031091d0, b1 = 7.5957d0, b2 = 3.5876d0, c0 = a, &
+       c1 = 0.046644d0, c2 = 0.00664d0, c3 = 0.01043d0, d0 = 0.4335d0, &
+       d1 = 1.4408d0)
+  real(DP) :: lnrs, rs12, rs32, rs2, om, dom, olog
+  real(DP) :: a11, b31, b41
+  parameter (a11 = 0.21370d0, b31 = 1.6382d0, b41 = 0.49294d0)
   !
   !
   CALL start_clock( 'v_xc' )
+  !
   etxc   = 0.D0
   vtxc   = 0.D0
   v_d(:,:) = 0.D0
   rhoneg = 0.D0
-  rhoneg1 = 0.D0
-  rhoneg2 = 0.D0
   !
   CALL start_clock( 'spin' )
-  !
-  
-  iexch = get_iexch()
-  icorr = get_icorr()
-
   IF ( nspin == 1 .OR. ( nspin == 4 .AND. .NOT. domag ) ) THEN
+     iexch = get_iexch
+     icorr = get_icorr
 
-     rho_of_r_d => rho%of_r_d
+     IF (iexch .eq. 1 .and. icorr .eq. 4) THEN
 
-     !
-     ! ... spin-unpolarized case
-     !
-     ! JR TODO: Allocate these GPU buffers once and reuse
-     allocate(etxcs_d(dfftp%nnr))
-     allocate(vtxcs_d(dfftp%nnr))
+       rho_of_r_d => rho%of_r_d
 
-     threads = 128
-     blocks = ceiling(real(dfftp%nnr)/threads)
-     call v_xc_spin_upolar<<<blocks, threads>>>(dfftp%nnr, iexch, icorr, e2, vanishing_charge,&
-       rho_of_r_d, rho_core_d, v_d, etxcs_d, vtxcs_d)
+       !
+       ! ... spin-unpolarized case
+       !
 
-     ! Complete reductions after kernel
-     !$cuf kernel do (1) <<<*,*>>>
-     DO ir = 1, dfftp%nnr
-        etxc = etxc + etxcs_d(ir)
-        vtxc = vtxc + vtxcs_d(ir)
-        IF ( rho_of_r_d(ir,1) < 0.D0 ) rhoneg1 = rhoneg1 - rho_of_r_d(ir,1)
-     ENDDO
-     rhoneg(1) = rhoneg1 ! copy reduced variable
+       !$cuf kernel do (1) <<<*,*>>>
+       DO ir = 1, dfftp%nnr
+          !
+          rhox = rho_of_r_d(ir,1) + rho_core_d(ir)
+          !
+          arhox = ABS( rhox )
+          !
+          IF ( arhox > vanishing_charge ) THEN
+            if (arhox <= small) then
+               ec = 0.0_DP
+               vc1 = 0.0_DP
+               ex = 0.0_DP
+               vx1 = 0.0_DP
+            else
+               rs = pi34 / arhox**third
+               !
+               !CALL xc( arhox, ex, ec, vx(1), vc(1) )
+               !call slater (rs, ex, vx(1))
+               ex = f * alpha / rs
+               vx1 = 4.d0 / 3.d0 * f * alpha / rs
 
-     deallocate(etxcs_d)
-     deallocate(vtxcs_d)
+               !call pw (rs, 1, ec, vc(1))
+               ! interpolation formula
+               rs12 = sqrt (rs)
+               rs32 = rs * rs12
+               rs2 = rs**2
+               om = 2.d0 * a * (b1 * rs12 + b2 * rs + b31 * rs32 + b41 &
+                    * rs2)
+               dom = 2.d0 * a * (0.5d0 * b1 * rs12 + b2 * rs + 1.5d0 * b31 &
+                    * rs32 + 2.d0 * b41 * rs2)
+               olog = log (1.d0 + 1.0d0 / om)
+               ec = - 2.d0 * a * (1.d0 + a11 * rs) * olog
+               vc1 = - 2.d0 * a * (1.d0 + 2.d0 / 3.d0 * a11 * rs) &
+                    * olog - 2.d0 / 3.d0 * a * (1.d0 + a11 * rs) * dom / &
+                    (om * (om + 1.d0) )
+             endif
+             !
+             v_d(ir,1) = e2*( vx1 + vc1 )
+             !
+             etxc = etxc + e2*( ex + ec ) * rhox
+             !
+             vtxc = vtxc + v_d(ir,1) * rho_of_r_d(ir,1)
+             !
+          ENDIF
+          !
+          IF ( rho_of_r_d(ir,1) < 0.D0 ) rhoneg1 = rhoneg1 - rho_of_r_d(ir,1)
+          !
+       END DO
+
+       rhoneg(1) = rhoneg1 ! copy reduced variable
+     ELSE
+       print*, "v_xc_gpu: Should not be here!"; flush(6); stop
+
+!       !
+!       ! ... spin-unpolarized case
+!       !
+!!$omp parallel do private( rhox, arhox, ex, ec, vx, vc ), &
+!!$omp             reduction(+:etxc,vtxc), reduction(-:rhoneg)
+!       DO ir = 1, dfftp%nnr
+!          !
+!          rhox = rho%of_r(ir,1) + rho_core(ir)
+!          !
+!          arhox = ABS( rhox )
+!          !
+!          IF ( arhox > vanishing_charge ) THEN
+!             !
+!             CALL xc( arhox, ex, ec, vx(1), vc(1) )
+!             !
+!             v(ir,1) = e2*( vx(1) + vc(1) )
+!             !
+!             etxc = etxc + e2*( ex + ec ) * rhox
+!             !
+!             vtxc = vtxc + v(ir,1) * rho%of_r(ir,1)
+!             !
+!          ENDIF
+!          !
+!          IF ( rho%of_r(ir,1) < 0.D0 ) rhoneg(1) = rhoneg(1) - rho%of_r(ir,1)
+!          !
+!       END DO
+!!$omp end parallel do
+     END IF
      !
   ELSE IF ( nspin == 2 ) THEN
      !
      ! ... spin-polarized case
      !
-     allocate(etxcs_d(dfftp%nnr))
-     allocate(vtxcs_d(dfftp%nnr))
+     print*,  "v_xc_gpu: SPIN POLARIZED not supported!"; flush(6); STOP
 
-     rho_of_r_d => rho%of_r_d
-
-     threads = 128
-     blocks = ceiling(real(dfftp%nnr)/threads)
-     call v_xc_spin_polar<<<blocks, threads>>> (dfftp%nnr, iexch, icorr, e2, vanishing_charge, &
-       rho_of_r_d, rho_core_d, v_d, etxcs_d, vtxcs_d )
-
-     ! Complete reductions after kernel
-     !$cuf kernel do (1) <<<*, *>>>
-     DO ir = 1, dfftp%nnr
-       etxc = etxc + etxcs_d(ir)
-       vtxc = vtxc + vtxcs_d(ir)
-
-       IF ( rho_of_r_d(ir,1) < 0.D0 ) rhoneg1 = rhoneg1 - rho_of_r_d(ir,1)
-       IF ( rho_of_r_d(ir,2) < 0.D0 ) rhoneg2 = rhoneg2 - rho_of_r_d(ir,2)
-     ENDDO
-
-     rhoneg(1) = rhoneg1 ! copy reduced variable
-     rhoneg(2) = rhoneg2 ! copy reduced variable
-
-     deallocate(etxcs_d)
-     deallocate(vtxcs_d)
+!!$omp parallel do private( rhox, arhox, zeta, ex, ec, vx, vc ), &
+!!$omp             reduction(+:etxc,vtxc), reduction(-:rhoneg)
+!     DO ir = 1, dfftp%nnr
+!        !
+!        rhox = rho%of_r(ir,1) + rho%of_r(ir,2) + rho_core(ir)
+!        !
+!        arhox = ABS( rhox )
+!        !
+!        IF ( arhox > vanishing_charge ) THEN
+!           !
+!           zeta = ( rho%of_r(ir,1) - rho%of_r(ir,2) ) / arhox
+!           !
+!           IF ( ABS( zeta ) > 1.D0 ) zeta = SIGN( 1.D0, zeta )
+!           !
+!           IF ( rho%of_r(ir,1) < 0.D0 ) rhoneg(1) = rhoneg(1) - rho%of_r(ir,1)
+!           IF ( rho%of_r(ir,2) < 0.D0 ) rhoneg(2) = rhoneg(2) - rho%of_r(ir,2)
+!           !
+!           CALL xc_spin( arhox, zeta, ex, ec, vx(1), vx(2), vc(1), vc(2) )
+!           !
+!           v(ir,:) = e2*( vx(:) + vc(:) )
+!           !
+!           etxc = etxc + e2*( ex + ec ) * rhox
+!           !
+!           vtxc = vtxc + ( v(ir,1)*rho%of_r(ir,1) + v(ir,2)*rho%of_r(ir,2) )
+!           !
+!        END IF
+!        !
+!     END DO
+!!$omp end parallel do
      !
   ELSE IF ( nspin == 4 ) THEN
      !
@@ -1815,6 +1807,7 @@ SUBROUTINE v_xc_gpu( rho, rho_core_d, rhog_core_d,  etxc, vtxc, v_d )
   !
   ! ... add gradient corrections (if any)
   !
+  !CALL gradcorr_gpu( rho%of_r, rho%of_r_d, rho%of_g, rho%of_g_d, rho_core, rho_core_d, rhog_core, rhog_core_d, etxc, vtxc, v, v_d )
   CALL gradcorr_gpu(rho%of_r_d, rho%of_g_d, rho_core_d, rhog_core_d, etxc, vtxc, v_d )
   !
   ! ... add non local corrections (if any)

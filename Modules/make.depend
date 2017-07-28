@@ -102,8 +102,6 @@ funct.o : io_global.o
 funct.o : kind.o
 funct.o : xc_rVV10.o
 funct.o : xc_vdW_DF.o
-funct_gpu.o : constants.o
-funct_gpu.o : kind.o
 functionals.o : constants.o
 functionals.o : kind.o
 functionals.o : libxc.o
@@ -177,7 +175,6 @@ mp_bands.o : mp.o
 mp_bands.o : parallel_include.o
 mp_base.o : mp.o
 mp_base.o : kind.o
-mp_base.o : mp.o
 mp_base.o : parallel_include.o
 mp_diag.o : mp.o
 mp_diag.o : mp_world.o

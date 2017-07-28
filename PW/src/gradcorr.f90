@@ -852,177 +852,221 @@ END SUBROUTINE external_laplacian
 !--------------------------------------------------------------------
 
 #ifdef USE_CUDA
-module gradcorr_gpu_kernels_m
-  use cudafor
-  use funct_gpu
-  contains
-    attributes(global) subroutine gradcorr_gpu_upolar(nnr, igcx, igcc, e2, epsr, epsg, rhoout, rho_core, grho, v, h, vtxcgcs, etxcgcs)
-      use kinds, only: DP
-      implicit none
-      integer, value :: nnr, igcx, igcc
-      real(DP), value :: e2, epsr, epsg
-      real(DP), device, intent(in) :: rhoout(nnr, 2), rho_core(nnr), grho(3, nnr, 1)
-      real(DP), device, intent(out) :: v(nnr, 2), h(3, nnr, 1), vtxcgcs(nnr), etxcgcs(nnr)
 
-      integer :: k
-      real(DP) :: arho, segno, grho1, sx, sc, v1x, v2x, v1c, v2c
-      real(DP) :: g1, g2, g3, r1
+subroutine gcxc_gpu (rho, grho, sx, sc, v1x, v2x, v1c, v2c)
+  use kinds, ONLY : DP
+  use constants, ONLY : pi
+  implicit none
+  real(DP) :: rho, grho, sx, sc, v1x, v2x, v1c, v2c
 
-      k = (blockIdx%x - 1) * blockDim%x + threadIdx%x
+  !locals
+  real(DP), parameter:: small = 1.E-10_DP
+  real(DP) :: kf, agrho, s1, s2, ds, dsg, exunif, fx
+  real(DP) :: dxunif, dfx, f1, f2, f3, dfx1
+  real(DP) :: p,  amu, ab, c, dfxdp, dfxds, upbe, uge, s, ak, aa
+  real(DP), parameter :: third = 1._DP / 3._DP, c1 = 0.75_DP / pi , &
+       c2 = 3.093667726280136_DP, c5 = 4._DP * third, &
+       c6 = c2*2.51984210, c7=5._DP/6._DP, c8=0.8_DP, & ! (3pi^2)^(1/3)*2^(4/3)
+       k1 = 0.804_DP, mu1 = 0.21951_DP 
+!  real(DP) :: k (6), mu(6), ev(6)
+  !           pbe        rpbe        pbesol   pbeq2d      optB88  optB86b
+!  data k / 0.804_DP,   1.2450D0,   0.804_DP , 0.804_DP ,    0.0 ,  0.0 /, &
+!       mu/ 0.21951_DP, 0.21951_DP, 0.12345679012345679012_DP,             &
+!                                   0.12345679012345679,     0.22 , 0.1234/, &
+!       ev / 1.647127_DP, 0.980118_DP, 0.017399_DP, 1.523671_DP, 0.367229_DP, &
+!                                   0.011282_DP /  ! a and b parameters of Engel and Vosko
+  !
+  real(DP), parameter :: ga = 0.031091d0, be1 = 0.066725d0
+!  real(DP) :: be (3)
+!  data be / 0.066725d0, 0.046d0,     0.066725d0/
+  real(DP), parameter :: pi34 = 0.6203504908994d0
+  real(DP), parameter :: xkf = 1.919158292677513d0, xks = 1.128379167095513d0
+  real(DP) :: ks, rs, ec, vc, t, expe, af, bf, y, xy, qy
+  real(DP) :: h0, dh0, ddh0, sc2D, v1c2D, v2c2D
+  !
+  real(DP) :: a, b1, b2, c0, d0, d1
+  parameter (a = 0.031091d0, b1 = 7.5957d0, b2 = 3.5876d0, c0 = a)
+  real(DP) :: lnrs, rs12, rs32, rs2, om, dom, olog
+  real(DP), parameter :: a11 = 0.21370d0, b31 = 1.6382d0, b41 = 0.49294d0
+!  real(DP) :: a1 (2), b3 (2), b4 (2)
+!  data a1 / 0.21370d0, 0.026481d0 /, b3 / 1.6382d0, -0.46647d0 /, &
+!       b4 / 0.49294d0, 0.13354d0 /
+  !
+  if (rho <= small) then
+     sx = 0.0_DP
+     v1x = 0.0_DP
+     v2x = 0.0_DP
+  else
+!     call pbex (rho, grho, 1, sx, v1x, v2x)
+     agrho = sqrt (grho)
+     kf = c2 * rho**third
+     dsg = 0.5_DP / kf
+     s1 = agrho * dsg / rho
+     s2 = s1 * s1
+     ds = - c5 * s1
+     f1 = s2 * mu1 / k1
+     f2 = 1._DP + f1
+     f3 = k1 / f2
+     fx = k1 - f3
+     exunif = - c1 * kf
+     sx = exunif * fx
+     dxunif = exunif * third
+     dfx1 = f2 * f2
+     dfx = 2._DP * mu1 * s1 / dfx1
+     v1x = sx + dxunif * fx + exunif * dfx * ds
+     v2x = exunif * dfx * dsg / agrho
+     sx = sx * rho
+  endif
 
-      r1 = rhoout(k,1)
-      arho = ABS( r1 )
-      !
-      IF ( arho > epsr ) THEN
-         !
-         g1 = grho(1,k,1)
-         g2 = grho(2,k,1)
-         g3 = grho(3,k,1)
+  if (rho.le.small) then
+     sc = 0.0_DP
+     v1c = 0.0_DP
+     v2c = 0.0_DP
+  else
+     !call pbec (rho, grho, 1, sc, v1c, v2c)
+     rs = pi34 / rho**third
+     !
+     !call pw_gpu (rs, ec, vc)
+     rs12 = sqrt (rs)
+     rs32 = rs * rs12
+     rs2 = rs**2
+     om = 2.d0 * a * (b1 * rs12 + b2 * rs + b31 * rs32 + b41 * rs2)
+     dom = 2.d0 * a * (0.5d0 * b1 * rs12 + b2 * rs + 1.5d0 * b31 * rs32 + 2.d0 * b41 * rs2)
+     olog = log (1.d0 + 1.0d0 / om)
+     ec = - 2.d0 * a * (1.d0 + a11 * rs) * olog
+     vc = - 2.d0 * a * (1.d0 + 2.d0 / 3.d0 * a11 * rs) &
+          * olog - 2.d0 / 3.d0 * a * (1.d0 + a11 * rs) * dom / (om * (om + 1.d0) )
+     !
+     kf = xkf / rs
+     ks = xks * sqrt (kf)
+     t = sqrt (grho) / (2.d0 * ks * rho)
+     expe = exp ( - ec / ga)
+     af = be1 / ga * (1.d0 / (expe-1.d0) )
+     bf = expe * (vc - ec)
+     y = af * t * t
+     xy = (1.d0 + y) / (1.d0 + y + y * y)
+     qy = y * y * (2.d0 + y) / (1.d0 + y + y * y) **2
+     s1 = 1.d0 + be1 / ga * t * t * xy
+     h0 = ga * log (s1)
+     dh0 = be1 * t * t / s1 * ( - 7.d0 / 3.d0 * xy - qy * (af * bf / &
+          be1-7.d0 / 3.d0) )
+     ddh0 = be1 / (2.d0 * ks * ks * rho) * (xy - qy) / s1
+     sc = rho * h0
+     v1c = h0 + dh0
+     v2c = ddh0
+  endif
 
-         grho1 = g1*g1 + g2*g2 + g3*g3
-         !
-         IF ( grho1 > epsg ) THEN
-            !
-            segno = SIGN( 1.D0, r1 )
-            !
-            CALL gcxc_dev( igcx, igcc, arho, grho1, sx, sc, v1x, v2x, v1c, v2c)
-            !
-            ! ... first term of the gradient correction : D(rho*Exc)/D(rho)
-            !
-            v(k,1) = v(k,1) + e2 * ( v1x + v1c )
-            !
-            ! ... h contains :
-            !
-            ! ...    D(rho*Exc) / D(|grad rho|) * (grad rho) / |grad rho|
-            !
-            h(1,k,1) = e2 * ( v2x + v2c ) * g1
-            h(2,k,1) = e2 * ( v2x + v2c ) * g2
-            h(3,k,1) = e2 * ( v2x + v2c ) * g3
-            !
-            vtxcgcs(k) = e2*( v1x + v1c ) * ( r1 - rho_core(k) )
-            etxcgcs(k) = e2*( sx + sc ) * segno
-            !
-         ELSE
-            h(1,k,1)=0.D0
-            h(2,k,1)=0.D0
-            h(3,k,1)=0.D0
-         END IF
-         !
-      ELSE
-         !
-         h(1,k,1) = 0.D0
-         h(2,k,1) = 0.D0
-         h(3,k,1) = 0.D0
-         !
-      END IF
-    end subroutine gradcorr_gpu_upolar
+end subroutine gcxc_gpu
 
-    attributes(global) subroutine gradcorr_gpu_polar(nnr, igcx, igcc, e2, epsr, fac, rhoout, rho_core, grho, v, h, vtxcgcs, etxcgcs)
-      use kinds, only: DP
-      implicit none
-      integer, value :: nnr, igcx, igcc
-      real(DP), value :: e2, epsr, fac
-      real(DP), device, intent(in) :: rhoout(nnr, 2), rho_core(nnr), grho(3, nnr, 2)
-      real(DP), device, intent(out) :: v(nnr, 2), h(3, nnr, 2), vtxcgcs(nnr), etxcgcs(nnr)
 
-      integer :: k, ipol
-      real(DP) :: zeta, arho, segno, grho1, grho2, sx, sc, v1xup, v1xdw, v2xup, v2xdw
-      real(DP) :: v1cup, v1cdw, v2cup, v2cdw, v2cud, v2c
-      real(DP) :: rh, grh2, grup, grdw, r1, r2
-      real(DP) :: g1(3), g2(3)
 
-      k = (blockIdx%x - 1) * blockDim%x + threadIdx%x
+subroutine pbex_gpu (rho, grho, sx, v1x, v2x)
+  !---------------------------------------------------------------
+  !
+  USE kinds, ONLY : DP
+  USE constants, ONLY : pi
+  implicit none
+  real(dp), intent(in) :: rho, grho
+  real(dp), intent(out):: sx, v1x, v2x
+  ! locals
+  real(DP) :: kf, agrho, s1, s2, ds, dsg, exunif, fx
+  real(DP) :: dxunif, dfx, f1, f2, f3, dfx1
+  real(DP) :: p,  amu, ab, c, dfxdp, dfxds, upbe, uge, s, ak, aa
+  real(DP), parameter :: third = 1._DP / 3._DP, c1 = 0.75_DP / pi , &
+       c2 = 3.093667726280136_DP, c5 = 4._DP * third, &
+       c6 = c2*2.51984210, c7=5._DP/6._DP, c8=0.8_DP ! (3pi^2)^(1/3)*2^(4/3)
+  real(DP) :: k (6), mu(6), ev(6)
+  !           pbe        rpbe        pbesol   pbeq2d      optB88  optB86b
+  data k / 0.804_DP,   1.2450D0,   0.804_DP , 0.804_DP ,    0.0 ,  0.0 /, &
+       mu/ 0.21951_DP, 0.21951_DP, 0.12345679012345679012_DP,             &
+                                   0.12345679012345679,     0.22 , 0.1234/, &
+       ev / 1.647127_DP, 0.980118_DP, 0.017399_DP, 1.523671_DP, 0.367229_DP, &
+                                   0.011282_DP /  ! a and b parameters of Engel and Vosko
+  !
+  agrho = sqrt (grho)
+  kf = c2 * rho**third
+  dsg = 0.5_DP / kf
+  s1 = agrho * dsg / rho
+  s2 = s1 * s1
+  ds = - c5 * s1
+  f1 = s2 * mu(1) / k (1)
+  f2 = 1._DP + f1
+  f3 = k (1) / f2
+  fx = k (1) - f3
+  exunif = - c1 * kf
+  sx = exunif * fx
+  dxunif = exunif * third
+  dfx1 = f2 * f2
+  dfx = 2._DP * mu(1) * s1 / dfx1
+  v1x = sx + dxunif * fx + exunif * dfx * ds
+  v2x = exunif * dfx * dsg / agrho
+  sx = sx * rho
+  return
+end subroutine pbex_gpu
 
-      r1 = rhoout(k,1)
-      r2 = rhoout(k,2)
+subroutine pbec_gpu (rho, grho, sc, v1c, v2c)
+  USE kinds, ONLY : DP
+  implicit none
+  real(DP), intent(in) :: rho, grho
+  real(DP), intent(out):: sc, v1c, v2c
+  !locals
+  real(DP), parameter :: ga = 0.031091d0
+  real(DP) :: be (3)
+  data be / 0.066725d0, 0.046d0,     0.066725d0/
+  real(DP), parameter :: third = 1.d0 / 3.d0, pi34 = 0.6203504908994d0
+  real(DP), parameter :: xkf = 1.919158292677513d0, xks = 1.128379167095513d0
+  real(DP) :: kf, ks, rs, ec, vc, t, expe, af, bf, y, xy, qy
+  real(DP) :: s1, h0, dh0, ddh0, sc2D, v1c2D, v2c2D
+  !
+  rs = pi34 / rho**third
+  call pw_gpu (rs, ec, vc)
+  kf = xkf / rs
+  ks = xks * sqrt (kf)
+  t = sqrt (grho) / (2.d0 * ks * rho)
+  expe = exp ( - ec / ga)
+  af = be(1) / ga * (1.d0 / (expe-1.d0) )
+  bf = expe * (vc - ec)
+  y = af * t * t
+  xy = (1.d0 + y) / (1.d0 + y + y * y)
+  qy = y * y * (2.d0 + y) / (1.d0 + y + y * y) **2
+  s1 = 1.d0 + be(1) / ga * t * t * xy
+  h0 = ga * log (s1)
+  dh0 = be(1) * t * t / s1 * ( - 7.d0 / 3.d0 * xy - qy * (af * bf / &
+       be(1)-7.d0 / 3.d0) )
+  ddh0 = be(1) / (2.d0 * ks * ks * rho) * (xy - qy) / s1
+  sc = rho * h0
+  v1c = h0 + dh0
+  v2c = ddh0
+  return
+end subroutine pbec_gpu
 
-      rh = r1 + r2
+subroutine pw_gpu (rs, ec, vc)
+  USE kinds, ONLY : DP
+  implicit none
+  real(dp), intent(in) :: rs
+  real(dp), intent(out):: ec, vc
+  !locals
+  real(DP) :: a, b1, b2, c0, c1, c2, c3, d0, d1
+  parameter (a = 0.031091d0, b1 = 7.5957d0, b2 = 3.5876d0, c0 = a, &
+       c1 = 0.046644d0, c2 = 0.00664d0, c3 = 0.01043d0, d0 = 0.4335d0, &
+       d1 = 1.4408d0)
+  real(DP) :: lnrs, rs12, rs32, rs2, om, dom, olog
+  real(DP) :: a1 (2), b3 (2), b4 (2)
+  data a1 / 0.21370d0, 0.026481d0 /, b3 / 1.6382d0, -0.46647d0 /, &
+       b4 / 0.49294d0, 0.13354d0 /
+  !
+  rs12 = sqrt (rs)
+  rs32 = rs * rs12
+  rs2 = rs**2
+  om = 2.d0 * a * (b1 * rs12 + b2 * rs + b3 (1) * rs32 + b4 (1) * rs2)
+  dom = 2.d0 * a * (0.5d0 * b1 * rs12 + b2 * rs + 1.5d0 * b3 (1) * rs32 + 2.d0 * b4 (1) * rs2)
+  olog = log (1.d0 + 1.0d0 / om)
+  ec = - 2.d0 * a * (1.d0 + a1 (1) * rs) * olog
+  vc = - 2.d0 * a * (1.d0 + 2.d0 / 3.d0 * a1 (1) * rs) &
+       * olog - 2.d0 / 3.d0 * a * (1.d0 + a1 (1) * rs) * dom / (om * (om + 1.d0) )
+  return
+end subroutine pw_gpu
 
-      g1(1) = grho(1,k,1)
-      g1(2) = grho(2,k,1)
-      g1(3) = grho(3,k,1)
-      g2(1) = grho(1,k,2)
-      g2(2) = grho(2,k,2)
-      g2(3) = grho(3,k,2)
-      !
-      !grho2(:) = grho(1,k,:)**2 + grho(2,k,:)**2 + grho(3,k,:)**2
-      grho1 = g1(1)**2 + g1(2)**2 + g1(3)**2
-      grho2 = g2(1)**2 + g2(2)**2 + g2(3)**2
-      !
-      CALL gcx_spin_dev( igcx, r1, r2, grho1, &
-                     grho2, sx, v1xup, v1xdw, v2xup, v2xdw )
-      !
-      IF ( rh > epsr ) THEN
-         !
-         !IF ( igcc_is_lyp() ) THEN
-         !   print*, "gradcorr_gpu: igcc_is_lyp() not implemented!"; flush(6); stop
-            !
-            !rup = rhoout(k,1)
-            !rdw = rhoout(k,2)
-            !!
-            !grhoup = grho(1,k,1)**2 + grho(2,k,1)**2 + grho(3,k,1)**2
-            !grhodw = grho(1,k,2)**2 + grho(2,k,2)**2 + grho(3,k,2)**2
-            !!
-            !grhoud = grho(1,k,1) * grho(1,k,2) + &
-            !         grho(2,k,1) * grho(2,k,2) + &
-            !         grho(3,k,1) * grho(3,k,2)
-            !!
-            !CALL gcc_spin_more( rup, rdw, grhoup, grhodw, grhoud, &
-            !                    sc, v1cup, v1cdw, v2cup, v2cdw, v2cud )
-            !
-         !ELSE
-            !
-            zeta = ( r1 - r2 ) / rh
-            !if (nspin.eq.4.and.domag) zeta=abs(zeta)*segni(k)
-            !
-            grh2 = ( g1(1) + g2(1) )**2 + &
-                   ( g1(2) + g2(2) )**2 + &
-                   ( g1(3) + g2(3) )**2
-            !
-            CALL gcc_spin_dev( igcc, rh, zeta, grh2, sc, v1cup, v1cdw, v2c )
-            !
-            v2cup = v2c
-            v2cdw = v2c
-            v2cud = v2c
-            !
-         !END IF
-         !
-      ELSE
-         !
-         sc    = 0.D0
-         v1cup = 0.D0
-         v1cdw = 0.D0
-         v2c   = 0.D0
-         v2cup = 0.D0
-         v2cdw = 0.D0
-         v2cud = 0.D0
-         !
-      ENDIF
-      !
-      ! ... first term of the gradient correction : D(rho*Exc)/D(rho)
-      !
-      v(k,1) = v(k,1) + e2 * ( v1xup + v1cup )
-      v(k,2) = v(k,2) + e2 * ( v1xdw + v1cdw )
-      !
-      ! ... h contains D(rho*Exc)/D(|grad rho|) * (grad rho) / |grad rho|
-      !
-      DO ipol = 1, 3
-         !
-         grup = g1(ipol)
-         grdw = g2(ipol)
-         h(ipol,k,1) = e2 * ( ( v2xup + v2cup ) * grup + v2cud * grdw )
-         h(ipol,k,2) = e2 * ( ( v2xdw + v2cdw ) * grdw + v2cud * grup )
-         !
-      END DO
-      !
-      vtxcgcs(k) = e2 * ( v1xup + v1cup ) * ( r1 - rho_core(k) * fac ) + &
-                    e2 * ( v1xdw + v1cdw ) * ( r2 - rho_core(k) * fac )
-      etxcgcs(k) =  e2 * ( sx + sc)
-      !
-
-    end subroutine gradcorr_gpu_polar
-
-end module gradcorr_gpu_kernels_m
 
 SUBROUTINE gradcorr_gpu(rho_d, rhog_d, rho_core_d, rhog_core_d, etxc, vtxc, v_d )
   !----------------------------------------------------------------------------
@@ -1039,8 +1083,6 @@ SUBROUTINE gradcorr_gpu(rho_d, rhog_d, rho_core_d, rhog_core_d, etxc, vtxc, v_d 
   USE wavefunctions_module, ONLY : psic
   USE fft_base,             ONLY : dfftp
   USE fft_interfaces,       ONLY : fwfft
-  USE funct_gpu
-  USE gradcorr_gpu_kernels_m
 
   !
   IMPLICIT NONE
@@ -1060,13 +1102,36 @@ SUBROUTINE gradcorr_gpu(rho_d, rhog_d, rho_core_d, rhog_core_d, etxc, vtxc, v_d 
 
   COMPLEX(DP), ALLOCATABLE, device :: rhogsum_d(:,:)
   !
-  REAL(DP) :: grho1, grho2(2), etxcgc, vtxcgc, segno, fac, amag 
-
-  REAL(DP), device, allocatable :: etxcs_d(:), vtxcs_d(:)
+  REAL(DP) :: grho1, grho2(2), sx, sc, v1x, v2x, v1c, v2c, &
+              v1xup, v1xdw, v2xup, v2xdw, v1cup, v1cdw , &
+              etxcgc, vtxcgc, segno, arho, fac, zeta, rh, grh2, amag 
+  REAL(DP) :: v2cup, v2cdw,  v2cud, rup, rdw, &
+              grhoup, grhodw, grhoud, grup, grdw, seg
   !
   REAL(DP), PARAMETER :: epsr = 1.D-6, epsg = 1.D-10
   integer :: i, j, igcx, igcc
-  integer :: threads, blocks
+
+  ! parameters from expanded gcxc subroutine
+  real(DP), parameter:: small = 1.E-10_DP
+  real(DP) :: kf, agrho, s1, s2, ds, dsg, exunif, fx
+  real(DP) :: dxunif, dfx, f1, f2, f3, dfx1
+  real(DP) :: p,  amu, ab, c, dfxdp, dfxds, upbe, uge, s, ak, aa
+  real(DP), parameter :: third = 1._DP / 3._DP, c1 = 0.75_DP / pi , &
+       c2 = 3.093667726280136_DP, c5 = 4._DP * third, &
+       c6 = c2*2.51984210, c7=5._DP/6._DP, c8=0.8_DP, & ! (3pi^2)^(1/3)*2^(4/3)
+       k1 = 0.804_DP, mu1 = 0.21951_DP 
+  !
+  real(DP), parameter :: ga = 0.031091d0, be1 = 0.066725d0
+  real(DP), parameter :: pi34 = 0.6203504908994d0
+  real(DP), parameter :: xkf = 1.919158292677513d0, xks = 1.128379167095513d0
+  real(DP) :: ks, rs, ec, vc, t, expe, af, bf, y, xy, qy
+  real(DP) :: h0, dh0, ddh0, sc2D, v1c2D, v2c2D
+  !
+  real(DP) :: a, b1, b2, c0, d0, d1
+  parameter (a = 0.031091d0, b1 = 7.5957d0, b2 = 3.5876d0, c0 = a)
+  real(DP) :: lnrs, rs12, rs32, rs2, om, dom, olog
+  real(DP), parameter :: a11 = 0.21370d0, b31 = 1.6382d0, b41 = 0.49294d0
+
   !
   !
   IF ( .NOT. dft_is_gradient() ) RETURN
@@ -1150,54 +1215,252 @@ call stop_clock( 'gradrho' )
   !
   DEALLOCATE( rhogsum_d )
   !
-  igcx = get_igcx
-  igcc = get_igcc
-
   IF ( nspin0 == 1 ) THEN
+    igcx = get_igcx
+    igcc = get_igcc
+
     !
-    !
-    ! ... This is the spin-unpolarised case
-    !
-    allocate(etxcs_d(dfftp%nnr))
-    allocate(vtxcs_d(dfftp%nnr))
+    IF (igcx .eq. 3 .and. igcc .eq. 4) THEN
+      !
+      ! ... This is the spin-unpolarised case (on GPU, only for igcx == 3 and igcc == 4 config)
+      !
+      !$cuf kernel do(1) <<<*, *>>>
+      DO k = 1, dfftp%nnr
+        !
+        arho = ABS( rhoout_d(k,1) )
+        !
+        IF ( arho > epsr ) THEN
+           !
+           grho1 = grho_d(1,k,1)**2 + grho_d(2,k,1)**2 + grho_d(3,k,1)**2
+           !
+           IF ( grho1 > epsg ) THEN
+              !
+              segno = SIGN( 1.D0, rhoout_d(k,1) )
+              !
+              !CALL gcxc_gpu( arho, grho1, sx, sc, v1x, v2x, v1c, v2c )
+              if (arho <= small) then
+                 sx = 0.0_DP
+                 v1x = 0.0_DP
+                 v2x = 0.0_DP
+              else
+            !     call pbex (rho, grho, 1, sx, v1x, v2x)
+                 agrho = sqrt (grho1)
+                 kf = c2 * arho**third
+                 dsg = 0.5_DP / kf
+                 s1 = agrho * dsg / arho
+                 s2 = s1 * s1
+                 ds = - c5 * s1
+                 f1 = s2 * mu1 / k1
+                 f2 = 1._DP + f1
+                 f3 = k1 / f2
+                 fx = k1 - f3
+                 exunif = - c1 * kf
+                 sx = exunif * fx
+                 dxunif = exunif * third
+                 dfx1 = f2 * f2
+                 dfx = 2._DP * mu1 * s1 / dfx1
+                 v1x = sx + dxunif * fx + exunif * dfx * ds
+                 v2x = exunif * dfx * dsg / agrho
+                 sx = sx * arho
+              endif
 
-    threads = 128
-    blocks = ceiling(real(dfftp%nnr)/threads)
-    call gradcorr_gpu_upolar<<<blocks, threads>>>(dfftp%nnr, igcx, igcc, e2, epsr, epsg, rhoout_d, &
-      rho_core_d, grho_d, v_d, h_d, vtxcs_d, etxcs_d)
+              if (arho.le.small) then
+                 sc = 0.0_DP
+                 v1c = 0.0_DP
+                 v2c = 0.0_DP
+              else
+                 !call pbec (rho, grho, 1, sc, v1c, v2c)
+                 rs = pi34 / arho**third
+                 !
+                 !call pw_gpu (rs, ec, vc)
+                 rs12 = sqrt (rs)
+                 rs32 = rs * rs12
+                 rs2 = rs**2
+                 om = 2.d0 * a * (b1 * rs12 + b2 * rs + b31 * rs32 + b41 * rs2)
+                 dom = 2.d0 * a * (0.5d0 * b1 * rs12 + b2 * rs + 1.5d0 * b31 * rs32 + 2.d0 * b41 * rs2)
+                 olog = log (1.d0 + 1.0d0 / om)
+                 ec = - 2.d0 * a * (1.d0 + a11 * rs) * olog
+                 vc = - 2.d0 * a * (1.d0 + 2.d0 / 3.d0 * a11 * rs) &
+                      * olog - 2.d0 / 3.d0 * a * (1.d0 + a11 * rs) * dom / (om * (om + 1.d0) )
+                 !
+                 kf = xkf / rs
+                 ks = xks * sqrt (kf)
+                 t = sqrt (grho1) / (2.d0 * ks * arho)
+                 expe = exp ( - ec / ga)
+                 af = be1 / ga * (1.d0 / (expe-1.d0) )
+                 bf = expe * (vc - ec)
+                 y = af * t * t
+                 xy = (1.d0 + y) / (1.d0 + y + y * y)
+                 qy = y * y * (2.d0 + y) / (1.d0 + y + y * y) **2
+                 s1 = 1.d0 + be1 / ga * t * t * xy
+                 h0 = ga * log (s1)
+                 dh0 = be1 * t * t / s1 * ( - 7.d0 / 3.d0 * xy - qy * (af * bf / &
+                      be1-7.d0 / 3.d0) )
+                 ddh0 = be1 / (2.d0 * ks * ks * arho) * (xy - qy) / s1
+                 sc = arho * h0
+                 v1c = h0 + dh0
+                 v2c = ddh0
+              endif
+              !
+              ! ... first term of the gradient correction : D(rho*Exc)/D(rho)
+              !
+              v_d(k,1) = v_d(k,1) + e2 * ( v1x + v1c )
+              !
+              ! ... h contains :
+              !
+              ! ...    D(rho*Exc) / D(|grad rho|) * (grad rho) / |grad rho|
+              !
+              h_d(:,k,1) = e2 * ( v2x + v2c ) * grho_d(:,k,1)
+              !
+              vtxcgc = vtxcgc+e2*( v1x + v1c ) * ( rhoout_d(k,1) - rho_core_d(k) )
+              etxcgc = etxcgc+e2*( sx + sc ) * segno
+              !
+           ELSE
+              h_d(:,k,1)=0.D0
+           END IF
+           !
+          ELSE
+             !
+             h_d(:,k,1) = 0.D0
+             !
+          END IF
+          !
+       END DO
 
-    ! Complete reductions after kernel
-    !$cuf kernel do(1) <<<*, *>>>
-    DO k = 1, dfftp%nnr
-      vtxcgc = vtxcgc + vtxcs_d(k)
-      etxcgc = etxcgc + etxcs_d(k)
-    ENDDO
-
-    deallocate(etxcs_d)
-    deallocate(vtxcs_d)
-
+    ELSE
+      print*, "gradcorr_gpu: should not be here!"; flush(6); stop
+!      !
+!      ! ... This is the spin-unpolarised case 
+!      !
+!      DO k = 1, dfftp%nnr
+!         !
+!         arho = ABS( rhoout(k,1) )
+!         !
+!         IF ( arho > epsr ) THEN
+!            !
+!            grho2(1) = grho(1,k,1)**2 + grho(2,k,1)**2 + grho(3,k,1)**2
+!            !
+!            IF ( grho2(1) > epsg ) THEN
+!               !
+!               segno = SIGN( 1.D0, rhoout(k,1) )
+!               !
+!               CALL gcxc( arho, grho2(1), sx, sc, v1x, v2x, v1c, v2c )
+!               !
+!               ! ... first term of the gradient correction : D(rho*Exc)/D(rho)
+!               !
+!               v(k,1) = v(k,1) + e2 * ( v1x + v1c )
+!               !
+!               ! ... h contains :
+!               !
+!               ! ...    D(rho*Exc) / D(|grad rho|) * (grad rho) / |grad rho|
+!               !
+!               h(:,k,1) = e2 * ( v2x + v2c ) * grho(:,k,1)
+!               !
+!               vtxcgc = vtxcgc+e2*( v1x + v1c ) * ( rhoout(k,1) - rho_core(k) )
+!               etxcgc = etxcgc+e2*( sx + sc ) * segno
+!               !
+!            ELSE
+!               h(:,k,1)=0.D0
+!            END IF
+!            !
+!         ELSE
+!            !
+!            h(:,k,1) = 0.D0
+!            !
+!         END IF
+!         !
+!      END DO
+    ENDIF
+!     !
   ELSE
      !
      ! ... spin-polarised case
      !
-      allocate(etxcs_d(dfftp%nnr))
-      allocate(vtxcs_d(dfftp%nnr))
-
-      threads = 128
-      blocks = ceiling(real(dfftp%nnr)/threads)
-      call gradcorr_gpu_polar<<<blocks, threads>>>(dfftp%nnr, igcx, igcc, e2, epsr, fac, &
-        rhoout_d, rho_core_d, grho_d, v_d, h_d, vtxcs_d, etxcs_d)
-
-      ! Complete reductions after kernel
-      !$cuf kernel do(1) <<<*, *>>>
-      DO k = 1, dfftp%nnr
-        vtxcgc = vtxcgc + vtxcs_d(k)
-        etxcgc = etxcgc + etxcs_d(k)
-      ENDDO
-
-      deallocate(etxcs_d)
-      deallocate(vtxcs_d)
-     
+     print*, "gradcorr_gpu: SPIN POLARISED not supported!"; flush(6); stop
+!!$omp parallel do private( rh, grho2, sx, v1xup, v1xdw, v2xup, v2xdw, rup, rdw, &
+!!$omp             grhoup, grhodw, grhoud, sc, v1cup, v1cdw, v2cup, v2cdw, v2cud, &
+!!$omp             zeta, grh2, v2c, grup, grdw  ), &
+!!$omp             reduction(+:etxcgc,vtxcgc)
+!     DO k = 1, dfftp%nnr
+!        !
+!        rh = rhoout(k,1) + rhoout(k,2)
+!        !
+!        grho2(:) = grho(1,k,:)**2 + grho(2,k,:)**2 + grho(3,k,:)**2
+!        !
+!        CALL gcx_spin( rhoout(k,1), rhoout(k,2), grho2(1), &
+!                       grho2(2), sx, v1xup, v1xdw, v2xup, v2xdw )
+!        !
+!        IF ( rh > epsr ) THEN
+!           !
+!           IF ( igcc_is_lyp() ) THEN
+!              !
+!              rup = rhoout(k,1)
+!              rdw = rhoout(k,2)
+!              !
+!              grhoup = grho(1,k,1)**2 + grho(2,k,1)**2 + grho(3,k,1)**2
+!              grhodw = grho(1,k,2)**2 + grho(2,k,2)**2 + grho(3,k,2)**2
+!              !
+!              grhoud = grho(1,k,1) * grho(1,k,2) + &
+!                       grho(2,k,1) * grho(2,k,2) + &
+!                       grho(3,k,1) * grho(3,k,2)
+!              !
+!              CALL gcc_spin_more( rup, rdw, grhoup, grhodw, grhoud, &
+!                                  sc, v1cup, v1cdw, v2cup, v2cdw, v2cud )
+!              !
+!           ELSE
+!              !
+!              zeta = ( rhoout(k,1) - rhoout(k,2) ) / rh
+!              if (nspin.eq.4.and.domag) zeta=abs(zeta)*segni(k)
+!              !
+!              grh2 = ( grho(1,k,1) + grho(1,k,2) )**2 + &
+!                     ( grho(2,k,1) + grho(2,k,2) )**2 + &
+!                     ( grho(3,k,1) + grho(3,k,2) )**2
+!              !
+!              CALL gcc_spin( rh, zeta, grh2, sc, v1cup, v1cdw, v2c )
+!              !
+!              v2cup = v2c
+!              v2cdw = v2c
+!              v2cud = v2c
+!              !
+!           END IF
+!           !
+!        ELSE
+!           !
+!           sc    = 0.D0
+!           v1cup = 0.D0
+!           v1cdw = 0.D0
+!           v2c   = 0.D0
+!           v2cup = 0.D0
+!           v2cdw = 0.D0
+!           v2cud = 0.D0
+!           !
+!        ENDIF
+!        !
+!        ! ... first term of the gradient correction : D(rho*Exc)/D(rho)
+!        !
+!        v(k,1) = v(k,1) + e2 * ( v1xup + v1cup )
+!        v(k,2) = v(k,2) + e2 * ( v1xdw + v1cdw )
+!        !
+!        ! ... h contains D(rho*Exc)/D(|grad rho|) * (grad rho) / |grad rho|
+!        !
+!        DO ipol = 1, 3
+!           !
+!           grup = grho(ipol,k,1)
+!           grdw = grho(ipol,k,2)
+!           h(ipol,k,1) = e2 * ( ( v2xup + v2cup ) * grup + v2cud * grdw )
+!           h(ipol,k,2) = e2 * ( ( v2xdw + v2cdw ) * grdw + v2cud * grup )
+!           !
+!        END DO
+!        !
+!        vtxcgc = vtxcgc + &
+!                 e2 * ( v1xup + v1cup ) * ( rhoout(k,1) - rho_core(k) * fac )
+!        vtxcgc = vtxcgc + &
+!                 e2 * ( v1xdw + v1cdw ) * ( rhoout(k,2) - rho_core(k) * fac )
+!        etxcgc = etxcgc + e2 * ( sx + sc )
+!        !
+!     END DO
+!!$omp end parallel do
+     !
   END IF
   !
   !$cuf kernel do(2)
