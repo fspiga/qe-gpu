@@ -1792,7 +1792,6 @@ SUBROUTINE sum_band_gpu()
           igk_k_d(:,ik) = igk_k(:,ik) ! JR Moving this update before call to init_us_2_gpu 
           IF ( nkb > 0 ) THEN
              CALL init_us_2_gpu( npw, igk_k_d(1,ik), xk(1,ik), vkb_d )
-             vkb = vkb_d
           END IF
           !
           ! Moving out of the loop?

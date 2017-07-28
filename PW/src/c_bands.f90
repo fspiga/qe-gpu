@@ -90,7 +90,6 @@ SUBROUTINE c_bands( iter )
      IF ( nkb > 0 ) then
 #ifdef USE_CUDA
         CALL init_us_2_gpu( ngk(ik), igk_k_d(1,ik), xk(1,ik), vkb_d ) 
-        vkb = vkb_d
 #else
         CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
 #endif
@@ -513,7 +512,7 @@ CONTAINS
 #ifdef USE_CUDA                                                                       
 !#if 0                                                                                
              et_d(:,ik) = et(:,ik)                                                    
-             evc_d = evc                                                              
+             !evc_d = evc                                                              
                                                                                       
 !             h_diag_d = h_diag                                                       
 !             s_diag_d = s_diag                                                       
@@ -709,7 +708,6 @@ SUBROUTINE c_bands_nscf( )
      IF ( nkb > 0 ) then
 #ifdef USE_CUDA                                                                       
         CALL init_us_2_gpu( ngk(ik), igk_k_d(1,ik), xk(1,ik), vkb_d )
-        vkb = vkb_d
 #else
         CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
 #endif                                                                                
