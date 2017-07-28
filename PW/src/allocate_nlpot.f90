@@ -57,7 +57,7 @@ SUBROUTINE allocate_nlpot
   !
   ALLOCATE (g2kin ( npwx ) )
 #ifdef USE_CUDA
-  ALLOCATE (g2kin_d, source=g2kin)
+  ALLOCATE (g2kin_d(npwx))
 #endif
   !
   ! Note: computation of the number of beta functions for

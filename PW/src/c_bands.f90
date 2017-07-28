@@ -178,7 +178,7 @@ SUBROUTINE diag_bands( iter, ik, avg_iter )
   USE noncollin_module,     ONLY : noncolin, npol
   USE wavefunctions_module, ONLY : evc
 #ifdef USE_CUDA                                               
-  USE wvfct,                ONLY : et_d                       
+  USE wvfct,                ONLY : et_d, g2kin_d                       
   USE wavefunctions_module, ONLY : evc_d                      
   USE g_psi_mod,            ONLY : h_diag_d, s_diag_d         
 #endif
@@ -243,6 +243,9 @@ SUBROUTINE diag_bands( iter, ik, avg_iter )
   CALL allocate_bec_type ( nkb, nbnd, becp, intra_bgrp_comm )  
   call nvtxEndRange()
 
+#ifdef USE_CUDA
+     g2kin=g2kin_d  !copy kietic energy back until we move teh h_diag computation to the GPU
+#endif
   !
   npw = ngk(ik)
   IF ( gamma_only ) THEN

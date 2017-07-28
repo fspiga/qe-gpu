@@ -41,6 +41,7 @@ SUBROUTINE wfcinit()
 #ifdef USE_CUDA
   USE uspp,                 ONLY : vkb_d
   USE klist,                ONLY : igk_k_d
+  USE wvfct,                ONLY : g2kin,g2kin_d
 #endif
   !
   IMPLICIT NONE
@@ -166,6 +167,9 @@ SUBROUTINE wfcinit()
      current_k = ik
      IF ( lsda ) current_spin = isk(ik)
      call g2_kin (ik)
+#ifdef USE_CUDA
+     g2kin=g2kin_d   ! copy kinetic energy back to CPU
+#endif
      !
      ! ... More Hpsi initialization: nonlocal pseudopotential projectors |beta>
      !

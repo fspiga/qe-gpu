@@ -15,12 +15,15 @@ SUBROUTINE g2_kin ( ik )
   !
   USE kinds,                ONLY : DP
   USE cell_base,            ONLY : tpiba2 
-  USE klist,                ONLY : xk, ngk, igk_k
-  USE gvect,                ONLY : g
   USE gvecw,                ONLY : ecfixed, qcutz, q2sigma
-  USE wvfct,                ONLY : g2kin
 #ifdef USE_CUDA
-  USE wvfct,                ONLY : g2kin_d
+  USE klist,                ONLY : xk, ngk, igk_k=>igk_k_d
+  USE wvfct,                ONLY : g2kin=>g2kin_d
+  USE gvect,                ONLY : g=>g_d
+#else
+  USE klist,                ONLY : xk, ngk, igk_k
+  USE wvfct,                ONLY : g2kin
+  USE gvect,                ONLY : g
 #endif
   !
   IMPLICIT NONE
@@ -29,29 +32,57 @@ SUBROUTINE g2_kin ( ik )
   !
   ! ... local variables
   !
-  INTEGER :: ig, npw
-  REAL(DP), EXTERNAL :: qe_erf
+  INTEGER :: ig, npw,i
+  REAL(DP):: xk1,xk2,xk3
+#ifndef USE_CUDA
+  REAL(DP), EXTERNAL :: qe_erf  !we use the erf intrinsic for the GPU path and the QE erf on the cpu
+#endif
   !
   !
   npw = ngk(ik)
-  g2kin(1:npw) = ( ( xk(1,ik) + g(1,igk_k(1:npw,ik)) )**2 + &
-                   ( xk(2,ik) + g(2,igk_k(1:npw,ik)) )**2 + &
-                   ( xk(3,ik) + g(3,igk_k(1:npw,ik)) )**2 ) * tpiba2
+
+  xk1 = xk(1,ik)
+  xk2 = xk(2,ik)
+  xk3 = xk(3,ik)
+
+#ifdef USE_CUDA
+!$cuf kernel do(1) <<<*,*>>>
+#else
+!$omp parallel do
+#endif
+  do i=1,npw
+  g2kin(i) = ( ( xk1 + g(1,igk_k(i,ik)) )*( xk1 + g(1,igk_k(i,ik)) ) + &
+               ( xk2 + g(2,igk_k(i,ik)) )*( xk2 + g(2,igk_k(i,ik)) ) + &
+               ( xk3 + g(3,igk_k(i,ik)) )*( xk3 + g(3,igk_k(i,ik)) ) ) * tpiba2
   !
+  end do
+#ifndef USE_CUDA
+!$omp end parallel do
+#endif
+
   IF ( qcutz > 0.D0 ) THEN
      !
+#ifdef USE_CUDA
+!$cuf kernel do(1) <<<*,*>>>
+     DO ig = 1, npw
+        !
+        g2kin(ig) = g2kin(ig) + qcutz * &
+             ( 1.D0 + erf( ( g2kin(ig) - ecfixed ) / q2sigma ) )
+        !
+     END DO
+#else
+!$omp parallel do
      DO ig = 1, npw
         !
         g2kin(ig) = g2kin(ig) + qcutz * &
              ( 1.D0 + qe_erf( ( g2kin(ig) - ecfixed ) / q2sigma ) )
         !
      END DO
+!$omp end parallel do
+#endif
      !
   END IF
-#ifdef USE_CUDA
-  g2kin_d = g2kin
-#endif
-  !
+
   RETURN
   !
 END SUBROUTINE g2_kin
