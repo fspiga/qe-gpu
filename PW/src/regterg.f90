@@ -259,7 +259,7 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
 #ifdef USE_CUDA
   hpsi_d = ZERO
   psi_d  = ZERO
- !$cuf kernel do(3) <<<*,*>>>
+ !$cuf kernel do(2) <<<*,*>>>
   Do j=1,nvec
       Do i=lbound(psi_d,1), ubound(psi_d,1)
         psi_d(i,j) = evc_d(i,j)
@@ -305,6 +305,9 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
   vr(:,:) = ZERO
 #endif
   !
+#ifdef USE_CUDA
+  ! TODO
+#else
   CALL DGEMM( 'T', 'N', nbase, nbase, npw2, 2.D0 , &
               psi, npwx2, hpsi, npwx2, 0.D0, hr, nvecx )
   !
@@ -312,7 +315,12 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      CALL DGER( nbase, nbase, -1.D0, psi, npwx2, hpsi, npwx2, hr, nvecx )
   !
   CALL mp_sum( hr( :, 1:nbase ), intra_bgrp_comm )
+#endif
+
   !
+#ifdef USE_CUDA
+  !TODO
+#else
   IF ( uspp ) THEN
      !
      CALL DGEMM( 'T', 'N', nbase, nbase, npw2, 2.D0, &
@@ -332,20 +340,44 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
   END IF
   !
   CALL mp_sum( sr( :, 1:nbase ), intra_bgrp_comm )
+#endif
   !
   IF ( lrot ) THEN
-     !
+#ifdef USE_CUDA
+!$cuf kernel do(1) <<<*,*>>>
+     DO n = 1, nbase
+        !
+        e_d(n) = hr_d(n,n)
+        vr_d(n,n) = 1.D0
+        !
+     END DO
+#else
      DO n = 1, nbase
         !
         e(n) = hr(n,n)
         vr(n,n) = 1.D0
         !
      END DO
+#endif
      !
   ELSE
      !
      ! ... diagonalize the reduced hamiltonian
      !
+#ifdef USE_CUDA
+#ifdef CDIAG_CPU
+  hr = hr_d
+  sr = sr_d
+  IF( my_bgrp_id == root_bgrp_id ) THEN
+    CALL rdiaghg( nbase, nvec, hr, sr, nvecx, ew, vr )
+  END IF
+  IF( nbgrp > 1 ) THEN
+    CALL mp_bcast( vr, root_bgrp_id, inter_bgrp_comm )
+    CALL mp_bcast( ew, root_bgrp_id, inter_bgrp_comm )
+  ENDIF
+  ew_d = ew
+  vr_d = vr
+#else
      IF( my_bgrp_id == root_bgrp_id ) THEN
         CALL rdiaghg( nbase, nvec, hr, sr, nvecx, ew, vr )
      END IF
@@ -353,9 +385,22 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
         CALL mp_bcast( vr, root_bgrp_id, inter_bgrp_comm )
         CALL mp_bcast( ew, root_bgrp_id, inter_bgrp_comm )
      ENDIF
-
+#endif
+!$cuf kernel do(1) <<<*,*>>>
+     DO i = 1, nvec
+        e_d(i) = ew_d(i)
+     END DO
+#else
+     IF( my_bgrp_id == root_bgrp_id ) THEN
+        CALL rdiaghg( nbase, nvec, hr, sr, nvecx, ew, vr )
+     END IF
+     IF( nbgrp > 1 ) THEN
+        CALL mp_bcast( vr, root_bgrp_id, inter_bgrp_comm )
+        CALL mp_bcast( ew, root_bgrp_id, inter_bgrp_comm )
+     ENDIF
      !
      e(1:nvec) = ew(1:nvec)
+#endif
      !
   END IF
   !
@@ -369,6 +414,9 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      !
      np = 0
      !
+#ifdef USE_CUDA
+
+#else
      DO n = 1, nvec
         !
         IF ( .NOT. conv(n) ) THEN
@@ -381,7 +429,9 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
            ! ... roots come first. This allows to use quick matrix-matrix 
            ! ... multiplications to set a new basis vector (see below)
            !
-           IF ( np /= n ) vr(:,np) = vr(:,n)
+           IF ( np /= n ) THEN
+             vr(:,np) = vr(:,n)
+           ENDIF
            !
            ! ... for use in g_psi
            !
@@ -390,6 +440,7 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
         END IF
         !
      END DO
+#endif
      !
      nb1 = nbase + 1
      !
