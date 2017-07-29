@@ -1553,6 +1553,8 @@ module v_xc_gpu_spin_kernels_m
 
       ir = (blockIdx%x - 1) * blockDim%x + threadIdx%x
 
+      if (ir > nnr) return
+
       r1 = rho_of_r(ir, 1)
       rhox = r1 + rho_core(ir)
       !
@@ -1569,6 +1571,9 @@ module v_xc_gpu_spin_kernels_m
          vtxcs(ir) = v1 * r1
          v(ir,1) = v1
          !
+      ELSE
+         etxcs(ir) = 0.D0
+         vtxcs(ir) = 0.D0
       ENDIF
     end subroutine
 
@@ -1585,6 +1590,8 @@ module v_xc_gpu_spin_kernels_m
       real(DP) :: rhox, arhox, zeta, ex, ec, vx1, vx2, vc1, vc2
 
       ir = (blockIdx%x - 1) * blockDim%x + threadIdx%x
+
+      if (ir > nnr) return
       !
       rhox = rho_of_r(ir,1) + rho_of_r(ir,2) + rho_core(ir)
       !
@@ -1606,6 +1613,9 @@ module v_xc_gpu_spin_kernels_m
       
          vtxcs(ir) = ( v(ir,1)*rho_of_r(ir,1) + v(ir,2)*rho_of_r(ir,2) )
          !
+      ELSE
+         etxcs(ir) = 0.D0
+         vtxcs(ir) = 0.D0
       END IF
       !
     end subroutine

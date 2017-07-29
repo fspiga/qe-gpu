@@ -870,6 +870,8 @@ module gradcorr_gpu_kernels_m
 
       k = (blockIdx%x - 1) * blockDim%x + threadIdx%x
 
+      if (k > nnr) return
+
       r1 = rhoout(k,1)
       arho = ABS( r1 )
       !
@@ -906,6 +908,8 @@ module gradcorr_gpu_kernels_m
             h(1,k,1)=0.D0
             h(2,k,1)=0.D0
             h(3,k,1)=0.D0
+            vtxcgcs(k) = 0.D0
+            etxcgcs(k) = 0.D0
          END IF
          !
       ELSE
@@ -913,6 +917,8 @@ module gradcorr_gpu_kernels_m
          h(1,k,1) = 0.D0
          h(2,k,1) = 0.D0
          h(3,k,1) = 0.D0
+         vtxcgcs(k) = 0.D0
+         etxcgcs(k) = 0.D0
          !
       END IF
     end subroutine gradcorr_gpu_upolar
@@ -932,6 +938,8 @@ module gradcorr_gpu_kernels_m
       real(DP) :: g1(3), g2(3)
 
       k = (blockIdx%x - 1) * blockDim%x + threadIdx%x
+
+      if (k > nnr) return
 
       r1 = rhoout(k,1)
       r2 = rhoout(k,2)
