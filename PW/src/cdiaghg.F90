@@ -353,10 +353,8 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   ! ... broadcast eigenvectors and eigenvalues to all other processors
   !
 #ifdef USE_GPU
-  CALL mp_bcast( e_h(1:n), root_bgrp, intra_bgrp_comm )
-  CALL mp_bcast( v_h(1:ldh,1:m), root_bgrp, intra_bgrp_comm )
-  e(1:n) = e_h(1:n)
-  v(1:ldh,1:m) = v_h(1:ldh,1:m)
+  CALL mp_bcast( e(1:n), root_bgrp, intra_bgrp_comm )
+  CALL mp_bcast( v(1:ldh,1:m), root_bgrp, intra_bgrp_comm )
 #else
   CALL mp_bcast( e, root_bgrp, intra_bgrp_comm )
   CALL mp_bcast( v, root_bgrp, intra_bgrp_comm )
