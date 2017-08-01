@@ -528,6 +528,20 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
 #else
      CALL g_psi( npwx, npw, notcnv, 1, psi(1,nb1), ew(nb1) )
 #endif
+
+#ifdef USE_CUDA
+!TODO #if 0 case
+    DO n = 1, notcnv
+      !
+      call myDdot(npw2, psi_d(1,nbase+n), ew_temp1)
+      ew(n) = 2.D0 * ew_temp1
+      !
+      IF ( gstart == 2 ) ew(n) = ew(n) - psi_d(1,nbase+n) * psi_d(1,nbase+n)
+      !
+    END DO
+    CALL mp_sum( ew( 1:notcnv ), intra_bgrp_comm )
+    ew_d(1:notcnv) = ew(1:notcnv)
+#else
      !
      ! ... "normalize" correction vectors psi(:,nb1:nbase+notcnv) in 
      ! ... order to improve numerical stability of subspace diagonalization 
@@ -545,6 +559,9 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      !
      CALL mp_sum( ew( 1:notcnv ), intra_bgrp_comm )
      !
+#endif
+
+
      DO n = 1, notcnv
         !
         psi(:,nbase+n) = psi(:,nbase+n) / SQRT( ew(n) )
