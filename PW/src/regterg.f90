@@ -415,6 +415,7 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      np = 0
      !
 #ifdef USE_CUDA
+! Need further help to TODO:
 
 #else
      DO n = 1, nvec
@@ -446,6 +447,20 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      !
      ! ... expand the basis set with new basis vectors ( H - e*S )|psi> ...
      !
+#ifdef USE_CUDA
+     IF ( uspp ) THEN
+        !
+        CALL cublasDgemm( 'N', 'N', npw2, notcnv, nbase, 1.D0, &
+                    spsi_d, npwx2, vr_d, nvecx, 0.D0, psi_d(1,nb1), npwx2 )
+        !
+     ELSE
+        !
+        CALL cublasDgemm( 'N', 'N', npw2, notcnv, nbase, 1.D0, &
+                    psi_d, npwx2, vr_d, nvecx, 0.D0, psi_d(1,nb1), npwx2 )
+        !
+     END IF
+
+#else
      IF ( uspp ) THEN
         !
         CALL DGEMM( 'N', 'N', npw2, notcnv, nbase, 1.D0, &
@@ -457,21 +472,40 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
                     psi, npwx2, vr, nvecx, 0.D0, psi(1,nb1), npwx2 )
         !
      END IF
+#endif
      !
+#ifdef USE_CUDA
+!$cuf kernel do(2) <<<*,*>>>
+    Do i=1,notcnv
+          Do k=1,npwx
+            psi_d(k,nbase+i) = - ew_d(nbase+i)*psi_d(k,nbase+i) 
+          end do
+    end do
+#else
      DO np = 1, notcnv
         !
         psi(:,nbase+np) = - ew(nbase+np) * psi(:,nbase+np)
         !
      END DO
+#endif
      !
+#ifdef USE_CUDA
+     CALL cublasDgemm( 'N', 'N', npw2, notcnv, nbase, 1.D0, &
+                 hpsi_d, npwx2, vr_d, nvecx, 1.D0, psi_d(1,nb1), npwx2 )
+#else
      CALL DGEMM( 'N', 'N', npw2, notcnv, nbase, 1.D0, &
                  hpsi, npwx2, vr, nvecx, 1.D0, psi(1,nb1), npwx2 )
+#endif
      !
      CALL stop_clock( 'regterg:update' )
      !
      ! ... approximate inverse iteration
      !
+#ifdef USE_CUDA
+     CALL g_psi_gpu( npwx, npw, notcnv, 1, psi_d(1,nb1), ew_d(nb1) )
+#else
      CALL g_psi( npwx, npw, notcnv, 1, psi(1,nb1), ew(nb1) )
+#endif
      !
      ! ... "normalize" correction vectors psi(:,nb1:nbase+notcnv) in 
      ! ... order to improve numerical stability of subspace diagonalization 
