@@ -8,6 +8,28 @@
 #define ZERO ( 0.D0, 0.D0 )
 #define ONE  ( 1.D0, 0.D0 )
 !
+#ifdef USE_CUDA
+SUBROUTINE myDdot( n, A, res )
+  !
+  use kinds, ONLY : DP
+  use cudafor
+  use cublas
+  !
+  IMPLICIT NONE
+  !
+  INTEGER, INTENT(IN) :: n
+  !
+!!!!!pgi$ ignore_tkr A
+  REAL(DP), DEVICE, INTENT(IN) :: A(n)
+  !
+  REAL(DP), INTENT(OUT) :: res
+  !
+  res = cublasDdot( n, A, 1, A, 1 )
+  !
+  return
+  !
+END SUBROUTINE myDdot
+#endif
 !
 !----------------------------------------------------------------------------
 #ifdef USE_CUDA
