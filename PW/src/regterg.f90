@@ -561,7 +561,19 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      !
 #endif
 
+#ifdef USE_CUDA
+!$cuf kernel do(1) <<<*,*>>>
+     DO i = 1, notcnv
+      DO j = 1, npwx
+          !
+          psi_d(j,nbase+i) = psi_d(j,nbase+i) / SQRT( ew_d(i) )
+      END DO
+      ! ... set Im[ psi(G=0) ] -  needed for numerical stability
+      IF ( gstart == 2 ) psi_d(1,nbase+i) = CMPLX( DBLE(psi_d(1,nbase+i)), 0.D0 ,kind=DP)
+      !
+     END DO
 
+#else
      DO n = 1, notcnv
         !
         psi(:,nbase+n) = psi(:,nbase+n) / SQRT( ew(n) )
@@ -569,6 +581,7 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
         IF ( gstart == 2 ) psi(1,nbase+n) = CMPLX( DBLE(psi(1,nbase+n)), 0.D0 ,kind=DP)
         !
      END DO
+#endif
      !
      ! ... here compute the hpsi and spsi of the new functions
      !
