@@ -21,7 +21,7 @@
 
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 
-# See include/defs.h.README for a list of options and their meaning
+# See install/README.DFLAGS for a list of options and their meaning
 DFLAGS         =  -D__OPENMP -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
