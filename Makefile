@@ -213,8 +213,6 @@ clean :
 veryclean : clean
 	- @(cd install ; $(MAKE) -f extlibs_makefile veryclean)
 	- rm -rf install/patch-plumed
-	- cd install ; rm -f CPV/version.h ChangeLog* intel.pcl */intel.pcl
-	- cd install; ./clean.sh ; cd -
 	- rm -f espresso.tar.gz
 #	- rm -rf make.inc
 
