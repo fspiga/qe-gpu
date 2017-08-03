@@ -212,7 +212,7 @@
    END SUBROUTINE cft_1z_cpu
 
 #ifdef USE_CUDA
-   SUBROUTINE cft_1z_gpu(c, nsl, nz, ldz, isign, cout)
+   SUBROUTINE cft_1z_gpu(c, nsl, nz, ldz, isign, cout, stream_in)
 
 !     driver routine for nsl 1d complex fft's of length nz
 !     ldz >= nz is the distance between sequences to be transformed
@@ -229,6 +229,8 @@
 
      INTEGER, INTENT(IN) :: isign
      INTEGER, INTENT(IN) :: nsl, nz, ldz
+     INTEGER(kind = cuda_stream_kind), INTENT(IN), optional :: stream_in
+     INTEGER(kind = cuda_stream_kind) :: stream
 
      COMPLEX (DP), DEVICE :: c(:), cout(:)
 
@@ -275,6 +277,13 @@
      !
      !   Now perform the FFTs using machine specific drivers
      !
+     IF( present( stream_in ) ) THEN
+       stream = stream_in
+     ELSE
+       stream = 0
+     ENDIF
+
+     istat = cufftSetStream(cufft_planz(ip), stream)
 
 #if defined(__FFT_CLOCKS)
      CALL start_clock( 'GPU_cft_1z' )
@@ -285,7 +294,7 @@
         !call flush(6)
         istat = cufftExecZ2Z( cufft_planz( ip), c(1), c(1), CUFFT_FORWARD )
         tscale = 1.0_DP / nz
-!$cuf kernel do(1) <<<*,*>>>
+!$cuf kernel do(1) <<<*,*,0,stream>>>
         DO i=1, ldz * nsl
            cout( i ) = c( i ) * tscale
         END DO
@@ -610,7 +619,7 @@
    END SUBROUTINE cft_2xy_cpu
 
 #ifdef USE_CUDA
-   SUBROUTINE cft_2xy_gpu(r, temp, nzl, nx, ny, ldx, ldy, isign, pl2ix)
+   SUBROUTINE cft_2xy_gpu(r, temp, nzl, nx, ny, ldx, ldy, isign, pl2ix, stream_in)
 
 !     driver routine for nzl 2d complex fft's of lengths nx and ny
 !     input : r(ldx*ldy)  complex, transform is in-place
@@ -628,6 +637,8 @@
 
      INTEGER, INTENT(IN) :: isign, ldx, ldy, nx, ny, nzl
      INTEGER, OPTIONAL, INTENT(IN) :: pl2ix(:)
+     INTEGER(kind = cuda_stream_kind), INTENT(IN), optional :: stream_in
+     INTEGER(kind = cuda_stream_kind) :: stream
 !pgi$ ignore_tkr r, temp
      COMPLEX (DP), DEVICE :: r(ldx,ldy,nzl), temp(ldy,nzl,ldx)
      INTEGER :: i, k, j, err, idir, ip, kk, void, istat
@@ -696,6 +707,19 @@
        CALL init_plan()
 
      END IF
+     IF( present( stream_in ) ) THEN
+       stream = stream_in
+     ELSE
+       stream = 0
+     ENDIF
+
+#if defined __FFTW_ALL_XY_PLANES
+     istat = cufftSetStream(cufft_plan_2d(ip), stream)
+#else
+     istat = cufftSetStream(cufft_plan_x(ip), stream)
+     istat = cufftSetStream(cufft_plan_y(1,ip), stream)
+     istat = cufftSetStream(cufft_plan_y(2,ip), stream)
+#endif
 
      !
      !   Now perform the FFTs using machine specific drivers
@@ -718,7 +742,7 @@
         istat = cufftExecZ2Z( cufft_plan_x(ip), r(1,1,1), r(1,1,1), CUFFT_FORWARD )
         if(istat) print *,"error in fftxy fftx istat = ",istat
 
-!$cuf kernel do(3) <<<*,(16,16,1)>>>
+!$cuf kernel do(3) <<<*,(16,16,1), 0, stream>>>
         DO k=1, nzl
            DO i=1, ldx 
               DO j=1, ldy
@@ -738,7 +762,7 @@
            if(istat) print *,"error in fftxy ffty batch_2 istat = ",istat
         end if
 
-!$cuf kernel do(3) <<<*,(16,16,1)>>>
+!$cuf kernel do(3) <<<*,(16,16,1), 0, stream>>>
         DO k=1, nzl
            DO j=1, ldy
              DO i=1, ldx
@@ -749,7 +773,7 @@
 #endif
 
 #if 0
-!$cuf kernel do(1) <<<*,*>>>
+!$cuf kernel do(1) <<<*,*, 0, stream>>>
         DO i=1, ldx * ldy * nzl
            r( i ) = r( i ) * tscale
         END DO
@@ -762,7 +786,7 @@
 #if defined __FFTW_ALL_XY_PLANES
         istat = cufftExecZ2Z( cufft_plan_2d(ip), r(1,1,1), r(1,1,1), CUFFT_INVERSE )
 #else
-!$cuf kernel do(3) <<<*,(16,16,1)>>>
+!$cuf kernel do(3) <<<*,(16,16,1), 0, stream>>>
         DO k=1, nzl
            DO i=1, ldx
               DO j=1, ldy
@@ -781,7 +805,7 @@
            if(istat) print *,"error in fftxy ffty batch_2 istat = ",istat
         end if
 
-!$cuf kernel do(3) <<<*,(16,16,1)>>>
+!$cuf kernel do(3) <<<*,(16,16,1), 0, stream>>>
         DO k=1, nzl
            DO j=1, ldy
              DO i=1, ldx

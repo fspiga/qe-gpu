@@ -1234,7 +1234,7 @@ SUBROUTINE sum_band_gpu()
   USE cell_base,            ONLY : at, bg, omega, tpiba
   USE ions_base,            ONLY : nat, ntyp => nsp, ityp
   USE fft_base,             ONLY : dfftp, dffts, dtgs
-  USE fft_interfaces,       ONLY : fwfft, invfft
+  USE fft_interfaces,       ONLY : fwfft, invfft, invfft_batch
   USE gvect,                ONLY : ngm, g, nl, nlm
   USE gvecs,                ONLY : nls, nlsm, doublegrid
   USE klist,                ONLY : nks, nkstot, wk, xk, ngk, igk_k
@@ -1247,7 +1247,7 @@ SUBROUTINE sum_band_gpu()
   USE buffers,              ONLY : get_buffer
   USE uspp,                 ONLY : nkb, vkb, becsum, nhtol, nhtoj, indv, okvan
   USE uspp_param,           ONLY : upf, nh, nhm
-  USE wavefunctions_module, ONLY : evc, psic, psic_nc
+  USE wavefunctions_module, ONLY : evc, psic, psic_batch, psic_nc
   USE noncollin_module,     ONLY : noncolin, npol, nspin_mag
   USE spin_orb,             ONLY : lspinorb, domag, fcoef
   USE wvfct,                ONLY : nbnd, npwx, wg, et, btype
@@ -1263,7 +1263,7 @@ SUBROUTINE sum_band_gpu()
   ! GPU data structures
   USE cudafor
   USE uspp,                  ONLY: vkb_d, becsum_d
-  USE wavefunctions_module,  ONLY: psic_d, evc_d
+  USE wavefunctions_module,  ONLY: psic_d, psic_batch_d, evc_d
   USE gvecs, ONLY : nls_d
   USE wvfct, ONLY : wg_d
   USE klist, ONLY : igk_k_d
@@ -1743,6 +1743,7 @@ SUBROUTINE sum_band_gpu()
        INTEGER  :: idx, ioff, incr, v_siz, j
        COMPLEX(DP), ALLOCATABLE :: tg_psi(:), tg_psi_nc(:,:)
        REAL(DP),    ALLOCATABLE :: tg_rho(:), tg_rho_nc(:,:)
+       INTEGER :: currsize, i
        LOGICAL  :: use_tg
        !
        nls_d = nls
@@ -1799,7 +1800,9 @@ SUBROUTINE sum_band_gpu()
           !
           ! ... here we compute the band energy: the sum of the eigenvalues
           !
-          DO ibnd = ibnd_start, ibnd_end, incr
+          !DO ibnd = ibnd_start, ibnd_end, incr
+          DO ibnd = ibnd_start, ibnd_end, dffts%batchsize
+             currsize = min(dffts%batchsize, ibnd_end - ibnd + 1)
              !
              IF( use_tg ) THEN
                 DO idx = 1, dtgs%nogrp
@@ -1807,7 +1810,9 @@ SUBROUTINE sum_band_gpu()
                 END DO
              ELSE
 !TODO: consider moving to GPU
-                eband = eband + et( ibnd, ik ) * wg( ibnd, ik )
+                DO i = 0, currsize-1
+                  eband = eband + et( ibnd+i, ik ) * wg( ibnd+i, ik )
+                ENDDO
              END IF
              !
              ! ... the sum of eband and demet is the integral for e < ef of
@@ -1958,17 +1963,24 @@ SUBROUTINE sum_band_gpu()
                    !
                 ELSE
                    !
-                   psic_d(:) = (0.d0, 0.d0)
+                   psic_batch_d(:) = (0.d0, 0.d0)
                    !
-!$cuf kernel do(1) <<<*,*>>>
+!!$cuf kernel do(1) <<<*,*>>>
+!$cuf kernel do(2) <<<*,*>>>
+                   DO i = 0, currsize - 1
                    DO j = 1, npw
-                     psic_d( nls_d( igk_k_d(j,ik) ) ) = evc_d( j, ibnd )
+                     psic_batch_d( nls_d( igk_k_d(j,ik) ) + i*dffts%nnr ) = evc_d( j, ibnd + i )
                    ENDDO                   !
-                   CALL invfft ('Wave', psic_d, dffts)
+                   ENDDO
+                   !CALL invfft ('Wave', psic_d, dffts)
+                   CALL invfft_batch ('Wave', psic_batch_d, dffts, currsize)
                    !
                    ! ... increment the charge density ...
                    !
-                   CALL get_rho_gpu(rho%of_r_d(:,current_spin), dffts%nnr, w1, psic_d)
+                   DO i = 0, currsize - 1
+                     w1 = wg(ibnd+i,ik) / omega
+                     CALL get_rho_gpu(rho%of_r_d(:,current_spin), dffts%nnr, w1, psic_batch_d(i*dffts%nnr+1:))
+                   ENDDO
 
                 END IF
                 !

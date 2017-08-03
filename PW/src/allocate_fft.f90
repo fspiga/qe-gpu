@@ -27,10 +27,10 @@ SUBROUTINE allocate_fft
   USE control_flags, ONLY : gamma_only
   USE noncollin_module, ONLY : pointlist, factlist, r_loc, &
       report, i_cons, noncolin, npol
-  USE wavefunctions_module, ONLY : psic, psic_nc
+  USE wavefunctions_module, ONLY : psic, psic_nc, psic_batch
   USE funct,     ONLY: dft_is_meta
 #ifdef USE_CUDA                                               
-  USE wavefunctions_module, ONLY : psic_d                     
+  USE wavefunctions_module, ONLY : psic_d, psic_batch_d                     
   USE scf,        ONLY : vltot_d, vrs_d, rho_core_d, rhog_core_d
 #endif     
   IMPLICIT NONE
@@ -69,10 +69,12 @@ SUBROUTINE allocate_fft
   ENDIF
   ALLOCATE( rhog_core( ngm ) )
   ALLOCATE (psic( dfftp%nnr))
+  ALLOCATE (psic_batch(dfftp%batchsize*dfftp%nnr))
   ALLOCATE (vrs( dfftp%nnr, nspin))
 
 #ifdef USE_CUDA                                               
   ALLOCATE (psic_d, source=psic)                              
+  ALLOCATE (psic_batch_d, source=psic_batch)                              
   ALLOCATE (vltot_d( dfftp%nnr))                              
   ALLOCATE (rho_core_d( dfftp%nnr))                           
   ALLOCATE (rhog_core_d( ngm ) )                              

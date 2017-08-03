@@ -40,6 +40,13 @@ MODULE fft_parallel
 #endif
    END INTERFACE
 
+   INTERFACE tg_cft3s_batch
+      !MODULE PROCEDURE tg_cft3s_cpu
+#ifdef USE_CUDA
+      MODULE PROCEDURE tg_cft3s_gpu_batch
+#endif
+   END INTERFACE
+
 !
 CONTAINS
 !
@@ -532,6 +539,337 @@ CONTAINS
   END SUBROUTINE bw_scatter
   !
 END SUBROUTINE tg_cft3s_gpu
+
+SUBROUTINE tg_cft3s_gpu_batch( f_d, dfft, isgn, batchsize )
+  !----------------------------------------------------------------------------
+  !
+  !! ... isgn = +-1 : parallel 3d fft for rho and for the potential
+  !                  NOT IMPLEMENTED WITH TASK GROUPS
+  !! ... isgn = +-2 : parallel 3d fft for wavefunctions
+  !
+  !! ... isgn = +   : G-space to R-space, output = \sum_G f(G)exp(+iG*R)
+  !! ...              fft along z using pencils        (cft_1z)
+  !! ...              transpose across nodes           (fft_scatter)
+  !! ...                 and reorder
+  ! ...              fft along y (using planes) and x (cft_2xy)
+  ! ... isgn = -   : R-space to G-space, output = \int_R f(R)exp(-iG*R)/Omega
+  ! ...              fft along x and y(using planes)  (cft_2xy)
+  ! ...              transpose across nodes           (fft_scatter)
+  ! ...                 and reorder
+  ! ...              fft along z using pencils        (cft_1z)
+  !
+  ! ...  The array "planes" signals whether a fft is needed along y :
+  ! ...    planes(i)=0 : column f(i,*,*) empty , don't do fft along y
+  ! ...    planes(i)=1 : column f(i,*,*) filled, fft along y needed
+  ! ...  "empty" = no active components are present in f(i,*,*)
+  ! ...            after (isgn>0) or before (isgn<0) the fft on z direction
+  !
+  ! ...  Note that if isgn=+/-1 (fft on rho and pot.) all fft's are needed
+  ! ...  and all planes(i) are set to 1
+  !
+  ! This driver is based on code written by Stefano de Gironcoli for PWSCF.
+  ! Task Group added by Costas Bekas, Oct. 2005, adapted from the CPMD code
+  ! (Alessandro Curioni) and revised by Carlo Cavazzoni 2007.
+  !
+  USE fft_scalar, ONLY : cft_1z, cft_2xy
+  USE scatter_mod,   ONLY : fft_scatter, fft_scatter_batch_a, fft_scatter_batch_b
+  USE fft_types,  ONLY : fft_type_descriptor
+  USE task_groups,    ONLY : task_groups_descriptor
+
+  !
+  IMPLICIT NONE
+  !
+  TYPE (fft_type_descriptor), INTENT(in) :: dfft
+                                           ! descriptor of fft data layout
+  INTEGER, INTENT(in)           :: isgn    ! fft direction
+  INTEGER, INTENT(in)           :: batchsize   
+  INTEGER, parameter            :: subbatchsize = 4
+  COMPLEX(DP), DEVICE, INTENT(inout)    :: f_d( batchsize * dfft%nnr ) ! array containing data to be transformed
+  !TYPE (task_groups_descriptor), OPTIONAL, INTENT(in) :: dtgs
+                                           ! specify if you want to use task groups parallelization
+  !
+  INTEGER                    :: me_p, istat, i, j, currsize
+  INTEGER                    :: n1, n2, n3, nx1, nx2, nx3, ncpx, proc
+  COMPLEX(DP), ALLOCATABLE   :: yf(:)
+  INTEGER                    :: planes( dfft%nr1x )
+  LOGICAL                    :: use_tg
+  !
+  !
+  !IF( present( dtgs ) ) THEN
+  !   use_tg = dtgs%have_task_groups
+  !ELSE
+     use_tg = .false.
+  !ENDIF
+  !
+  n1  = dfft%nr1
+  n2  = dfft%nr2
+  n3  = dfft%nr3
+  nx1 = dfft%nr1x
+  nx2 = dfft%nr2x
+  nx3 = dfft%nr3x
+  !
+  !IF( use_tg ) THEN
+  !   STOP ! [TASK-GROUP NOT SUPPORTED]
+     !ALLOCATE( aux( dtgs%nogrp * dtgs%tg_nnr ) )
+     !ALLOCATE( YF ( dtgs%nogrp * dtgs%tg_nnr ) )
+  !ELSE
+     IF( ALLOCATED( f_h   ) .and. SIZE( f_h   ) < batchsize * dfft%nnr ) DEALLOCATE( f_h   )
+     IF( ALLOCATED( aux_h ) .and. SIZE( aux_h ) < batchsize * dfft%nnr ) DEALLOCATE( aux_h )
+     IF( ALLOCATED( aux_d ) .and. SIZE( aux_d ) < batchsize * dfft%nnr ) DEALLOCATE( aux_d )
+
+     IF( .not. ALLOCATED( f_h   ) ) ALLOCATE( f_h  ( batchsize * dfft%nnr ) )
+     IF( .not. ALLOCATED( aux_h ) ) ALLOCATE( aux_h( batchsize * dfft%nnr ) )
+     IF( .not. ALLOCATED( aux_d ) ) ALLOCATE( aux_d( batchsize * dfft%nnr ) )
+  !ENDIF
+  !
+  me_p = dfft%mype + 1
+  !
+  IF ( isgn > 0 ) THEN
+     do j = 0, batchsize-1, subbatchsize
+     currsize = min(subbatchsize, batchsize - j + 1)
+     !
+     IF ( isgn /= 2 ) THEN
+        !
+        IF( use_tg ) &
+           CALL fftx_error__( ' tg_cft3s ', ' task groups on large mesh not implemented ', 1 )
+        !
+        CALL cft_1z( f_d, dfft%nsp( me_p ), n3, nx3, isgn, aux_d )
+        !
+        planes = dfft%iplp
+        !
+     ELSE
+        !
+        IF( use_tg ) THEN
+           STOP ! [TASK-GROUP NOT SUPPORTED
+           !CALL pack_group_sticks( f, yf, dtgs )
+           !CALL cft_1z( yf, dtgs%tg_nsw( me_p ), n3, nx3, isgn, aux )
+        ELSE
+           ncpx = 0
+           DO proc = 1, dfft%nproc
+              ncpx = max( ncpx, dfft%nsw ( proc ) )
+           ENDDO
+
+           !DO i = 0, batchsize-1
+           DO i = 0, currsize - 1
+             !CALL cft_1z( f_d(i*dfft%nnr + 1:), dfft%nsw( me_p ), n3, nx3, isgn, aux_d(i*dfft%nnr + 1:) )
+             CALL cft_1z( f_d((j+i)*dfft%nnr + 1:), dfft%nsw( me_p ), n3, nx3, isgn, aux_d(j*dfft%nnr + i*ncpx*nx3 + 1:), dfft%bstreams(j/subbatchsize + 1) )
+           ENDDO
+
+        ENDIF
+        !
+        planes = dfft%iplw
+        !
+     ENDIF
+       !CALL fft_scatter_batch_a( dfft, aux_d, aux_h, nx3, dfft%nnr, f_d, f_h, dfft%nsw, dfft%npp, isgn, batchsize, 1 )
+       CALL fft_scatter_batch_a( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+       f_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/subbatchsize + 1 )
+     end do
+     !i = cudaDeviceSynchronize()
+
+     do j = 0, batchsize-1, subbatchsize
+       currsize = min(subbatchsize, batchsize - j + 1)
+       !CALL fft_scatter_batch_a( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+       !f_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/subbatchsize+1 )
+       CALL fft_scatter_batch_b( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+       f_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/subbatchsize + 1 )
+       CALL cft_2xy( f_d(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), currsize*dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes, &
+       dfft%bstreams(j/subbatchsize + 1) )
+     enddo
+     i = cudaDeviceSynchronize()
+     !
+     !CALL fw_scatter( isgn ) ! forward scatter from stick to planes
+     !
+     !IF( use_tg ) THEN
+     !   STOP ! [TASK-GROUP NOT SUPPORTED
+     !   !CALL cft_2xy( f, dtgs%tg_npp( me_p ), n1, n2, nx1, nx2, isgn, planes )
+     !ELSE
+     !   !DO i = 0, batchsize-1
+     !   !  CALL cft_2xy( f_d(i*dfft%nnr + 1:), aux_d(i*dfft%nnr + 1:), dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes )
+     !   !ENDDO
+     !do j = 0, batchsize-1, subbatchsize
+     !currsize = min(subbatchsize, batchsize - j + 1)
+     !     CALL cft_2xy( f_d(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), currsize*dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes )
+     !enddo
+     !ENDIF
+     !
+  ELSE
+     i = cudaDeviceSynchronize()
+     do j = 0, batchsize-1, subbatchsize
+     currsize = min(subbatchsize, batchsize - j + 1)
+     !
+     IF ( isgn /= -2 ) THEN
+        !
+        IF( use_tg ) &
+           CALL fftx_error__( ' tg_cft3s ', ' task groups on large mesh not implemented ', 1 )
+        !
+        planes = dfft%iplp
+        !
+     ELSE
+        !
+        planes = dfft%iplw
+        !
+     ENDIF
+
+     IF( use_tg ) THEN
+        STOP ! [TASKG-GROUP NOT IMPLEMENTED]
+        !CALL cft_2xy( f, dtgs%tg_npp( me_p ), n1, n2, nx1, nx2, isgn, planes )
+     ELSE
+        !DO i = 0, batchsize-1
+        !  CALL cft_2xy( f_d(i*dfft%nnr + 1:), aux_d(i*dfft%nnr + 1:), dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes)
+        !ENDDO
+        !CALL cft_2xy( f_d, aux_d, batchsize*dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes)
+       CALL cft_2xy( f_d(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), currsize*dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes, &
+       dfft%bstreams(j/subbatchsize + 1) )
+       i = cudaStreamSynchronize(dfft%bstreams(j/subbatchsize + 1))
+     ENDIF
+
+       CALL fft_scatter_batch_a( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+       f_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/subbatchsize + 1 )
+     end do
+
+     do j = 0, batchsize-1, subbatchsize
+       currsize = min(subbatchsize, batchsize - j + 1)
+       CALL fft_scatter_batch_b( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+       f_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/subbatchsize + 1 )
+
+       ncpx = 0
+       DO proc = 1, dfft%nproc
+          ncpx = max( ncpx, dfft%nsw ( proc ) )
+       ENDDO
+
+       !DO i = 0, batchsize-1
+       DO i = 0, currsize - 1
+         CALL cft_1z( aux_d(j*dfft%nnr + i*ncpx*nx3 + 1:), dfft%nsw( me_p ), n3, nx3, isgn, f_d((j+i)*dfft%nnr + 1:), dfft%bstreams(j/subbatchsize + 1) )
+       ENDDO
+     end do
+     i = cudaDeviceSynchronize()
+
+     !!
+     !CALL bw_scatter( isgn )
+     !i = cudaDeviceSynchronize()
+     !!
+     !!f_d = (0.d0, 0.d0)
+     !!
+     !IF ( isgn /= -2 ) THEN
+     !   !
+     !   CALL cft_1z( aux_d, dfft%nsp( me_p ), n3, nx3, isgn, f_d )
+     !    !
+     !ELSE
+     !   !
+     !   IF( use_tg ) THEN
+     !      STOP ! [TASK-GROUP NOT IMPLEMENTED]
+     !      !CALL cft_1z( aux, dtgs%tg_nsw( me_p ), n3, nx3, isgn, yf )
+     !      !CALL unpack_group_sticks( yf, f, dtgs )
+     !   ELSE
+     !      ncpx = 0
+     !      DO proc = 1, dfft%nproc
+     !         ncpx = max( ncpx, dfft%nsw ( proc ) )
+     !      ENDDO
+
+     !      DO i = 0, batchsize-1
+     !        !CALL cft_1z( aux_d(i*dfft%nnr + 1:), dfft%nsw( me_p ), n3, nx3, isgn, f_d(i*dfft%nnr + 1:))
+     !        CALL cft_1z( aux_d(i*ncpx*nx3 + 1:), dfft%nsw( me_p ), n3, nx3, isgn, f_d(i*dfft%nnr + 1:))
+     !      ENDDO
+     !   ENDIF
+     !   !
+     !ENDIF
+     !
+  ENDIF
+  !
+  IF( use_tg ) THEN
+     DEALLOCATE( yf )
+  ENDIF
+  !
+  RETURN
+  !
+CONTAINS
+  !
+  SUBROUTINE fw_scatter( iopt )
+
+        !Transpose data for the 2-D FFT on the x-y plane
+        !
+        !NOGRP*dfft%nnr: The length of aux and f
+        !nr3x: The length of each Z-stick
+        !aux: input - output
+        !f: working space
+        !isgn: type of scatter
+        !dfft%nsw(me) holds the number of Z-sticks proc. me has.
+        !dfft%npp: number of planes per processor
+        !
+     !
+     USE scatter_mod, ONLY: fft_scatter_batch, fft_scatter_batch_a, fft_scatter_batch_b
+     !
+     INTEGER, INTENT(in) :: iopt
+     INTEGER :: srh(2*dfft%nproc)
+     !
+     IF( iopt == 2 ) THEN
+        !
+        IF( use_tg ) THEN
+           !
+           STOP ! [TASK-GROUPS NOT IMPLEMENTED]
+           !CALL fft_scatter( dfft, aux, nx3, dtgs%nogrp*dtgs%tg_nnr, f, dtgs%tg_nsw, dtgs%tg_npp, iopt, dtgs )
+           !
+        ELSE
+           !
+           !CALL fft_scatter_batch( dfft, aux_d, aux_h, nx3, dfft%nnr, f_d, f_h, dfft%nsw, dfft%npp, iopt, batchsize, srh )
+           CALL fft_scatter_batch_a( dfft, aux_d, aux_h, nx3, dfft%nnr, f_d, f_h, dfft%nsw, dfft%npp, iopt, batchsize, 1 )
+           CALL fft_scatter_batch_b( dfft, aux_d, aux_h, nx3, dfft%nnr, f_d, f_h, dfft%nsw, dfft%npp, iopt, batchsize, 1 )
+           !DO i = 0, batchsize-1
+           !  !CALL fft_scatter( dfft, aux_d(i*dfft%nnr + 1:), aux_h(i*dfft%nnr + 1:), nx3, dfft%nnr, f_d(i*dfft%nnr + 1:), f_h(i*dfft%nnr + 1:), dfft%nsw, dfft%npp, iopt )
+           !  CALL fft_scatter_batch( dfft, aux_d(i*dfft%nnr + 1:), aux_h(i*dfft%nnr + 1:), nx3, dfft%nnr, f_d(i*dfft%nnr + 1:), f_h(i*dfft%nnr + 1:), dfft%nsw, dfft%npp, iopt, 1 )
+           !!  !CALL fft_scatter_batch( dfft, aux_d(i*dfft%nnr + 1:), aux_h(i*dfft%nnr + 1:), nx3, dfft%nnr, f_d(i*dfft%nnr + 1:), f_h(i*dfft%nnr + 1:), dfft%nsw, dfft%npp, iopt, batchsize )
+           !END DO
+           !
+        ENDIF
+        !
+     ELSEIF( iopt == 1 ) THEN
+        !
+        CALL fft_scatter_batch( dfft, aux_d, aux_h, nx3, dfft%nnr, f_d, f_h, dfft%nsp, dfft%npp, iopt, batchsize, dfft%srh(:,1))
+        !
+     ENDIF
+     !
+     RETURN
+  END SUBROUTINE fw_scatter
+
+  !
+
+  SUBROUTINE bw_scatter( iopt )
+     !
+     USE scatter_mod, ONLY: fft_scatter_batch, fft_scatter_batch_a, fft_scatter_batch_b
+     !
+     INTEGER, INTENT(in) :: iopt
+     !
+     IF( iopt == -2 ) THEN
+        !
+        IF( use_tg ) THEN
+           !
+           STOP ! [TASK-GROUPS NOT IMPLEMENTED]
+           !CALL fft_scatter( dfft, aux, nx3, dtgs%nogrp*dtgs%tg_nnr, f_d, dtgs%tg_nsw, dtgs%tg_npp, iopt, dtgs )
+           !
+        ELSE
+           !
+           !CALL fft_scatter_batch( dfft, aux_d, aux_h, nx3, dfft%nnr, f_d, f_h, dfft%nsw, dfft%npp, iopt, batchsize, dfft%srh(:,1) )
+           CALL fft_scatter_batch_a( dfft, aux_d, aux_h, nx3, dfft%nnr, f_d, f_h, dfft%nsw, dfft%npp, iopt, batchsize, 1 )
+           i = cudaDeviceSynchronize()
+           CALL fft_scatter_batch_b( dfft, aux_d, aux_h, nx3, dfft%nnr, f_d, f_h, dfft%nsw, dfft%npp, iopt, batchsize, 1 )
+           i = cudaDeviceSynchronize()
+           !DO i = 0, batchsize-1
+           !  !CALL fft_scatter_batch( dfft, aux_d(i*dfft%nnr + 1:), aux_h(i*dfft%nnr + 1:), nx3, dfft%nnr, f_d(i*dfft%nnr + 1:), f_h(i*dfft%nnr + 1:), dfft%nsw, dfft%npp, iopt, batchsize )
+           !  CALL fft_scatter( dfft, aux_d(i*dfft%nnr + 1:), aux_h(i*dfft%nnr + 1:), nx3, dfft%nnr, f_d(i*dfft%nnr + 1:), f_h(i*dfft%nnr + 1:), dfft%nsw, dfft%npp, iopt )
+           !END DO
+           !
+        ENDIF
+        !
+     ELSEIF( iopt == -1 ) THEN
+        !
+        CALL fft_scatter_batch( dfft, aux_d, aux_h, nx3, dfft%nnr, f_d, f_h, dfft%nsp, dfft%npp, iopt, batchsize , dfft%srh(:,1) )
+        !
+     ENDIF
+     !
+     RETURN
+  END SUBROUTINE bw_scatter
+  !
+END SUBROUTINE tg_cft3s_gpu_batch
 #endif
 !
 !----------------------------------------------------------------------------
