@@ -2679,21 +2679,16 @@ SUBROUTINE fft_scatter_gpu_batch ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_au
 
 END SUBROUTINE fft_scatter_gpu_batch
 
-SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp_, npp_, isgn, batchsize, batch_id, dtgs )
+SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp_, npp_, isgn, batchsize, batch_id )
   !
   USE cudafor
   IMPLICIT NONE
   !
   TYPE (fft_type_descriptor), TARGET, INTENT(in) :: dfft
   INTEGER, INTENT(in)           :: nr3x, nxx_, isgn, ncp_ (:), npp_ (:)
-  !COMPLEX (DP), DEVICE, INTENT(inout)   :: f_in_d (nxx_), f_aux_d (nxx_)
-  !COMPLEX (DP), INTENT(inout)   :: f_in (nxx_), f_aux (nxx_)
   COMPLEX (DP), DEVICE, INTENT(inout)   :: f_in_d (batchsize * nxx_), f_aux_d (batchsize * nxx_)
   COMPLEX (DP), INTENT(inout)   :: f_in (batchsize * nxx_), f_aux (batchsize * nxx_)
-  TYPE (task_groups_descriptor), OPTIONAL, INTENT(in) :: dtgs
   INTEGER, INTENT(IN) :: batchsize, batch_id
-  !INTEGER, INTENT(INOUT) :: srh(2*dfft%nproc)
-!  COMPLEX (DP), allocatable, pinned :: f_in (:), f_aux (:)
   INTEGER :: cuf_i, cuf_j, nswip
   INTEGER :: istat
   INTEGER, POINTER, DEVICE :: p_ismap_d(:)
@@ -2714,64 +2709,29 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 
   p_ismap_d => dfft%ismap_d
 
-  !  Task Groups
-  use_tg_ = .false.
-
-  IF( present( dtgs ) ) use_tg_ = .true.
 
   me     = dfft%mype + 1
   !
-  IF( use_tg_ ) THEN
-    !  This is the number of procs. in the plane-wave group
-     nprocp = dtgs%npgrp
-  ELSE
-     nprocp = dfft%nproc
-  ENDIF
+
+  nprocp = dfft%nproc
   !
   !CALL start_clock ('fft_scatter')
   !istat = cudaDeviceSynchronize()
   !
-!#ifdef EPA2A
-  ALLOCATE( offset_proc( nprocp ), kdest_proc( nprocp ), kfrom_proc( nprocp ) )
-!#endif
   ncpx = 0
   nppx = 0
-  IF( use_tg_ ) THEN
-     ncpx   = dtgs%tg_ncpx
-     nppx   = dtgs%tg_nppx
-     gcomm  = dtgs%pgrp_comm
-  ELSE
-     DO proc = 1, nprocp
-        ncpx = max( ncpx, ncp_ ( proc ) )
-        nppx = max( nppx, npp_ ( proc ) )
-     ENDDO
-     IF ( dfft%nproc == 1 ) THEN
-        nppx = dfft%nr3x
-     END IF
-  ENDIF
-  !sendsiz = ncpx * nppx
+  DO proc = 1, nprocp
+     ncpx = max( ncpx, ncp_ ( proc ) )
+     nppx = max( nppx, npp_ ( proc ) )
+  ENDDO
+  IF ( dfft%nproc == 1 ) THEN
+     nppx = dfft%nr3x
+  END IF
   sendsiz = batchsize * ncpx * nppx
 
   !
-!#ifdef EPA2A
-     offset = 0
-
-     DO proc = 1, nprocp
-        IF( use_tg_ ) THEN
-           gproc = dtgs%nplist(proc)+1
-        ELSE
-           gproc = proc
-        ENDIF
-        !
-        offset_proc( proc ) = offset
-        kdest_proc( proc ) = ( proc - 1 ) * sendsiz
-        kfrom_proc( proc ) = offset
-        !
-        offset = offset + npp_ ( gproc )
-     ENDDO
-!#endif
-
   ierr = 0
+
   IF (isgn.gt.0) THEN
 
      IF (nprocp==1) GO TO 10
@@ -2782,29 +2742,24 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      !
      offset = 0
      DO proc = 1, nprocp
-        IF( use_tg_ ) THEN
-           gproc = dtgs%nplist(proc)+1
-        ELSE
-           gproc = proc
-        ENDIF
+        gproc = proc
         !
         kdest = ( proc - 1 ) * sendsiz
         kfrom = offset
         !
 #ifdef USE_GPU_MPI
 
-!$cuf kernel do(2) <<<*,*,0,dfft%bstreams(batch_id)>>>
-        DO k = 1, batchsize * ncpx
-        !DO k = 1, batchsize * ncp_ (me)
-           DO i = 1, npp_ ( gproc )
-             f_aux_d( kdest + i + (k-1)*nppx ) = f_in_d( kfrom + i + (k-1)*nr3x )
-           END DO
-        END DO
-
+!!$cuf kernel do(2) <<<*,*,0,dfft%bstreams(batch_id)>>>
+!        DO k = 1, batchsize * ncpx
+!        !DO k = 1, batchsize * ncp_ (me)
+!           DO i = 1, npp_ ( gproc )
+!             f_aux_d( kdest + i + (k-1)*nppx ) = f_in_d( kfrom + i + (k-1)*nr3x )
+!           END DO
+!        END DO
+        istat = cudaMemcpy2DAsync( f_aux_d(kdest + 1), nppx, f_in_d(kfrom + 1 ), nr3x, npp_(gproc), batchsize * ncpx,cudaMemcpyDeviceToDevice, dfft%bstreams(batch_id) )
+        if( istat ) print *,"ERROR cudaMemcpy2D failed : ",istat
 
 #else
-        !istat = cudaMemcpy2D( f_aux(kdest + 1), nppx, f_in_d(kfrom + 1 ), nr3x, npp_(gproc), ncp_(me), cudaMemcpyDeviceToHost )
-        !istat = cudaMemcpy2D( f_aux(kdest + 1), nppx, f_in_d(kfrom + 1 ), nr3x, npp_(gproc), batchsize * ncpx, cudaMemcpyDeviceToHost )
         istat = cudaMemcpy2DAsync( f_aux(kdest + 1), nppx, f_in_d(kfrom + 1 ), nr3x, npp_(gproc), batchsize * ncpx,cudaMemcpyDeviceToHost, dfft%bstreams(batch_id) )
         if( istat ) print *,"ERROR cudaMemcpy2D failed : ",istat
 #endif
@@ -2829,7 +2784,7 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
         DO ip = 1, dfft%nproc
            ioff = dfft%iss( ip )
            nswip = dfft%nsp( ip )
-!$cuf kernel do(2) <<<*,*,0,dfft%bstreams(batch_id)>>>
+!$cuf kernel do(2) <<<*,*,0,dfft%a2a_comp>>>
         DO cuf_j = 1, npp
            DO cuf_i = 1, nswip
               mc = p_ismap_d( cuf_i + ioff )
@@ -2842,21 +2797,11 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 
      ELSE
 
-        IF( use_tg_ ) THEN
-           npp  = dtgs%tg_npp( me )
-           nnp  = dfft%nr1x * dfft%nr2x
-        ELSE
-           npp  = dfft%npp( me )
-           nnp  = dfft%nnp
-        ENDIF
+        npp  = dfft%npp( me )
+        nnp  = dfft%nnp
 
-        IF( use_tg_ ) THEN
-           nblk = dtgs%nproc / dtgs%nogrp
-           nsiz = dtgs%nogrp
-        ELSE
-           nblk = dfft%nproc
-           nsiz = 1
-        END IF
+        nblk = dfft%nproc
+        nsiz = 1
         !
         ip = 1
         !
@@ -2869,18 +2814,15 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
               ioff = dfft%iss( ip )
               !
               nswip = dfft%nsw( ip )
-!$cuf kernel do(3) <<<*,*, 0, dfft%bstreams(batch_id)>>>
+!$cuf kernel do(3) <<<*,*, 0, dfft%a2a_comp>>>
             DO i = 0, batchsize-1
-!!$cuf kernel do(2) <<<*,*>>>
               DO cuf_j = 1, npp
                  DO cuf_i = 1, nswip
                  !
                     mc = p_ismap_d( cuf_i + ioff )
                  !
-                    !it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz
                     it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz + i*nppx*ncpx
                  !
-                    !f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp )
                     f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp + i*dfft%nnr )
                  ENDDO
                  !
@@ -2895,6 +2837,10 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      END IF
 
 #ifndef USE_GPU_MPI
+     i = cudaEventRecord(dfft%bevents(batch_id), dfft%a2a_comp)
+     i = cudaStreamWaitEvent(dfft%bstreams(batch_id), dfft%bevents(batch_id), 0)
+
+!#ifndef USE_GPU_MPI
      !f_in(1:sendsiz*dfft%nproc) = f_in_d(1:sendsiz*dfft%nproc)
      istat = cudaMemcpyAsync(f_in, f_in_d, sendsiz*dfft%nproc, stream = dfft%bstreams(batch_id))
 #endif
@@ -2904,7 +2850,11 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 
 20   CONTINUE
 
+#ifdef USE_GPU_MPI
+     istat = cudaEventRecord( dfft%bevents(batch_id), dfft%a2a_comp )
+#else
      istat = cudaEventRecord( dfft%bevents(batch_id), dfft%bstreams(batch_id) )
+#endif
   ENDIF
 
   !istat = cudaDeviceSynchronize()
@@ -2917,20 +2867,16 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 END SUBROUTINE fft_scatter_gpu_batch_a
 
 
-SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp_, npp_, isgn, batchsize, batch_id, dtgs )
+SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp_, npp_, isgn, batchsize, batch_id )
   !
   USE cudafor
   IMPLICIT NONE
   !
   TYPE (fft_type_descriptor), TARGET, INTENT(in) :: dfft
   INTEGER, INTENT(in)           :: nr3x, nxx_, isgn, ncp_ (:), npp_ (:)
-  !COMPLEX (DP), DEVICE, INTENT(inout)   :: f_in_d (nxx_), f_aux_d (nxx_)
-  !COMPLEX (DP), INTENT(inout)   :: f_in (nxx_), f_aux (nxx_)
   COMPLEX (DP), DEVICE, INTENT(inout)   :: f_in_d (batchsize * nxx_), f_aux_d (batchsize * nxx_)
   COMPLEX (DP), INTENT(inout)   :: f_in (batchsize * nxx_), f_aux (batchsize * nxx_)
-  TYPE (task_groups_descriptor), OPTIONAL, INTENT(in) :: dtgs
   INTEGER, INTENT(IN) :: batchsize, batch_id
-!  COMPLEX (DP), allocatable, pinned :: f_in (:), f_aux (:)
   INTEGER :: cuf_i, cuf_j, nswip
   INTEGER :: istat
   INTEGER, POINTER, DEVICE :: p_ismap_d(:)
@@ -2951,62 +2897,27 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 
   p_ismap_d => dfft%ismap_d
 
-  !  Task Groups
-  use_tg_ = .false.
-
-  IF( present( dtgs ) ) use_tg_ = .true.
-
   me     = dfft%mype + 1
   !
-  IF( use_tg_ ) THEN
-    !  This is the number of procs. in the plane-wave group
-     nprocp = dtgs%npgrp
-  ELSE
-     nprocp = dfft%nproc
-  ENDIF
+  nprocp = dfft%nproc
   !
   !CALL start_clock ('fft_scatter')
   !istat = cudaDeviceSynchronize()
   !
-!#ifdef EPA2A
-  ALLOCATE( offset_proc( nprocp ), kdest_proc( nprocp ), kfrom_proc( nprocp ) )
-!#endif
   ncpx = 0
   nppx = 0
-  IF( use_tg_ ) THEN
-     ncpx   = dtgs%tg_ncpx
-     nppx   = dtgs%tg_nppx
-     gcomm  = dtgs%pgrp_comm
-  ELSE
-     DO proc = 1, nprocp
-        ncpx = max( ncpx, ncp_ ( proc ) )
-        nppx = max( nppx, npp_ ( proc ) )
-     ENDDO
-     IF ( dfft%nproc == 1 ) THEN
-        nppx = dfft%nr3x
-     END IF
-  ENDIF
-  !sendsiz = ncpx * nppx
+
+  DO proc = 1, nprocp
+     ncpx = max( ncpx, ncp_ ( proc ) )
+     nppx = max( nppx, npp_ ( proc ) )
+  ENDDO
+  IF ( dfft%nproc == 1 ) THEN
+     nppx = dfft%nr3x
+  END IF
+
   sendsiz = batchsize * ncpx * nppx
 
   !
-!#ifdef EPA2A
-     offset = 0
-
-     DO proc = 1, nprocp
-        IF( use_tg_ ) THEN
-           gproc = dtgs%nplist(proc)+1
-        ELSE
-           gproc = proc
-        ENDIF
-        !
-        offset_proc( proc ) = offset
-        kdest_proc( proc ) = ( proc - 1 ) * sendsiz
-        kfrom_proc( proc ) = offset
-        !
-        offset = offset + npp_ ( gproc )
-     ENDDO
-!#endif
 
   ierr = 0
   IF (isgn.gt.0) THEN
@@ -3014,11 +2925,7 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      IF (nprocp==1) GO TO 10
      ! step two: communication
      !
-     IF( use_tg_ ) THEN
-        gcomm = dtgs%pgrp_comm
-     ELSE
-        gcomm = dfft%comm
-     ENDIF
+     gcomm = dfft%comm
 
      !CALL start_clock ('a2a_fw')
 !#ifdef USE_GPU_MPI
@@ -3026,7 +2933,8 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      !CALL mpi_alltoall (f_aux_d(1), sendsiz, MPI_DOUBLE_COMPLEX, f_in_d(1), sendsiz, MPI_DOUBLE_COMPLEX, gcomm, ierr)
      !istat = cudaDeviceSynchronize()
 
-     !istat = cudaDeviceSynchronize()
+     ! JR Note: Holding off staging receives until buffer is packed.
+     istat = cudaEventSynchronize( dfft%bevents(batch_id) ) 
      DO iter = 2, nprocp
         IF(IAND(nprocp, nprocp-1) == 0) THEN
           sorc = IEOR( me-1, iter-1 )
@@ -3034,7 +2942,6 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
           sorc = MOD(me-1 - (iter-1) + nprocp, nprocp)
         ENDIF
 
-        !call MPI_IRECV( f_in_d((sorc)*sendsiz + 1), sendsiz, MPI_DOUBLE_COMPLEX, sorc, 0, gcomm, rh(iter-1), ierr )
 #ifdef USE_GPU_MPI
         call MPI_IRECV( f_in_d((sorc)*sendsiz + 1), sendsiz, MPI_DOUBLE_COMPLEX, sorc, 0, gcomm, dfft%srh(iter-1, batch_id), ierr )
 #else
@@ -3043,8 +2950,6 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 
      ENDDO
 
-     istat = cudaEventSynchronize( dfft%bevents(batch_id) )
-
      DO iter = 2, nprocp
         IF(IAND(nprocp, nprocp-1) == 0) THEN
           dest = IEOR( me-1, iter-1 )
@@ -3052,7 +2957,6 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
           dest = MOD(me-1 + (iter-1), nprocp)
         ENDIF
 
-        !call MPI_ISEND( f_aux_d((dest)*sendsiz + 1), sendsiz, MPI_DOUBLE_COMPLEX, dest, 0, gcomm, sh(iter-1), ierr )
 #ifdef USE_GPU_MPI
         call MPI_ISEND( f_aux_d((dest)*sendsiz + 1), sendsiz, MPI_DOUBLE_COMPLEX, dest, 0, gcomm, dfft%srh(iter+nprocp-2, batch_id), ierr )
 #else
@@ -3068,12 +2972,7 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
     f_in((me-1)*sendsiz + 1 : me*sendsiz) = f_aux((me-1)*sendsiz + 1 : me*sendsiz)
 #endif
 
-     !call MPI_WAITALL(nprocp-1, rh, MPI_STATUSES_IGNORE, ierr)
-     !call MPI_WAITALL(nprocp-1, sh, MPI_STATUSES_IGNORE, ierr)
      call MPI_WAITALL(2*nprocp-2, dfft%srh(:, batch_id), MPI_STATUSES_IGNORE, ierr)
-!#ifdef USE_GPU_MPI
-!     istat = cudaDeviceSynchronize()
-!#endif
 !#else
 !     CALL mpi_alltoall (f_aux(1), sendsiz, MPI_DOUBLE_COMPLEX, f_in(1), sendsiz, MPI_DOUBLE_COMPLEX, gcomm, ierr)
 !#endif
@@ -3086,14 +2985,16 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
         istat = cudaMemcpyAsync( f_in_d, f_in, sendsiz*dfft%nproc, stream=dfft%bstreams(batch_id) )
 #endif
 
-!#endif
+    i = cudaEventRecord(dfft%bevents(batch_id), dfft%bstreams(batch_id))
+    i = cudaStreamWaitEvent(dfft%a2a_comp, dfft%bevents(batch_id), 0)
+
 
      !
 10   CONTINUE
      
 #ifndef EPA2A
      !f_aux_d = (0.d0, 0.d0)
-     !$cuf kernel do (1) <<<*,*,0,dfft%bstreams(batch_id)>>>
+     !$cuf kernel do (1) <<<*,*,0,dfft%a2a_comp>>>
      do i = lbound(f_aux_d,1), ubound(f_aux_d,1)
        f_aux_d(i) = (0.d0, 0.d0)
      end do
@@ -3108,7 +3009,7 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
         DO ip = 1, dfft%nproc
            ioff = dfft%iss( ip )
            nswip = dfft%nsp( ip )
-!$cuf kernel do(2) <<<*,*,0,dfft%bstreams(batch_id)>>>
+!$cuf kernel do(2) <<<*,*,0,dfft%a2a_comp>>>
            DO cuf_j = 1, npp
               DO cuf_i = 1, nswip
                  it = ( ip - 1 ) * sendsiz + (cuf_i-1)*nppx
@@ -3119,21 +3020,11 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
         ENDDO
      ELSE
 
-        IF( use_tg_ ) THEN
-           npp  = dtgs%tg_npp( me )
-           nnp  = dfft%nr1x * dfft%nr2x
-        ELSE
-           npp  = dfft%npp( me )
-           nnp  = dfft%nnp
-        ENDIF
+        npp  = dfft%npp( me )
+        nnp  = dfft%nnp
 
-        IF( use_tg_ ) THEN
-           nblk = dfft%nproc / dtgs%nogrp
-           nsiz = dtgs%nogrp
-        ELSE
-           nblk = dfft%nproc
-           nsiz = 1
-        END IF
+        nblk = dfft%nproc
+        nsiz = 1
         !
         ip = 1
         !
@@ -3146,21 +3037,19 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
               ioff = dfft%iss( ip )
               nswip =  dfft%nsw( ip )
              !
-!$cuf kernel do(3) <<<*,*,0,dfft%bstreams(batch_id)>>>
-            DO i = 0, batchsize-1
-!!$cuf kernel do(2) <<<*,*>>>
-            DO cuf_j = 1, npp
-              DO cuf_i = 1, nswip
-                 !
-                 mc = p_ismap_d( cuf_i + ioff )
-                 !
-                 !it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz
-                 it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz + i*nppx*ncpx
-                 !
-                    f_aux_d( mc + ( cuf_j - 1 ) * nnp + i*dfft%nnr ) = f_in_d( cuf_j + it )
-                 ENDDO
-                 !
-              ENDDO
+!$cuf kernel do(3) <<<*,*,0,dfft%a2a_comp>>>
+              DO i = 0, batchsize-1
+                DO cuf_j = 1, npp
+                  DO cuf_i = 1, nswip
+                     !
+                     mc = p_ismap_d( cuf_i + ioff )
+                     !
+                     it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz + i*nppx*ncpx
+                     !
+                     f_aux_d( mc + ( cuf_j - 1 ) * nnp + i*dfft%nnr ) = f_in_d( cuf_j + it )
+                   ENDDO
+                     !
+                ENDDO
               ENDDO
               !
               ip = ip + 1
@@ -3177,25 +3066,17 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      !
      !  step two: communication
      !
-     IF( use_tg_ ) THEN
-        gcomm = dtgs%pgrp_comm
-     ELSE
-        gcomm = dfft%comm
-     ENDIF
+     gcomm = dfft%comm
 
-!#ifndef USE_GPU_MPI
-!     !f_in(1:sendsiz*dfft%nproc) = f_in_d(1:sendsiz*dfft%nproc)
-!     istat = cudaMemcpyAsync(f_in, f_in_d, sendsiz*dfft%nproc, stream = dfft%bstreams(batch_id))
-!#endif
 
-     ! CALL mpi_barrier (gcomm, ierr)  ! why barrier? for buggy openmpi over ib
   !CALL start_clock ('a2a_bw')
 !#ifdef USE_GPU_MPI
      !istat = cudaDeviceSynchronize()
      !CALL mpi_alltoall (f_in_d(1), sendsiz, MPI_DOUBLE_COMPLEX, f_aux_d(1), sendsiz, MPI_DOUBLE_COMPLEX, gcomm, ierr)
      !istat = cudaDeviceSynchronize()
 
-     !istat = cudaDeviceSynchronize()
+     ! JR Note: Holding off staging receives until buffer is packed.
+     istat = cudaEventSynchronize( dfft%bevents(batch_id) ) 
      DO iter = 2, nprocp
         IF(IAND(nprocp, nprocp-1) == 0) THEN
           sorc = IEOR( me-1, iter-1 )
@@ -3203,7 +3084,6 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
           sorc = MOD(me-1 - (iter-1) + nprocp, nprocp)
         ENDIF
 
-        !call MPI_IRECV( f_aux_d((sorc)*sendsiz + 1), sendsiz, MPI_DOUBLE_COMPLEX, sorc, 0, gcomm, rh(iter-1), ierr )
 #ifdef USE_GPU_MPI
         call MPI_IRECV( f_aux_d((sorc)*sendsiz + 1), sendsiz, MPI_DOUBLE_COMPLEX, sorc, 0, gcomm, dfft%srh(iter-1, batch_id), ierr )
 #else
@@ -3211,8 +3091,6 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 #endif
 
      ENDDO
-
-     istat = cudaEventSynchronize( dfft%bevents(batch_id) )
 
      DO iter = 2, nprocp
         IF(IAND(nprocp, nprocp-1) == 0) THEN
@@ -3226,7 +3104,6 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 #else
         call MPI_ISEND( f_in((dest)*sendsiz + 1), sendsiz, MPI_DOUBLE_COMPLEX, dest, 0, gcomm, dfft%srh(iter+nprocp-2, batch_id), ierr )
 #endif
-        !call MPI_ISEND( f_in_d((dest)*sendsiz + 1), sendsiz, MPI_DOUBLE_COMPLEX, dest, 0, gcomm, sh(iter-1), ierr )
 
      ENDDO
 
@@ -3237,12 +3114,7 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      f_aux( (me-1)*sendsiz + 1:me*sendsiz) = f_in((me-1)*sendsiz + 1:me*sendsiz)
 #endif
 
-     !call MPI_WAITALL(nprocp-1, rh, MPI_STATUSES_IGNORE, ierr)
-     !call MPI_WAITALL(nprocp-1, sh, MPI_STATUSES_IGNORE, ierr)
      call MPI_WAITALL(2*nprocp-2, dfft%srh(:, batch_id), MPI_STATUSES_IGNORE, ierr)
-!#ifdef USE_GPU_MPI
-!     istat = cudaDeviceSynchronize()
-!#endif
 !#else
 !     CALL mpi_alltoall (f_in(1), sendsiz, MPI_DOUBLE_COMPLEX, f_aux(1), sendsiz, MPI_DOUBLE_COMPLEX, gcomm, ierr)
 !#endif
@@ -3256,24 +3128,22 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      offset = 0
 
      DO proc = 1, nprocp
-        IF( use_tg_ ) THEN
-           gproc = dtgs%nplist(proc)+1
-        ELSE
-           gproc = proc
-        ENDIF
+        gproc = proc
         !
         kdest = ( proc - 1 ) * sendsiz
         kfrom = offset
         !
 #ifdef USE_GPU_MPI
 
-!$cuf kernel do(2) <<<*,*, 0, dfft%bstreams(batch_id)>>>
-        !DO k = 1, ncp_ (me)
-        DO k = 1, batchsize * ncpx
-           DO i = 1, npp_ ( gproc )
-             f_in_d( kfrom + i + (k-1)*nr3x ) = f_aux_d( kdest + i + (k-1)*nppx )
-           END DO
-        END DO
+!!$cuf kernel do(2) <<<*,*, 0, dfft%bstreams(batch_id)>>>
+!        !DO k = 1, ncp_ (me)
+!        DO k = 1, batchsize * ncpx
+!           DO i = 1, npp_ ( gproc )
+!             f_in_d( kfrom + i + (k-1)*nr3x ) = f_aux_d( kdest + i + (k-1)*nppx )
+!           END DO
+!        END DO
+        istat = cudaMemcpy2DAsync( f_in_d(kfrom +1 ), nr3x, f_aux_d(kdest + 1), nppx, npp_(gproc), batchsize * ncpx, &
+        cudaMemcpyDeviceToDevice, dfft%bstreams(batch_id) )
 
 #else
         !istat = cudaMemcpy2D( f_in_d(kfrom +1 ), nr3x, f_aux(kdest + 1), nppx, npp_(gproc), ncp_(me), cudaMemcpyHostToDevice )
