@@ -212,7 +212,7 @@ CONTAINS
       j = mill_g(2, ng)
       k = mill_g(3, ng)
 
-#if defined(__MPI)
+#if defined(__MPI) && !defined(__USE_3D_FFT)
       IF( global_sort ) THEN
          m1 = mod (i, dfftp%nr1) + 1
          IF (m1 < 1) m1 = m1 + dfftp%nr1
