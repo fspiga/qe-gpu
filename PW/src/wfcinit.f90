@@ -226,7 +226,9 @@ SUBROUTINE init_wfc ( ik )
   USE mp,                   ONLY : mp_sum
 #ifdef USE_CUDA
   USE cudafor
+  USE curand
   USE wavefunctions_module, ONLY : evc_d
+  USE klist,                ONLY :  nks
 #endif
   USE cpu_gpu_interface,    ONLY : rotate_wfc
   !
@@ -245,6 +247,9 @@ SUBROUTINE init_wfc ( ik )
 #ifdef USE_CUDA
   REAL(DP), DEVICE, ALLOCATABLE :: etatom_d(:)
   COMPLEX(DP), DEVICE, ALLOCATABLE :: wfcatom_d(:,:,:)
+  double precision, allocatable,device:: rand_d(:,:,:)
+  type(curandGenerator):: gen
+  integer:: istat,ngklocal
 #endif
   !
   IF ( starting_wfc(1:6) == 'atomic' ) THEN
@@ -283,6 +288,28 @@ SUBROUTINE init_wfc ( ik )
          ! ... in this case, introduce a small randomization of wavefunctions
          ! ... to prevent possible "loss of states"
          !
+#ifdef USE_CUDA
+         wfcatom_d=wfcatom
+         allocate(rand_d(2*ngk(ik),npol,n_starting_atomic_wfc))
+         istat=curandCreateGenerator(gen,CURAND_RNG_PSEUDO_XORWOW) 
+         istat=curandGenerateNormalDouble(gen,rand_d,2*ngk(ik)*npol*n_starting_atomic_wfc,0.d0,1.d0)
+         ngklocal=ngk(ik)
+!$cuf kernel do (3) <<<*,*>>>
+         DO ibnd = 1, n_starting_atomic_wfc
+            DO ipol = 1, npol
+               DO ig = 1, ngklocal
+                  rr  =  rand_d(ig,ipol,ibnd)
+                  arg  = tpi * rand_d(ig+1,ipol,ibnd)
+                  wfcatom_d(ig,ipol,ibnd) = wfcatom_d(ig,ipol,ibnd) * &
+                     ( 1.0_DP + 0.05_DP * CMPLX( rr*COS(arg), rr*SIN(arg) ,kind=DP) ) 
+               END DO
+            END DO
+         END DO
+
+        istat=curandDestroyGenerator(gen)
+        deallocate(rand_d)
+        wfcatom=wfcatom_d
+#else
          DO ibnd = 1, n_starting_atomic_wfc
             !
             DO ipol = 1, npol
@@ -300,6 +327,7 @@ SUBROUTINE init_wfc ( ik )
             END DO
             !
          END DO
+#endif
          !
      END IF
      !

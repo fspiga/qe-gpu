@@ -63,24 +63,8 @@ END SUBROUTINE mp_synchronize
         CALL mp_synchronize( gid )
 #endif
 
-        IF( n <= msgsiz_max ) THEN
-           CALL MPI_BCAST( array, n, MPI_DOUBLE_PRECISION, root, gid, ierr )
-           IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 1 ', ierr )
-        ELSE
-           nblk   = n / msgsiz_max
-           blksiz = msgsiz_max
-           DO iblk = 1, nblk
-              istart = (iblk-1)*msgsiz_max + 1
-              CALL MPI_BCAST( array( istart ), blksiz, MPI_DOUBLE_PRECISION, root, gid, ierr )
-              IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 2 ', ierr )
-           END DO
-           blksiz = MOD( n, msgsiz_max )
-           IF( blksiz > 0 ) THEN
-              istart = nblk * msgsiz_max + 1
-              CALL MPI_BCAST( array( istart ), blksiz, MPI_DOUBLE_PRECISION, root, gid, ierr )
-              IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 3 ', ierr )
-           END IF
-        END IF
+        CALL MPI_BCAST( array, n, MPI_DOUBLE_PRECISION, root, gid, ierr )
+        IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 1 ', ierr )
 
 1       CONTINUE
 #if defined __TRACE
@@ -112,24 +96,8 @@ END SUBROUTINE mp_synchronize
         CALL mp_synchronize( gid )
 #endif
 
-        IF( n <= msgsiz_max ) THEN
-           CALL MPI_BCAST( array, n, MPI_DOUBLE_PRECISION, root, gid, ierr )
-           IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 1 ', ierr )
-        ELSE
-           nblk   = n / msgsiz_max
-           blksiz = msgsiz_max
-           DO iblk = 1, nblk
-              istart = (iblk-1)*msgsiz_max + 1
-              CALL MPI_BCAST( array( istart ), blksiz, MPI_DOUBLE_PRECISION, root, gid, ierr )
-              IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 2 ', ierr )
-           END DO
-           blksiz = MOD( n, msgsiz_max )
-           IF( blksiz > 0 ) THEN
-              istart = nblk * msgsiz_max + 1
-              CALL MPI_BCAST( array( istart ), blksiz, MPI_DOUBLE_PRECISION, root, gid, ierr )
-              IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 3 ', ierr )
-           END IF
-        END IF
+        CALL MPI_BCAST( array, n, MPI_DOUBLE_PRECISION, root, gid, ierr )
+        IF( ierr /= 0 ) CALL errore( ' bcast_real ', ' error in mpi_bcast 1 ', ierr )
 
 1       CONTINUE
 #if defined __TRACE
@@ -162,24 +130,9 @@ END SUBROUTINE mp_synchronize
         CALL mp_synchronize( gid )
 #endif
 
-        IF( n <= msgsiz_max ) THEN
-           CALL MPI_BCAST( array, n, MPI_INTEGER, root, gid, ierr )
-           IF( ierr /= 0 ) CALL errore( ' bcast_integer ', ' error in mpi_bcast 1 ', ierr )
-        ELSE
-           nblk   = n / msgsiz_max
-           blksiz = msgsiz_max
-           DO iblk = 1, nblk
-              istart = (iblk-1)*msgsiz_max + 1
-              CALL MPI_BCAST( array( istart ), blksiz, MPI_INTEGER, root, gid, ierr )
-              IF( ierr /= 0 ) CALL errore( ' bcast_integer ', ' error in mpi_bcast 2 ', ierr )
-           END DO
-           blksiz = MOD( n, msgsiz_max )
-           IF( blksiz > 0 ) THEN
-              istart = nblk * msgsiz_max + 1
-              CALL MPI_BCAST( array( istart ), blksiz, MPI_INTEGER, root, gid, ierr )
-              IF( ierr /= 0 ) CALL errore( ' bcast_integer ', ' error in mpi_bcast 3 ', ierr )
-           END IF
-        END IF
+        CALL MPI_BCAST( array, n, MPI_INTEGER, root, gid, ierr )
+        IF( ierr /= 0 ) CALL errore( ' bcast_integer ', ' error in mpi_bcast 1 ', ierr )
+
 1       CONTINUE
 #if defined __TRACE
         write(*,*) 'BCAST_INTEGER OUT'
@@ -208,24 +161,8 @@ END SUBROUTINE mp_synchronize
         CALL mp_synchronize( gid )
 #endif
 
-        IF( n <= msgsiz_max ) THEN
-           CALL MPI_BCAST( array, n, MPI_LOGICAL, root, gid, ierr )
-           IF( ierr /= 0 ) CALL errore( ' bcast_logical ', ' error in mpi_bcast 1 ', ierr )
-        ELSE
-           nblk   = n / msgsiz_max
-           blksiz = msgsiz_max
-           DO iblk = 1, nblk
-              istart = (iblk-1)*msgsiz_max + 1
-              CALL MPI_BCAST( array( istart ), blksiz, MPI_LOGICAL, root, gid, ierr )
-              IF( ierr /= 0 ) CALL errore( ' bcast_logical ', ' error in mpi_bcast 2 ', ierr )
-           END DO
-           blksiz = MOD( n, msgsiz_max )
-           IF( blksiz > 0 ) THEN
-              istart = nblk * msgsiz_max + 1
-              CALL MPI_BCAST( array( istart ), blksiz, MPI_LOGICAL, root, gid, ierr )
-              IF( ierr /= 0 ) CALL errore( ' bcast_logical ', ' error in mpi_bcast 3 ', ierr )
-           END IF
-        END IF
+        CALL MPI_BCAST( array, n, MPI_LOGICAL, root, gid, ierr )
+        IF( ierr /= 0 ) CALL errore( ' bcast_logical ', ' error in mpi_bcast 1 ', ierr )
 
 1       CONTINUE
 #if defined __TRACE
