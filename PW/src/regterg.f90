@@ -562,7 +562,7 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
 #endif
 
 #ifdef USE_CUDA
-!$cuf kernel do(1) <<<*,*>>>
+!$cuf kernel do(2) <<<*,*>>>
      DO i = 1, notcnv
       DO j = 1, npwx
           !
