@@ -8,10 +8,37 @@
 #define ZERO ( 0.D0, 0.D0 )
 #define ONE  ( 1.D0, 0.D0 )
 !
+#ifdef USE_CUDA
+SUBROUTINE myDdot( n, A, res )
+  !
+  use kinds, ONLY : DP
+  use cudafor
+  use cublas
+  !
+  IMPLICIT NONE
+  !
+  INTEGER, INTENT(IN) :: n
+  !
+!!!!!pgi$ ignore_tkr A
+  REAL(DP), DEVICE, INTENT(IN) :: A(n)
+  !
+  REAL(DP), INTENT(OUT) :: res
+  !
+  res = cublasDdot( n, A, 1, A, 1 )
+  !
+  return
+  !
+END SUBROUTINE myDdot
+#endif
 !
 !----------------------------------------------------------------------------
+#ifdef USE_CUDA
+SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, evc_d, ethr, &
+                    uspp, gstart, e, e_d, btype, notcnv, lrot, dav_iter )
+#else
 SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
                     uspp, gstart, e, btype, notcnv, lrot, dav_iter )
+#endif
   !----------------------------------------------------------------------------
   !
   ! ... iterative solution of the eigenvalue problem:
@@ -27,6 +54,11 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
   USE mp_bands,      ONLY : intra_bgrp_comm, inter_bgrp_comm, root_bgrp_id, nbgrp, my_bgrp_id
   USE mp,            ONLY : mp_sum, mp_bcast
   USE cpu_gpu_interface
+#ifdef USE_CUDA
+  USE cudafor
+  USE cublas!,        ONLY : cublasZgemm, cublasDdot
+!  USE ep_debug, ONLY : compare, MPI_Wtime
+#endif
   !
   IMPLICIT NONE
   !
@@ -38,6 +70,10 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
     !    (the basis set is refreshed when its dimension would exceed nvecx)
   COMPLEX(DP), INTENT(INOUT) :: evc(npwx,nvec)
     !  evc   contains the  refined estimates of the eigenvectors
+#ifdef USE_CUDA
+  COMPLEX(DP), DEVICE, INTENT(INOUT) :: evc_d(npwx,npol,nvec)
+  REAL(DP), DEVICE, INTENT(OUT) :: e_d(nvec)
+#endif
   REAL(DP), INTENT(IN) :: ethr
     ! energy threshold for convergence: root improvement is stopped,
     ! when two consecutive estimates of the root differ by less than ethr.
@@ -80,7 +116,24 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
     ! threshold for empty bands
   INTEGER :: npw2, npwx2
   !
+#ifndef USE_CUDA
   REAL(DP), EXTERNAL :: ddot
+#endif
+#ifdef USE_CUDA
+  attributes(pinned) :: vr
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: hr_d(:,:), sr_d(:,:), vr_d(:,:), vr_temp_d(:,:)
+  COMPLEX(DP), PINNED, ALLOCATABLE :: comm_h_c(:,:)
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:,:), hpsi_d(:,:,:), spsi_d(:,:,:)
+  REAL(DP), DEVICE, ALLOCATABLE :: ew_d(:)
+  REAL(DP), PINNED, ALLOCATABLE :: comm_h_r(:)
+  LOGICAL, DEVICE, ALLOCATABLE :: conv_d(:)
+  INTEGER, DEVICE :: conv_idx_d(nvec)
+  INTEGER :: istat, i, j, k
+  INTEGER(KIND=8) :: freeMem,totalMem
+  REAL(DP) :: rFreeMem,rUsedMem,rTotalMem,minUsedMem,maxUsedMem,minFreeMem,maxFreeMem
+  REAL(DP) :: ew_temp1, ew_temp2
+!  REAL(DP) :: timer !, it_timer
+#endif
   !
   ! EXTERNAL  h_psi, s_psi, g_psi
     ! h_psi(npwx,npw,nvec,psi,hpsi)
@@ -111,6 +164,11 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      ALLOCATE( spsi( npwx, nvecx ), STAT=ierr )
      IF( ierr /= 0 ) &
         CALL errore( ' regterg ',' cannot allocate spsi ', ABS(ierr) )
+#ifdef USE_CUDA
+     ALLOCATE( spsi_d( npwx, nvecx ), STAT=ierr )
+     IF( ierr /= 0 ) &
+        CALL errore( ' cegterg ',' cannot allocate spsi_d ', ABS(ierr) )
+#endif
   END IF
   !
   ALLOCATE( sr( nvecx, nvecx ), STAT=ierr )
@@ -135,8 +193,104 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
   nbase  = nvec
   conv   = .FALSE.
   !
-  IF ( uspp ) spsi = ZERO
+#ifdef USE_CUDA
+
+  ALLOCATE( ew_d( nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate ew_d ', ABS(ierr) )
+
+  ALLOCATE( comm_h_r( nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate comm_h_r ', ABS(ierr) )
+
+  ALLOCATE( conv_d( nvec ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate conv_d ', ABS(ierr) )
+
+  ALLOCATE( sr_d( nvecx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate sc_d ', ABS(ierr) )
+  ALLOCATE( hr_d( nvecx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate hc_d ', ABS(ierr) )
+  ALLOCATE( vr_d( nvecx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate vc_d ', ABS(ierr) )
+
+  ALLOCATE( vr_temp_d( nvecx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate vc_temp_d ', ABS(ierr) )
+
+  ALLOCATE( comm_h_c( nvecx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate comm_h_c ', ABS(ierr) )
+
+!#if 0
+!      istat=CudaMemGetInfo(freeMem,totalMem)
+!      rTotalMem = totalMem/(10.**6)
+!      rFreeMem = freeMem/(10.**6);            MinFreeMem = rFreeMem; MaxFreeMem = rFreeMem
+!      rUsedMem = (totalMem-freeMem)/(10.**6); MaxUsedMem = rUsedMem; MinUsedMem = rUsedMem
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory used: ",minUsedMem," - ",maxUsedMem," / ",rTotalMem," MBytes"
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
+!print *," "
+!call flush(6)
+!print *,"psi_d: ",npwx,npol,nvecx
+!call flush(6)
+!#endif
+
+  ALLOCATE(  psi_d( npwx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate psi_d ', ABS(ierr) )
+
+!#if 0
+!      istat=CudaMemGetInfo(freeMem,totalMem)
+!      rTotalMem = totalMem/(10.**6)
+!      rFreeMem = freeMem/(10.**6);            MinFreeMem = rFreeMem; MaxFreeMem = rFreeMem
+!      rUsedMem = (totalMem-freeMem)/(10.**6); MaxUsedMem = rUsedMem; MinUsedMem = rUsedMem
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory used: ",minUsedMem," - ",maxUsedMem," / ",rTotalMem," MBytes"
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
+!print *," "
+!call flush(6)
+!#endif
+
+  ALLOCATE( hpsi_d( npwx, nvecx ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' cegterg ',' cannot allocate hpsi_d ', ABS(ierr) )
   !
+      istat=CudaMemGetInfo(freeMem,totalMem)
+      rTotalMem = totalMem/(10.**6)
+      rFreeMem = freeMem/(10.**6);            MinFreeMem = rFreeMem; MaxFreeMem = rFreeMem
+      rUsedMem = (totalMem-freeMem)/(10.**6); MaxUsedMem = rUsedMem; MinUsedMem = rUsedMem
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory used: ",minUsedMem," - ",maxUsedMem," / ",rTotalMem," MBytes"
+!write(*,"(A20,F7.1,A3,F7.1,A3,F7.1,A8)") " GPU memory free: ",minFreeMem," - ",maxFreeMem," / ",rTotalMem," MBytes"
+!print *," "
+!call flush(6)
+#endif
+
+
+  !
+  IF ( uspp ) then
+#ifdef USE_CUDA
+    spsi_d = ZERO
+#else
+    spsi = ZERO
+#endif
+  END IF
+  !
+
+#ifdef USE_CUDA
+  hpsi_d = ZERO
+  psi_d  = ZERO
+ !$cuf kernel do(2) <<<*,*>>>
+  Do j=1,nvec
+      Do i=lbound(psi_d,1), ubound(psi_d,1)
+        psi_d(i,j) = evc_d(i,j)
+      end do
+  end do
+
+  IF ( gstart == 2 ) psi_d(1,1:nvec) = CMPLX( DBLE( psi_d(1,1:nvec) ), 0.D0 ,kind=DP) !TODO
+  CALL h_psi( npwx, npw, nvec, psi_d, hpsi_d )
+#else
   hpsi = ZERO
   psi  = ZERO
   psi(:,1:nvec) = evc(:,1:nvec)
@@ -146,16 +300,36 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
   ! ... hpsi contains h times the basis vectors
   !
   CALL h_psi( npwx, npw, nvec, psi, hpsi )
+
+#endif
+
   !
-  IF ( uspp ) CALL s_psi( npwx, npw, nvec, psi, spsi )
+  IF ( uspp ) THEN
+#ifdef USE_CUDA
+!    call compare(spsi, spsi_d, "spsi")
+    CALL s_psi( npwx, npw, nvec, psi_d, spsi_d )
+!    spsi = spsi_d
+#else
+    CALL s_psi( npwx, npw, nvec, psi, spsi )
+#endif
+  END IF
   !
   ! ... hr contains the projection of the hamiltonian onto the reduced
   ! ... space vr contains the eigenvectors of hr
   !
-  hr(:,:) = 0.D0
-  sr(:,:) = 0.D0
-  vr(:,:) = 0.D0
+#ifdef USE_CUDA
+  hr_d(:,:) = ZERO
+  sr_d(:,:) = ZERO
+  vr_d(:,:) = ZERO
+#else
+  hr(:,:) = ZERO
+  sr(:,:) = ZERO
+  vr(:,:) = ZERO
+#endif
   !
+#ifdef USE_CUDA
+  ! TODO
+#else
   CALL DGEMM( 'T', 'N', nbase, nbase, npw2, 2.D0 , &
               psi, npwx2, hpsi, npwx2, 0.D0, hr, nvecx )
   !
@@ -163,7 +337,12 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      CALL DGER( nbase, nbase, -1.D0, psi, npwx2, hpsi, npwx2, hr, nvecx )
   !
   CALL mp_sum( hr( :, 1:nbase ), intra_bgrp_comm )
+#endif
+
   !
+#ifdef USE_CUDA
+  !TODO
+#else
   IF ( uspp ) THEN
      !
      CALL DGEMM( 'T', 'N', nbase, nbase, npw2, 2.D0, &
@@ -183,20 +362,44 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
   END IF
   !
   CALL mp_sum( sr( :, 1:nbase ), intra_bgrp_comm )
+#endif
   !
   IF ( lrot ) THEN
-     !
+#ifdef USE_CUDA
+!$cuf kernel do(1) <<<*,*>>>
+     DO n = 1, nbase
+        !
+        e_d(n) = hr_d(n,n)
+        vr_d(n,n) = 1.D0
+        !
+     END DO
+#else
      DO n = 1, nbase
         !
         e(n) = hr(n,n)
         vr(n,n) = 1.D0
         !
      END DO
+#endif
      !
   ELSE
      !
      ! ... diagonalize the reduced hamiltonian
      !
+#ifdef USE_CUDA
+#ifdef CDIAG_CPU
+  hr = hr_d
+  sr = sr_d
+  IF( my_bgrp_id == root_bgrp_id ) THEN
+    CALL rdiaghg( nbase, nvec, hr, sr, nvecx, ew, vr )
+  END IF
+  IF( nbgrp > 1 ) THEN
+    CALL mp_bcast( vr, root_bgrp_id, inter_bgrp_comm )
+    CALL mp_bcast( ew, root_bgrp_id, inter_bgrp_comm )
+  ENDIF
+  ew_d = ew
+  vr_d = vr
+#else
      IF( my_bgrp_id == root_bgrp_id ) THEN
         CALL rdiaghg( nbase, nvec, hr, sr, nvecx, ew, vr )
      END IF
@@ -204,9 +407,22 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
         CALL mp_bcast( vr, root_bgrp_id, inter_bgrp_comm )
         CALL mp_bcast( ew, root_bgrp_id, inter_bgrp_comm )
      ENDIF
-
+#endif
+!$cuf kernel do(1) <<<*,*>>>
+     DO i = 1, nvec
+        e_d(i) = ew_d(i)
+     END DO
+#else
+     IF( my_bgrp_id == root_bgrp_id ) THEN
+        CALL rdiaghg( nbase, nvec, hr, sr, nvecx, ew, vr )
+     END IF
+     IF( nbgrp > 1 ) THEN
+        CALL mp_bcast( vr, root_bgrp_id, inter_bgrp_comm )
+        CALL mp_bcast( ew, root_bgrp_id, inter_bgrp_comm )
+     ENDIF
      !
      e(1:nvec) = ew(1:nvec)
+#endif
      !
   END IF
   !
@@ -220,6 +436,10 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      !
      np = 0
      !
+#ifdef USE_CUDA
+! Need further help to TODO:
+
+#else
      DO n = 1, nvec
         !
         IF ( .NOT. conv(n) ) THEN
@@ -232,7 +452,9 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
            ! ... roots come first. This allows to use quick matrix-matrix 
            ! ... multiplications to set a new basis vector (see below)
            !
-           IF ( np /= n ) vr(:,np) = vr(:,n)
+           IF ( np /= n ) THEN
+             vr(:,np) = vr(:,n)
+           ENDIF
            !
            ! ... for use in g_psi
            !
@@ -241,11 +463,26 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
         END IF
         !
      END DO
+#endif
      !
      nb1 = nbase + 1
      !
      ! ... expand the basis set with new basis vectors ( H - e*S )|psi> ...
      !
+#ifdef USE_CUDA
+     IF ( uspp ) THEN
+        !
+        CALL cublasDgemm( 'N', 'N', npw2, notcnv, nbase, 1.D0, &
+                    spsi_d, npwx2, vr_d, nvecx, 0.D0, psi_d(1,nb1), npwx2 )
+        !
+     ELSE
+        !
+        CALL cublasDgemm( 'N', 'N', npw2, notcnv, nbase, 1.D0, &
+                    psi_d, npwx2, vr_d, nvecx, 0.D0, psi_d(1,nb1), npwx2 )
+        !
+     END IF
+
+#else
      IF ( uspp ) THEN
         !
         CALL DGEMM( 'N', 'N', npw2, notcnv, nbase, 1.D0, &
@@ -257,21 +494,54 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
                     psi, npwx2, vr, nvecx, 0.D0, psi(1,nb1), npwx2 )
         !
      END IF
+#endif
      !
+#ifdef USE_CUDA
+!$cuf kernel do(2) <<<*,*>>>
+    Do i=1,notcnv
+          Do k=1,npwx
+            psi_d(k,nbase+i) = - ew_d(nbase+i)*psi_d(k,nbase+i) 
+          end do
+    end do
+#else
      DO np = 1, notcnv
         !
         psi(:,nbase+np) = - ew(nbase+np) * psi(:,nbase+np)
         !
      END DO
+#endif
      !
+#ifdef USE_CUDA
+     CALL cublasDgemm( 'N', 'N', npw2, notcnv, nbase, 1.D0, &
+                 hpsi_d, npwx2, vr_d, nvecx, 1.D0, psi_d(1,nb1), npwx2 )
+#else
      CALL DGEMM( 'N', 'N', npw2, notcnv, nbase, 1.D0, &
                  hpsi, npwx2, vr, nvecx, 1.D0, psi(1,nb1), npwx2 )
+#endif
      !
      CALL stop_clock( 'regterg:update' )
      !
      ! ... approximate inverse iteration
      !
+#ifdef USE_CUDA
+     CALL g_psi_gpu( npwx, npw, notcnv, 1, psi_d(1,nb1), ew_d(nb1) )
+#else
      CALL g_psi( npwx, npw, notcnv, 1, psi(1,nb1), ew(nb1) )
+#endif
+
+#ifdef USE_CUDA
+!TODO #if 0 case
+    DO n = 1, notcnv
+      !
+      call myDdot(npw2, psi_d(1,nbase+n), ew_temp1)
+      ew(n) = 2.D0 * ew_temp1
+      !
+      IF ( gstart == 2 ) ew(n) = ew(n) - psi_d(1,nbase+n) * psi_d(1,nbase+n)
+      !
+    END DO
+    CALL mp_sum( ew( 1:notcnv ), intra_bgrp_comm )
+    ew_d(1:notcnv) = ew(1:notcnv)
+#else
      !
      ! ... "normalize" correction vectors psi(:,nb1:nbase+notcnv) in 
      ! ... order to improve numerical stability of subspace diagonalization 
@@ -289,6 +559,21 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
      !
      CALL mp_sum( ew( 1:notcnv ), intra_bgrp_comm )
      !
+#endif
+
+#ifdef USE_CUDA
+!$cuf kernel do(2) <<<*,*>>>
+     DO i = 1, notcnv
+      DO j = 1, npwx
+          !
+          psi_d(j,nbase+i) = psi_d(j,nbase+i) / SQRT( ew_d(i) )
+      END DO
+      ! ... set Im[ psi(G=0) ] -  needed for numerical stability
+      IF ( gstart == 2 ) psi_d(1,nbase+i) = CMPLX( DBLE(psi_d(1,nbase+i)), 0.D0 ,kind=DP)
+      !
+     END DO
+
+#else
      DO n = 1, notcnv
         !
         psi(:,nbase+n) = psi(:,nbase+n) / SQRT( ew(n) )
@@ -296,6 +581,7 @@ SUBROUTINE regterg( npw, npwx, nvec, nvecx, evc, ethr, &
         IF ( gstart == 2 ) psi(1,nbase+n) = CMPLX( DBLE(psi(1,nbase+n)), 0.D0 ,kind=DP)
         !
      END DO
+#endif
      !
      ! ... here compute the hpsi and spsi of the new functions
      !
