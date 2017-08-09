@@ -60,13 +60,9 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
   CALL start_clock( 'add_vuspsi' )  
   !
   IF ( gamma_only ) THEN
-#ifndef USE_GPU
      !
      CALL add_vuspsi_gamma()
      !
-#else
-     print *,"GAMMA ONLY NOT IMPLEMENTED!!"; call flush(6); STOP
-#endif
   ELSE IF ( noncolin) THEN
 #ifndef USE_GPU
      !
@@ -86,7 +82,6 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
   RETURN
   !
   CONTAINS
-#ifndef USE_GPU
      !
      !-----------------------------------------------------------------------
      SUBROUTINE add_vuspsi_gamma()
@@ -99,6 +94,9 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
        REAL(DP), ALLOCATABLE :: ps (:,:)
        INTEGER :: ierr
        INTEGER :: nproc, mype, m_loc, m_begin, ibnd_loc, icyc, icur_blk, m_max
+#ifdef USE_GPU
+       ATTRIBUTES( DEVICE ) :: ps
+#endif
        !
        IF ( nkb == 0 ) RETURN
        !
@@ -141,10 +139,18 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
                 ! (l'=l+ijkb0, m'=m+ijkb0, indices run from 1 to nh(nt))
                 !
                 IF ( m_loc > 0 ) THEN
+#ifdef USE_GPU
+                  CALL cublasDgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, nh(nt), m_loc, nh(nt), 1.0_dp, &
+                           deeq(1,1,na,current_spin), nhm, &
+                           becp%r(indv_ijkb0(na)+1,1), nkb, 0.0_dp, &
+                               ps(indv_ijkb0(na)+1,1), nkb )
+
+#else
                   CALL DGEMM('N', 'N', nh(nt), m_loc, nh(nt), 1.0_dp, &
                            deeq(1,1,na,current_spin), nhm, &
                            becp%r(indv_ijkb0(na)+1,1), nkb, 0.0_dp, &
                                ps(indv_ijkb0(na)+1,1), nkb )
+#endif
                 END IF
                 !
              END IF
@@ -194,7 +200,6 @@ SUBROUTINE MY_ROUTINE(add_vuspsi)( lda, n, m, hpsi )
        !
      END SUBROUTINE add_vuspsi_gamma
      !
-#endif
      !-----------------------------------------------------------------------
      SUBROUTINE add_vuspsi_k()
        !-----------------------------------------------------------------------
