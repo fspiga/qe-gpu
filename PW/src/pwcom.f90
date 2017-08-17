@@ -236,6 +236,8 @@ MODULE wvfct
        et_d(:,:),          &! eigenvalues of the hamiltonian
        wg_d(:,:),          &! the weight of each k point and band
        g2kin_d(:)           ! kinetic energy
+
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:,:), hpsi_d(:,:,:), spsi_d(:,:,:)
 #endif
   !
 END MODULE wvfct

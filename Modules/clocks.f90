@@ -143,7 +143,11 @@ SUBROUTINE start_clock( label )
      CALL nvtxStartRange(label_,n)
   endif
 #else
+  if(label_(1:3) == 'A2A' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+     CALL nvtxStartRangeAsync(label_,n)
+  else
      CALL nvtxStartRange(label_,n)
+  endif
 #endif
 #endif
            t0cpu(n) = scnds()
@@ -174,7 +178,11 @@ SUBROUTINE start_clock( label )
      CALL nvtxStartRange(label_,nclock)
   endif
 #else
+  if(label_(1:3) == 'A2A' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+     CALL nvtxStartRangeAsync(label_,nclock)
+  else
      CALL nvtxStartRange(label_,nclock)
+  endif
 #endif
 #endif
      t0cpu(nclock)                      = scnds()
@@ -243,7 +251,11 @@ SUBROUTINE stop_clock( label )
           call nvtxEndRange
   endif
 #else
-          call nvtxEndRange
+  if(label_(1:3) == 'A2A' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+     CALL nvtxEndRangeAsync
+  else
+     CALL nvtxEndRange
+  endif
 #endif
 #endif
            cputime(n)   = cputime(n) + scnds() - t0cpu(n)
