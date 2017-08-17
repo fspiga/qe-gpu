@@ -30,6 +30,7 @@ SUBROUTINE allocate_fft
   USE wavefunctions_module, ONLY : psic, psic_nc, psic_batch
   USE funct,     ONLY: dft_is_meta
 #ifdef USE_CUDA                                               
+  USE fft_parallel, ONLY : f_h, aux_h, aux_d, aux2_h, aux2_d
   USE wavefunctions_module, ONLY : psic_d, psic_batch_d                     
   USE scf,        ONLY : vltot_d, vrs_d, rho_core_d, rhog_core_d
 #endif     
@@ -73,8 +74,13 @@ SUBROUTINE allocate_fft
   ALLOCATE (vrs( dfftp%nnr, nspin))
 
 #ifdef USE_CUDA                                               
-  ALLOCATE (psic_d, source=psic)                              
-  ALLOCATE (psic_batch_d, source=psic_batch)                              
+  ALLOCATE (psic_d( dfftp%nnr))                              
+  ALLOCATE (psic_batch_d(dfftp%batchsize*dfftp%nnr))
+  ALLOCATE (f_h(dfftp%batchsize*dfftp%nnr))
+  ALLOCATE (aux_h(dfftp%batchsize*dfftp%nnr))
+  ALLOCATE (aux_d(dfftp%batchsize*dfftp%nnr))
+  ALLOCATE (aux2_h(dfftp%batchsize*dfftp%nnr))
+  ALLOCATE (aux2_d(dfftp%batchsize*dfftp%nnr))
   ALLOCATE (vltot_d( dfftp%nnr))                              
   ALLOCATE (rho_core_d( dfftp%nnr))                           
   ALLOCATE (rhog_core_d( ngm ) )                              
