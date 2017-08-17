@@ -178,7 +178,7 @@ SUBROUTINE diag_bands( iter, ik, avg_iter )
   USE noncollin_module,     ONLY : noncolin, npol
   USE wavefunctions_module, ONLY : evc
 #ifdef USE_CUDA                                               
-  USE wvfct,                ONLY : et_d, g2kin_d                       
+  USE wvfct,                ONLY : et_d, g2kin_d, psi_d, hpsi_d, spsi_d                    
   USE wavefunctions_module, ONLY : evc_d                      
   USE g_psi_mod,            ONLY : h_diag_d, s_diag_d         
 #endif

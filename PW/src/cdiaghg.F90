@@ -163,35 +163,35 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   endif
 #endif
 
-  IF( ALLOCATED( work   ) .and. SIZE( work   ) < 2*lwork  ) DEALLOCATE( work   )
-  IF( ALLOCATED( rwork  ) .and. SIZE( rwork  ) < 2*lrwork ) DEALLOCATE( rwork  )
-  IF( ALLOCATED( iwork  ) .and. SIZE( iwork  ) < 2*liwork ) DEALLOCATE( iwork  )
-  IF( ALLOCATED( ifail  ) .and. SIZE( ifail  ) < 2*n      ) DEALLOCATE( ifail  )
-  IF( ALLOCATED( hdiag  ) .and. SIZE( hdiag  ) < 2*n      ) DEALLOCATE( hdiag  )
-  IF( ALLOCATED( sdiag  ) .and. SIZE( sdiag  ) < 2*n      ) DEALLOCATE( sdiag  )
-  IF( ALLOCATED( h_temp ) .and. SIZE( h_temp ) < 2*n*n    ) DEALLOCATE( h_temp )
-  IF( ALLOCATED( s_temp ) .and. SIZE( s_temp ) < 2*n*n    ) DEALLOCATE( s_temp )
+  IF( ALLOCATED( work   ) .and. SIZE( work   ) < lwork  ) DEALLOCATE( work   )
+  IF( ALLOCATED( rwork  ) .and. SIZE( rwork  ) < lrwork ) DEALLOCATE( rwork  )
+  IF( ALLOCATED( iwork  ) .and. SIZE( iwork  ) < liwork ) DEALLOCATE( iwork  )
+  IF( ALLOCATED( ifail  ) .and. SIZE( ifail  ) < n      ) DEALLOCATE( ifail  )
+  IF( ALLOCATED( hdiag  ) .and. SIZE( hdiag  ) < n      ) DEALLOCATE( hdiag  )
+  IF( ALLOCATED( sdiag  ) .and. SIZE( sdiag  ) < n      ) DEALLOCATE( sdiag  )
+  IF( ALLOCATED( h_temp ) .and. SIZE( h_temp ) < n*n    ) DEALLOCATE( h_temp )
+  IF( ALLOCATED( s_temp ) .and. SIZE( s_temp ) < n*n    ) DEALLOCATE( s_temp )
 
   IF( .not. ALLOCATED( work   ) ) ALLOCATE( work( max_lwork )   )
   IF( .not. ALLOCATED( rwork  ) ) ALLOCATE( rwork( max_lrwork )  )
   IF( .not. ALLOCATED( iwork  ) ) ALLOCATE( iwork( max_liwork )  )
-  IF( .not. ALLOCATED( ifail  ) ) ALLOCATE( ifail( ldh )  )
-  IF( .not. ALLOCATED( hdiag  ) ) ALLOCATE( hdiag( ldh )  )
-  IF( .not. ALLOCATED( sdiag  ) ) ALLOCATE( sdiag( ldh )  )
-  IF( .not. ALLOCATED( h_temp ) ) ALLOCATE( h_temp(ldh,ldh) )
-  IF( .not. ALLOCATED( s_temp ) ) ALLOCATE( s_temp(ldh,ldh) )
+  IF( .not. ALLOCATED( ifail  ) ) ALLOCATE( ifail( 2*ldh )  )
+  IF( .not. ALLOCATED( hdiag  ) ) ALLOCATE( hdiag( 2*ldh )  )
+  IF( .not. ALLOCATED( sdiag  ) ) ALLOCATE( sdiag( 2*ldh )  )
+  IF( .not. ALLOCATED( h_temp ) ) ALLOCATE( h_temp(ldh,2*ldh) )
+  IF( .not. ALLOCATED( s_temp ) ) ALLOCATE( s_temp(ldh,2*ldh) )
 
 #ifdef USE_GPU
   IF( cpu_path==0 ) THEN
-     IF( ALLOCATED( work_d   ) .and. SIZE( work_d   ) < 2*lwork_d  ) DEALLOCATE( work_d   )
-     IF( ALLOCATED( rwork_d  ) .and. SIZE( rwork_d  ) < 2*lrwork_d ) DEALLOCATE( rwork_d  )
-     IF( ALLOCATED( hdiag_d  ) .and. SIZE( hdiag_d  ) < 2*n      ) DEALLOCATE( hdiag_d  )
-     IF( ALLOCATED( sdiag_d  ) .and. SIZE( sdiag_d  ) < 2*n      ) DEALLOCATE( sdiag_d  )
+     IF( ALLOCATED( work_d   ) .and. SIZE( work_d   ) < lwork_d  ) DEALLOCATE( work_d   )
+     IF( ALLOCATED( rwork_d  ) .and. SIZE( rwork_d  ) < lrwork_d ) DEALLOCATE( rwork_d  )
+     IF( ALLOCATED( hdiag_d  ) .and. SIZE( hdiag_d  ) < n      ) DEALLOCATE( hdiag_d  )
+     IF( ALLOCATED( sdiag_d  ) .and. SIZE( sdiag_d  ) < n      ) DEALLOCATE( sdiag_d  )
 
      IF( .not. ALLOCATED( work_d   ) ) ALLOCATE( work_d( max_lwork_d )   )
      IF( .not. ALLOCATED( rwork_d  ) ) ALLOCATE( rwork_d( max_lrwork_d ) )
-     IF( .not. ALLOCATED( hdiag_d  ) ) ALLOCATE( hdiag_d( ldh )        )
-     IF( .not. ALLOCATED( sdiag_d  ) ) ALLOCATE( sdiag_d( ldh )        )
+     IF( .not. ALLOCATED( hdiag_d  ) ) ALLOCATE( hdiag_d( 2*ldh )        )
+     IF( .not. ALLOCATED( sdiag_d  ) ) ALLOCATE( sdiag_d( 2*ldh )        )
   ENDIF
 #endif
 

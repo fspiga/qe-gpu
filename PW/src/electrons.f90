@@ -376,6 +376,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
   USE dfunct,               ONLY : newd_gpu
   USE cudafor
   USE scf,                  ONLY : rho_core_d, rhog_core_d, vltot_d, vrs_d
+  USE wvfct,                ONLY : psi_d, hpsi_d, spsi_d, comm_h_c
 #endif
   IMPLICIT NONE
   !
@@ -909,6 +910,14 @@ SUBROUTINE electrons_scf ( printout, exxen )
   !
   IF ( output_drho /= ' ' ) CALL remove_atomic_rho()
   call destroy_scf_type ( rhoin )
+
+#ifdef USE_CUDA
+  IF (ALLOCATED(psi_d)) DEALLOCATE(psi_d)
+  IF (ALLOCATED(hpsi_d)) DEALLOCATE(hpsi_d)
+  IF (ALLOCATED(spsi_d)) DEALLOCATE(spsi_d)
+  IF (ALLOCATED(comm_h_c)) DEALLOCATE(comm_h_c)
+#endif
+
   CALL stop_clock( 'electrons' )
   !
   RETURN
