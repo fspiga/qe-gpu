@@ -659,7 +659,14 @@ SUBROUTINE tg_cft3s_gpu_batch( f_d, dfft, isgn, batchsize )
        CALL fft_scatter_batch_b( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
        f_h(j*dfft%nnr + 1:), aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
 
-       CALL cft_2xy( f_d(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), currsize * nppx, n1, n2, nx1, nx2, isgn, planes, dfft%a2a_comp )
+       IF (currsize == dfft%subbatchsize) THEN
+         CALL cft_2xy( f_d(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), currsize * nppx, n1, n2, nx1, nx2, isgn, planes, dfft%a2a_comp )
+       ELSE
+         DO i = 0, currsize - 1
+           CALL cft_2xy( f_d((j+i)*dfft%nnr + 1:), aux_d((j+1)*dfft%nnr + 1:), dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes, &
+           dfft%a2a_comp )
+         ENDDO
+       ENDIF
 
      ENDDO
 
@@ -684,7 +691,14 @@ SUBROUTINE tg_cft3s_gpu_batch( f_d, dfft, isgn, batchsize )
           !
        ENDIF
 
-       CALL cft_2xy( f_d(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), currsize * nppx, n1, n2, nx1, nx2, isgn, planes, dfft%a2a_comp )
+       IF (currsize == dfft%subbatchsize) THEN
+         CALL cft_2xy( f_d(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), currsize * nppx, n1, n2, nx1, nx2, isgn, planes, dfft%a2a_comp )
+       ELSE
+         DO i = 0, currsize - 1
+           CALL cft_2xy( f_d((j+i)*dfft%nnr + 1:), aux_d((j+1)*dfft%nnr + 1:), dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes, &
+           dfft%a2a_comp )
+         ENDDO
+       ENDIF
 
        if (j > 0) i = cudaStreamWaitEvent(dfft%bstreams(j/dfft%subbatchsize + 1), dfft%bevents(j/dfft%subbatchsize), 0)
 
