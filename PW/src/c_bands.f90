@@ -520,8 +520,7 @@ CONTAINS
 !             h_diag_d = h_diag                                                       
 !             s_diag_d = s_diag                                                       
                                                                                       
-             CALL cegterg ( npw, npwx, nbnd, nbndx, npol, evc, evc_d, &
-                         psi_d, hpsi_d, spsi_d, ethr, &         
+             CALL cegterg ( npw, npwx, nbnd, nbndx, npol, evc, evc_d, ethr, &         
                          okvan, et(1,ik), et_d(1,ik), btype(1,ik), &                  
                          notconv, lrot, dav_iter )                                    
 !             et = et_d                                                               

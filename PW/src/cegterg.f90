@@ -37,8 +37,7 @@ END SUBROUTINE myDdot
 !----------------------------------------------------------------------------
 #ifdef USE_CUDA
 SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc, evc_d, &
-                    psi_d, hpsi_d, spsi_d, ethr, &
-                    uspp, e, e_d, btype, notcnv, lrot, dav_iter )
+                    ethr, uspp, e, e_d, btype, notcnv, lrot, dav_iter )
 #else
 SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
                     uspp, e, btype, notcnv, lrot, dav_iter )
@@ -59,6 +58,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #ifdef USE_CUDA
   USE cudafor
   USE gpu_routines
+  USE wvfct,                ONLY : psi_d, hpsi_d, spsi_d, comm_h_c
 !  USE ep_debug, ONLY : compare, MPI_Wtime
 #endif
   !
@@ -75,7 +75,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
     !  evc contains the  refined estimates of the eigenvectors  
 #ifdef USE_CUDA
   COMPLEX(DP), DEVICE, INTENT(INOUT) :: evc_d(npwx,npol,nvec)
-  COMPLEX(DP), DEVICE, DIMENSION(npwx, npol, nvecx), INTENT(INOUT) :: psi_d, hpsi_d, spsi_d 
+  !COMPLEX(DP), DEVICE, DIMENSION(npwx, npol, nvecx), INTENT(INOUT) :: psi_d, hpsi_d, spsi_d 
   REAL(DP), DEVICE, INTENT(OUT) :: e_d(nvec)
 #endif
     !  evc_d contains the refined estimates of the eigenvectors  
@@ -130,10 +130,10 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #ifdef USE_CUDA
 !  attributes(pinned) :: vc
   COMPLEX(DP), DEVICE, ALLOCATABLE :: hc_d(:,:), sc_d(:,:), vc_d(:,:), vc_temp_d(:,:)
-  COMPLEX(DP), PINNED, ALLOCATABLE :: comm_h_c(:,:)
+  !COMPLEX(DP), PINNED, ALLOCATABLE :: comm_h_c(:,:)
   !COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:,:), hpsi_d(:,:,:), spsi_d(:,:,:)
   REAL(DP), DEVICE, ALLOCATABLE :: ew_d(:)
-  REAL(DP), PINNED, ALLOCATABLE :: comm_h_r(:)
+  !REAL(DP), PINNED, ALLOCATABLE :: comm_h_r(:)
   LOGICAL, DEVICE, ALLOCATABLE :: conv_d(:)
   INTEGER, DEVICE :: conv_idx_d(nvec)
   INTEGER :: istat, i, j, k
@@ -222,9 +222,9 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   IF( ierr /= 0 ) &
      CALL errore( ' cegterg ',' cannot allocate ew_d ', ABS(ierr) )
 
-  ALLOCATE( comm_h_r( nvecx ), STAT=ierr )
-  IF( ierr /= 0 ) &
-     CALL errore( ' cegterg ',' cannot allocate comm_h_r ', ABS(ierr) )
+  !ALLOCATE( comm_h_r( nvecx ), STAT=ierr )
+  !IF( ierr /= 0 ) &
+  !   CALL errore( ' cegterg ',' cannot allocate comm_h_r ', ABS(ierr) )
 
   ALLOCATE( conv_d( nvec ), STAT=ierr )
   IF( ierr /= 0 ) &
@@ -244,9 +244,9 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   IF( ierr /= 0 ) &
      CALL errore( ' cegterg ',' cannot allocate vc_temp_d ', ABS(ierr) )
 
-  ALLOCATE( comm_h_c( nvecx, nvecx ), STAT=ierr )
-  IF( ierr /= 0 ) &
-     CALL errore( ' cegterg ',' cannot allocate comm_h_c ', ABS(ierr) )
+  !ALLOCATE( comm_h_c( nvecx, nvecx ), STAT=ierr )
+  !IF( ierr /= 0 ) &
+  !   CALL errore( ' cegterg ',' cannot allocate comm_h_c ', ABS(ierr) )
 
 !#if 0
 !      istat=CudaMemGetInfo(freeMem,totalMem)
@@ -1062,8 +1062,8 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #ifdef USE_CUDA
 !  DEALLOCATE( hpsi_d )
 !  DEALLOCATE( psi_d )
-  DEALLOCATE( comm_h_r )
-  DEALLOCATE( comm_h_c )
+!  DEALLOCATE( comm_h_r )
+!  DEALLOCATE( comm_h_c )
 #endif
   !
 !  timer = MPI_Wtime() - timer

@@ -22,7 +22,7 @@ SUBROUTINE allocate_wfc()
   USE wavefunctions_module, ONLY : evc
 #ifdef USE_CUDA                                               
   USE wavefunctions_module, ONLY : evc_d                      
-  USE wvfct,                ONLY : nbndx, psi_d, hpsi_d, spsi_d
+  USE wvfct,                ONLY : nbndx, psi_d, hpsi_d, spsi_d, comm_h_c
   USE uspp,                 ONLY : okvan
 #endif
   USE wannier_new, ONLY : use_wannier
@@ -37,6 +37,7 @@ SUBROUTINE allocate_wfc()
   ALLOCATE( hpsi_d( npwx, npol, nbndx ) )
   IF(okvan) &
      ALLOCATE( spsi_d( npwx, npol, nbndx ) )
+  ALLOCATE( comm_h_c( nbndx, nbndx ) )
 #endif
   IF ( one_atom_occupations .OR. use_wannier ) &
      ALLOCATE( swfcatom( npwx*npol, natomwfc) )
