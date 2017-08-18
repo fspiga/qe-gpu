@@ -1290,6 +1290,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
   INTEGER :: cuf_i, cuf_j, nswip
   INTEGER :: istat
   INTEGER, POINTER, DEVICE :: p_ismap_d(:)
+  REAL(DP) :: tscale
 #if defined(__MPI)
 
   INTEGER :: sh(dfft%nproc), rh(dfft%nproc)
@@ -1687,6 +1688,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
 
         npp = dfft%npp( me )
         nnp = dfft%nnp
+        tscale = 1.0_DP / ( dfft%nr1 * dfft%nr2 )
 #ifdef EPA2A
 
         DO iter = 1, dfft%nproc
@@ -1698,7 +1700,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
            DO cuf_i = 1, nswip
               mc = p_ismap_d( cuf_i + ioff )
               it = ( ip - 1 ) * sendsiz + (cuf_i-1)*nppx
-                 f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp )
+                 f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp ) * tscale
               ENDDO
            ENDDO
 
@@ -1714,7 +1716,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
            DO cuf_i = 1, nswip
               mc = p_ismap_d( cuf_i + ioff )
               it = ( ip - 1 ) * sendsiz + (cuf_i-1)*nppx
-                 f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp )
+                 f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp ) * tscale
               ENDDO
            ENDDO
 
@@ -1737,6 +1739,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
            nblk = dfft%nproc
            nsiz = 1
         END IF
+        tscale = 1.0_DP / ( dfft%nr1 * dfft%nr2 )
         !
         ip = 1
         !
@@ -1761,7 +1764,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
                  !
                     it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz
                  !
-                    f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp )
+                    f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp ) * tscale
                  ENDDO
                  !
               ENDDO
@@ -1791,7 +1794,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
                  !
                     it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz
                  !
-                    f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp )
+                    f_in_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp ) * tscale
                  ENDDO
                  !
               ENDDO
@@ -1955,7 +1958,7 @@ SUBROUTINE fft_scatter_gpu ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp
   RETURN
 
 END SUBROUTINE fft_scatter_gpu
-
+#if 0
 SUBROUTINE fft_scatter_gpu_batch ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, ncp_, npp_, isgn, batchsize, srh, dtgs )
   !
   USE cudafor
@@ -2678,7 +2681,7 @@ SUBROUTINE fft_scatter_gpu_batch ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_au
   RETURN
 
 END SUBROUTINE fft_scatter_gpu_batch
-
+#endif
 SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_aux, f_aux2_d, f_aux2, ncp_, npp_, isgn, batchsize, batch_id )
   !
   USE cudafor
@@ -2692,6 +2695,7 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
   INTEGER :: cuf_i, cuf_j, nswip
   INTEGER :: istat
   INTEGER, POINTER, DEVICE :: p_ismap_d(:)
+  REAL(DP) :: tscale
 #if defined(__MPI)
 
   INTEGER :: sh(dfft%nproc), rh(dfft%nproc)
@@ -2782,6 +2786,7 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 
         npp = dfft%npp( me )
         nnp = dfft%nnp
+        tscale = 1.0_DP / ( dfft%nr1 * dfft%nr2 )
 
         DO ip = 1, dfft%nproc
            ioff = dfft%iss( ip )
@@ -2791,7 +2796,7 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
            DO cuf_i = 1, nswip
               mc = p_ismap_d( cuf_i + ioff )
               it = ( ip - 1 ) * sendsiz + (cuf_i-1)*nppx
-                 f_aux2_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp )
+                 f_aux2_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp ) * tscale
               ENDDO
            ENDDO
 
@@ -2801,6 +2806,7 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 
         npp  = dfft%npp( me )
         nnp  = dfft%nnp
+        tscale = 1.0_DP / ( dfft%nr1 * dfft%nr2 )
 
         nblk = dfft%nproc
         nsiz = 1
@@ -2825,7 +2831,7 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
                  !
                     it = (cuf_i-1) * nppx + ( gproc - 1 ) * sendsiz + i*nppx*ncpx
                  !
-                    f_aux2_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp + i*dfft%nnr )
+                    f_aux2_d( cuf_j + it ) = f_aux_d( mc + ( cuf_j - 1 ) * nnp + i*dfft%nnr ) * tscale
                  ENDDO
                  !
               ENDDO

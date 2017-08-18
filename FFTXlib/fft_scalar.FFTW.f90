@@ -267,9 +267,7 @@
 
        !   no table exist for these parameters
        !   initialize a new one
-#if defined(__GPU_DEBUG)
-       print *,"INIT CUFFT Z PLAN: ",nz,"x",nsl
-#endif
+
        CALL init_plan()
 
      END IF
@@ -343,6 +341,10 @@
                               DATA_DIM, STRIDE, DIST, &
                               DATA_DIM, STRIDE, DIST, &
                               CUFFT_Z2Z, BATCH )
+
+#if defined(__CUDA_DEBUG)
+       print *,"INIT CUFFT Z PLAN: ",nz,"x",nsl,"x",ldz
+#endif
 
 #ifdef TRACK_FLOPS
        zflops( icurrent ) = 5.0d0 * REAL( nz ) * log( REAL( nz ) )/log( 2.d0 )
@@ -728,13 +730,10 @@
 #if defined(__FFT_CLOCKS)
      CALL start_clock( 'GPU_cft_2xy' )
 #endif
-! TODO: consider case where not all XY planes are processed
 
      IF( isign < 0 ) THEN
         !
-        !print *,"exec cufft FWD",nx,ny,ldx,ldy,nzl
-
-        tscale = 1.0_DP / ( nx * ny )
+        !tscale = 1.0_DP / ( nx * ny ) 
         !
 #if defined __FFTW_ALL_XY_PLANES
         istat = cufftExecZ2Z( cufft_plan_2d(ip), r(1,1,1), r(1,1,1), CUFFT_FORWARD )
@@ -766,18 +765,12 @@
         DO k=1, nzl
            DO j=1, ldy
              DO i=1, ldx
-                r(i,j,k) = temp(j,k,i) * tscale
+                r(i,j,k) = temp(j,k,i)
               END DO
            END DO
         END DO
 #endif
 
-#if 0
-!$cuf kernel do(1) <<<*,*, 0, stream>>>
-        DO i=1, ldx * ldy * nzl
-           r( i ) = r( i ) * tscale
-        END DO
-#endif
         !CALL ZDSCAL( ldx * ldy * nzl, tscale, r(1), 1)
         !
      ELSE IF( isign > 0 ) THEN
@@ -873,6 +866,11 @@
                               DATA_DIM, STRIDE, DIST, &
                               DATA_DIM, STRIDE, DIST, &
                               CUFFT_Z2Z, BATCH )
+
+#if defined(__CUDA_DEBUG)
+       print *,"INIT CUFFT ALL_XY PLAN: ",nx,"x",ny,"x",nzl,"ldx:",ldx,"batch:",batch_1,batch_2
+#endif
+
 #else
        INTEGER, PARAMETER :: RANK=1
        INTEGER :: FFT_DIM_X(RANK), DATA_DIM_X(RANK), FFT_DIM_Y(RANK), DATA_DIM_Y(RANK)
@@ -896,8 +894,8 @@
        IF( cufft_plan_y( 1, icurrent) /= 0 )  istat = cufftDestroy( cufft_plan_y(1,icurrent) )
        IF( cufft_plan_y( 2, icurrent) /= 0 )  istat = cufftDestroy( cufft_plan_y(2,icurrent) )
 
-#if defined(__GPU_DEBUG)
-       print *,"INIT CUFFT XY PLAN: ",nx,"x",ny,"x",nzl
+#if defined(__CUDA_DEBUG)
+       print *,"INIT CUFFT XY PLAN: ",nx,"x",ny,"x",nzl,"ldx:",ldx,"batch:",batch_1,batch_2
 #endif
 
        istat = cufftPlanMany( cufft_plan_x( icurrent), RANK, FFT_DIM_X, &
