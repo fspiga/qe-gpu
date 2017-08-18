@@ -1031,7 +1031,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 
   !copy outputs to CPU (not sure if this is needed)
 #ifdef USE_CUDA
-  evc = evc_d
+!  evc = evc_d
   e = e_d
 #endif
 
