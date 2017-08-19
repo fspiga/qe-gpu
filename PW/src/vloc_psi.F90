@@ -223,6 +223,7 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
 #endif
 #ifdef TRACK_FLOPS
   USE flops_tracker, ONLY : fft_ops
+  USE mpiDeviceUtil, ONLY : hostname
 #endif
   !
   IMPLICIT NONE
@@ -453,7 +454,7 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
   fft_time = MPI_Wtime() - fft_time
   fft_ops_end = fft_ops
   fft_flops = (fft_ops_end - fft_ops_start)/fft_time
-  print *,"vloc_psi in",fft_time," FFT GFLOPS: ",fft_flops*1.d-9*REAL( dffts%nproc )
+  if(dffts%mype .eq. 0) write(0,"(A20,2X,A15,2X,F12.6,2X,A15,F6.1)") TRIM(hostname), "vloc_psi in",fft_time," FFT GFLOPS: ",fft_flops*1.d-9*REAL( dffts%nproc )
 #endif
   CALL stop_clock ('vloc_psi')
   !
