@@ -376,7 +376,8 @@ SUBROUTINE electrons_scf ( printout, exxen )
   USE dfunct,               ONLY : newd_gpu
   USE cudafor
   USE scf,                  ONLY : rho_core_d, rhog_core_d, vltot_d, vrs_d
-  USE wvfct,                ONLY : psi_d, hpsi_d, spsi_d, comm_h_c
+  USE wvfct,                ONLY : psi_d, hpsi_d, spsi_d, comm_h_c, comm_s_c
+  USE wvfct,  ONLY : hc_d, sc_d, vc_d, vc_temp_d, ew_d, conv_d, conv_idx_d
 #endif
   IMPLICIT NONE
   !
@@ -915,7 +916,15 @@ SUBROUTINE electrons_scf ( printout, exxen )
   IF (ALLOCATED(psi_d)) DEALLOCATE(psi_d)
   IF (ALLOCATED(hpsi_d)) DEALLOCATE(hpsi_d)
   IF (ALLOCATED(spsi_d)) DEALLOCATE(spsi_d)
-  IF (ALLOCATED(comm_h_c)) DEALLOCATE(comm_h_c)
+!  IF (ALLOCATED(comm_h_c)) DEALLOCATE(comm_h_c)
+!  IF (ALLOCATED(comm_s_c)) DEALLOCATE(comm_s_c)
+!  IF (ALLOCATED(hc_d)) DEALLOCATE(hc_d)
+!  IF (ALLOCATED(sc_d)) DEALLOCATE(sc_d)
+!  IF (ALLOCATED(vc_d)) DEALLOCATE(vc_d)
+!  IF (ALLOCATED(vc_temp_d)) DEALLOCATE(vc_temp_d)
+!  IF (ALLOCATED(ew_d)) DEALLOCATE(ew_d)
+!  IF (ALLOCATED(conv_d)) DEALLOCATE(conv_d)
+!  IF (ALLOCATED(conv_idx_d)) DEALLOCATE(conv_idx_d)
 #endif
 
   CALL stop_clock( 'electrons' )

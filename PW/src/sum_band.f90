@@ -1365,7 +1365,7 @@ SUBROUTINE sum_band_gpu()
      CALL PAW_symmetrize(rho%bec)
   ENDIF
   !
-  IF ( okvan ) CALL deallocate_bec_type ( becp )
+  !IF ( okvan ) CALL deallocate_bec_type ( becp )
   !
   ! ... If a double grid is used, interpolate onto the fine grid
   !
@@ -1738,7 +1738,7 @@ SUBROUTINE sum_band_gpu()
        !
        REAL(DP) :: w1
        ! weights
-       INTEGER :: npw, ipol, na, np
+       INTEGER :: npw, ipol, na, np, nst
        !
        INTEGER  :: idx, ioff, incr, v_siz, j
        COMPLEX(DP), ALLOCATABLE :: tg_psi(:), tg_psi_nc(:,:)
@@ -1963,7 +1963,14 @@ SUBROUTINE sum_band_gpu()
                    !
                 ELSE
                    !
-                   psic_batch_d(:) = (0.d0, 0.d0)
+                   nst = dffts%nr3x*dffts%nsw( dffts%mype + 1 )
+!$cuf kernel do(2) <<<*,*>>>
+                   DO i = 0, currsize-1
+                      DO j = 1, nst
+                         psic_batch_d (j + i*dffts%nnr) = (0.d0, 0.d0)
+                      ENDDO
+                   ENDDO
+
                    !
 !!$cuf kernel do(1) <<<*,*>>>
 !$cuf kernel do(2) <<<*,*>>>

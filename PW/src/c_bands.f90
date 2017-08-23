@@ -264,7 +264,9 @@ SUBROUTINE diag_bands( iter, ik, avg_iter )
   !
   ! ... deallocate work space
   !
+#ifndef USE_CUDA
   CALL deallocate_bec_type ( becp )
+#endif
   DEALLOCATE( s_diag )
   DEALLOCATE( h_diag )
 #ifdef USE_CUDA                                                                       

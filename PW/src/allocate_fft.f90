@@ -35,6 +35,7 @@ SUBROUTINE allocate_fft
   USE scf,        ONLY : vltot_d, vrs_d, rho_core_d, rhog_core_d
 #endif     
   IMPLICIT NONE
+ integer :: i
   !
   ! First a bunch of checks
   !
@@ -85,6 +86,15 @@ SUBROUTINE allocate_fft
   ALLOCATE (rho_core_d( dfftp%nnr))                           
   ALLOCATE (rhog_core_d( ngm ) )                              
   ALLOCATE (vrs_d( dfftp%nnr, nspin))                         
+#ifdef USE_IPC
+  call init_ipc( psic_batch_d, 0, dfftp%comm, dfftp%IPC_PEER )
+  call init_ipc(       aux2_d, 1, dfftp%comm, dffts%IPC_PEER )
+#ifdef __CUDA_DEBUG
+DO i = 1,dfftp%nproc
+  print *,"IPC_PEER[ ",i," ]:",dfftp%IPC_PEER(i)
+ENDDO
+#endif
+#endif
 #endif  
 
   IF (noncolin) ALLOCATE (psic_nc( dfftp%nnr, npol))

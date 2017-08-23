@@ -63,6 +63,9 @@ MODULE fft_types
     INTEGER              :: batchsize = 1    ! how many ffts to batch together
     INTEGER              :: subbatchsize = 1  ! size of subbatch for pipelining
 #endif
+#ifdef USE_IPC
+    INTEGER :: IPC_PEER(16)
+#endif
     INTEGER, ALLOCATABLE :: srh(:,:) ! Isend/recv handles by subbatch
     INTEGER, ALLOCATABLE :: iplp(:)  ! indicate which "Y" plane should be FFTed ( potential )
     INTEGER, ALLOCATABLE :: iplw(:)  ! indicate which "Y" plane should be FFTed ( wave func )

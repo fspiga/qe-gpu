@@ -237,8 +237,13 @@ MODULE wvfct
        wg_d(:,:),          &! the weight of each k point and band
        g2kin_d(:)           ! kinetic energy
 
-  COMPLEX(DP), PINNED, ALLOCATABLE :: comm_h_c(:,:) ! complex host buffer used for mp_sum
+  COMPLEX(DP), PINNED, ALLOCATABLE :: comm_h_c(:,:), comm_s_c(:,:) ! complex host buffers used for mp_sum
   COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:,:), hpsi_d(:,:,:), spsi_d(:,:,:)
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: hc_d(:,:), sc_d(:,:), vc_d(:,:), vc_temp_d(:,:)
+  REAL(DP), DEVICE, ALLOCATABLE :: ew_d(:)
+  LOGICAL, DEVICE, ALLOCATABLE :: conv_d(:)
+  INTEGER, DEVICE, ALLOCATABLE :: conv_idx_d(:)
+
 #endif
   !
 END MODULE wvfct

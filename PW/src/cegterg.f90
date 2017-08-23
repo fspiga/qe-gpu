@@ -58,7 +58,9 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #ifdef USE_CUDA
   USE cudafor
   USE gpu_routines
-  USE wvfct,                ONLY : psi_d, hpsi_d, spsi_d, comm_h_c
+  USE wvfct,  ONLY : psi_d, hpsi_d, spsi_d, comm_h_c, comm_s_c
+  USE wvfct,  ONLY : hc_d, sc_d, vc_d, vc_temp_d, ew_d, conv_d, conv_idx_d              
+  USE fft_base,             ONLY : dffts
 !  USE ep_debug, ONLY : compare, MPI_Wtime
 #endif
   !
@@ -129,13 +131,13 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   INTEGER :: conv_idx(nvec)
 #ifdef USE_CUDA
 !  attributes(pinned) :: vc
-  COMPLEX(DP), DEVICE, ALLOCATABLE :: hc_d(:,:), sc_d(:,:), vc_d(:,:), vc_temp_d(:,:)
+  !COMPLEX(DP), DEVICE, ALLOCATABLE :: hc_d(:,:), sc_d(:,:), vc_d(:,:), vc_temp_d(:,:)
   !COMPLEX(DP), PINNED, ALLOCATABLE :: comm_h_c(:,:)
   !COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:,:), hpsi_d(:,:,:), spsi_d(:,:,:)
-  REAL(DP), DEVICE, ALLOCATABLE :: ew_d(:)
+  !REAL(DP), DEVICE, ALLOCATABLE :: ew_d(:)
   !REAL(DP), PINNED, ALLOCATABLE :: comm_h_r(:)
-  LOGICAL, DEVICE, ALLOCATABLE :: conv_d(:)
-  INTEGER, DEVICE :: conv_idx_d(nvec)
+  !LOGICAL, DEVICE, ALLOCATABLE :: conv_d(:)
+  !INTEGER, DEVICE :: conv_idx_d(nvec)
   INTEGER :: istat, i, j, k
   INTEGER(KIND=8) :: freeMem,totalMem
   REAL(DP) :: rFreeMem,rUsedMem,rTotalMem,minUsedMem,maxUsedMem,minFreeMem,maxFreeMem
@@ -178,6 +180,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
      !
   END IF
   !
+#ifndef USE_CUDA
   ALLOCATE(  psi( npwx, npol, nvecx ), STAT=ierr )
   IF( ierr /= 0 ) &
      CALL errore( ' cegterg ',' cannot allocate psi ', ABS(ierr) )
@@ -195,6 +198,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 !        CALL errore( ' cegterg ',' cannot allocate spsi_d ', ABS(ierr) )
 #endif
   END IF
+#endif
   !
   ALLOCATE( sc( nvecx, nvecx ), STAT=ierr )
   IF( ierr /= 0 ) &
@@ -218,31 +222,31 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 
 #ifdef USE_CUDA
 
-  ALLOCATE( ew_d( nvecx ), STAT=ierr )
-  IF( ierr /= 0 ) &
-     CALL errore( ' cegterg ',' cannot allocate ew_d ', ABS(ierr) )
+!  ALLOCATE( ew_d( nvecx ), STAT=ierr )
+!  IF( ierr /= 0 ) &
+!     CALL errore( ' cegterg ',' cannot allocate ew_d ', ABS(ierr) )
 
   !ALLOCATE( comm_h_r( nvecx ), STAT=ierr )
   !IF( ierr /= 0 ) &
   !   CALL errore( ' cegterg ',' cannot allocate comm_h_r ', ABS(ierr) )
 
-  ALLOCATE( conv_d( nvec ), STAT=ierr )
-  IF( ierr /= 0 ) &
-     CALL errore( ' cegterg ',' cannot allocate conv_d ', ABS(ierr) )
+  !ALLOCATE( conv_d( nvec ), STAT=ierr )
+  !IF( ierr /= 0 ) &
+  !   CALL errore( ' cegterg ',' cannot allocate conv_d ', ABS(ierr) )
 
-  ALLOCATE( sc_d( nvecx, nvecx ), STAT=ierr )
-  IF( ierr /= 0 ) &
-     CALL errore( ' cegterg ',' cannot allocate sc_d ', ABS(ierr) )
-  ALLOCATE( hc_d( nvecx, nvecx ), STAT=ierr )
-  IF( ierr /= 0 ) &
-     CALL errore( ' cegterg ',' cannot allocate hc_d ', ABS(ierr) )
-  ALLOCATE( vc_d( nvecx, nvecx ), STAT=ierr )
-  IF( ierr /= 0 ) &
-     CALL errore( ' cegterg ',' cannot allocate vc_d ', ABS(ierr) )
+  !ALLOCATE( sc_d( nvecx, nvecx ), STAT=ierr )
+  !IF( ierr /= 0 ) &
+  !   CALL errore( ' cegterg ',' cannot allocate sc_d ', ABS(ierr) )
+  !ALLOCATE( hc_d( nvecx, nvecx ), STAT=ierr )
+  !IF( ierr /= 0 ) &
+  !   CALL errore( ' cegterg ',' cannot allocate hc_d ', ABS(ierr) )
+  !ALLOCATE( vc_d( nvecx, nvecx ), STAT=ierr )
+  !IF( ierr /= 0 ) &
+  !   CALL errore( ' cegterg ',' cannot allocate vc_d ', ABS(ierr) )
 
-  ALLOCATE( vc_temp_d( nvecx, nvecx ), STAT=ierr )
-  IF( ierr /= 0 ) &
-     CALL errore( ' cegterg ',' cannot allocate vc_temp_d ', ABS(ierr) )
+  !ALLOCATE( vc_temp_d( nvecx, nvecx ), STAT=ierr )
+  !IF( ierr /= 0 ) &
+  !   CALL errore( ' cegterg ',' cannot allocate vc_temp_d ', ABS(ierr) )
 
   !ALLOCATE( comm_h_c( nvecx, nvecx ), STAT=ierr )
   !IF( ierr /= 0 ) &
@@ -294,7 +298,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   !
   IF ( uspp ) then
 #ifdef USE_CUDA
-    spsi_d = ZERO
+!    spsi_d = ZERO
 #else
     spsi = ZERO
 #endif
@@ -302,8 +306,8 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   !
 
 #ifdef USE_CUDA
-  hpsi_d = ZERO
-  psi_d  = ZERO
+!  hpsi_d = ZERO
+!  psi_d  = ZERO
  !$cuf kernel do(3) <<<*,*>>>
   Do k=1,nvec
     Do j=1,npol
@@ -353,10 +357,10 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   ! ... space vc contains the eigenvectors of hc
   !
 #ifdef USE_CUDA
-  hc_d(:,:) = ZERO
-  sc_d(:,:) = ZERO
+!  hc_d(:,:) = ZERO
+!  sc_d(:,:) = ZERO
   vc_d(:,:) = ZERO
-  ew_d(:) = 0.d0
+!  ew_d(:) = 0.d0
 #else
   hc(:,:) = ZERO
   sc(:,:) = ZERO
@@ -365,13 +369,17 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #endif
   !
 #ifdef USE_CUDA
+  istat = cublasSetStream( cublasH, 0 )
   istat = cublasZgemm3m(cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nbase, nbase, kdim, ONE, &
               psi_d, kdmx, hpsi_d, kdmx, ZERO, hc_d, nvecx )
 
+  istat = cudaMemcpyAsync( comm_h_c, hc_d, (nvecx * nbase), cudaMemcpyDeviceToHost, dffts%a2a_d2h )
+  istat = cudaEventRecord( dffts%a2a_event(1), dffts%a2a_d2h )
+
   !CALL mp_sum( hc_d( :, 1:nbase ), intra_bgrp_comm )
-  comm_h_c( :, 1:nbase ) = hc_d( :, 1:nbase )
-  CALL mp_sum( comm_h_c( :, 1:nbase ), intra_bgrp_comm )
-  hc_d( :, 1:nbase ) = comm_h_c( :, 1:nbase )
+  !comm_h_c( :, 1:nbase ) = hc_d( :, 1:nbase )
+  !CALL mp_sum( comm_h_c( :, 1:nbase ), intra_bgrp_comm )
+  !hc_d( :, 1:nbase ) = comm_h_c( :, 1:nbase )
 #else
   CALL ZGEMM( 'C', 'N', nbase, nbase, kdim, ONE, &
               psi, kdmx, hpsi, kdmx, ZERO, hc, nvecx )
@@ -381,6 +389,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #endif
 
 #ifdef USE_CUDA
+  istat = cublasSetStream( cublasH, dffts%a2a_comp )
   IF ( uspp ) THEN
      !
      istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nbase, nbase, kdim, ONE, &
@@ -393,10 +402,26 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
      !
   END IF
 
+  istat = cudaEventRecord( dffts%a2a_event(2), dffts%a2a_comp )
+  istat = cudaStreamWaitEvent( dffts%a2a_d2h, dffts%a2a_event(2), 0 )
+  istat = cudaMemcpyAsync( comm_s_c, sc_d, (nvecx * nbase), cudaMemcpyDeviceToHost, dffts%a2a_d2h )
+  istat = cudaEventRecord( dffts%a2a_event(3), dffts%a2a_d2h )
+
+  istat = cudaEventSynchronize( dffts%a2a_event(1) )
+  CALL mp_sum( comm_h_c( :, 1:nbase ), intra_bgrp_comm )
+  istat = cudaMemcpyAsync( hc_d, comm_h_c, (nvecx * nbase), cudaMemcpyHostToDevice, dffts%a2a_h2d )
+  !istat = cudaEventRecord( dffts%a2a_event(1), dffts%a2a_h2d )
+  !istat = cudaStreamWaitEvent( dffts%a2a_comp, dffts%a2a_event(1), 0 )
+
+  istat = cudaEventSynchronize( dffts%a2a_event(3) )
+  CALL mp_sum( comm_s_c( :, 1:nbase ), intra_bgrp_comm )
+  istat = cudaMemcpyAsync( sc_d, comm_s_c, (nvecx * nbase), cudaMemcpyHostToDevice, 0 )
+
+
  !CALL mp_sum( sc_d( :, 1:nbase ), intra_bgrp_comm )
- comm_h_c(:,1:nbase) = sc_d(:,1:nbase)
- CALL mp_sum( comm_h_c( :, 1:nbase ), intra_bgrp_comm )
- sc_d(:,1:nbase) = comm_h_c(:,1:nbase)
+ !comm_h_c(:,1:nbase) = sc_d(:,1:nbase)
+ !CALL mp_sum( comm_h_c( :, 1:nbase ), intra_bgrp_comm )
+ !sc_d(:,1:nbase) = comm_h_c(:,1:nbase)
 #else
   !
   IF ( uspp ) THEN
@@ -494,7 +519,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
         END IF
      END DO
 
-    conv_idx_d = conv_idx
+    conv_idx_d(1:nvec) = conv_idx(1:nvec)
 !vc_temp_d = vc_d
 
 !$cuf kernel do(2) <<<*,*>>>
@@ -734,13 +759,18 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
      CALL start_clock( 'cegterg:overlap' )
      !
 #ifdef USE_CUDA
+     istat = cublasSetStream( cublasH, 0 )
      istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nbase+notcnv, notcnv, kdim, ONE, psi_d, &
                  kdmx, hpsi_d(1,1,nb1), kdmx, ZERO, hc_d(1,nb1), nvecx )
 
      !CALL mp_sum( hc_d( :, nb1:nb1+notcnv-1 ), intra_bgrp_comm )
-     comm_h_c( :, nb1:nb1+notcnv-1 ) =  hc_d( :, nb1:nb1+notcnv-1 )
-     CALL mp_sum( comm_h_c( :, nb1:nb1+notcnv-1 ), intra_bgrp_comm )
-     hc_d( :, nb1:nb1+notcnv-1 ) =  comm_h_c( :, nb1:nb1+notcnv-1 )
+
+     istat = cudaMemcpyAsync( comm_h_c, hc_d(1,nb1), (nvecx * notcnv), cudaMemcpyDeviceToHost, dffts%a2a_d2h )
+     istat = cudaEventRecord( dffts%a2a_event(1), dffts%a2a_d2h )
+
+     !comm_h_c( :, nb1:nb1+notcnv-1 ) =  hc_d( :, nb1:nb1+notcnv-1 )
+     !CALL mp_sum( comm_h_c( :, nb1:nb1+notcnv-1 ), intra_bgrp_comm )
+     !hc_d( :, nb1:nb1+notcnv-1 ) =  comm_h_c( :, nb1:nb1+notcnv-1 )
 #else
      CALL ZGEMM( 'C', 'N', nbase+notcnv, notcnv, kdim, ONE, psi, &
                  kdmx, hpsi(1,1,nb1), kdmx, ZERO, hc(1,nb1), nvecx )
@@ -749,6 +779,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 #endif
 
 #ifdef USE_CUDA
+     istat = cublasSetStream( cublasH, dffts%a2a_comp )
      IF ( uspp ) THEN
         !
         istat = cublasZgemm3m( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nbase+notcnv, notcnv, kdim, ONE, psi_d, &
@@ -761,10 +792,45 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
         !
      END IF
 
+     istat = cudaEventRecord( dffts%a2a_event(2), dffts%a2a_comp )
+     istat = cudaStreamWaitEvent( dffts%a2a_d2h, dffts%a2a_event(2), 0 )
+     istat = cudaMemcpyAsync( comm_s_c, sc_d(1,nb1), (nvecx * notcnv), cudaMemcpyDeviceToHost, dffts%a2a_d2h )
+     istat = cudaEventRecord( dffts%a2a_event(3), dffts%a2a_d2h )
+
+     istat = cudaEventSynchronize( dffts%a2a_event(1) )
+     CALL mp_sum( comm_h_c( :, 1:notcnv ), intra_bgrp_comm )
+     istat = cudaMemcpyAsync( hc_d(1,nb1), comm_h_c, (nvecx * notcnv), cudaMemcpyHostToDevice, dffts%a2a_h2d )
+     istat = cudaEventRecord( dffts%a2a_event(1), dffts%a2a_h2d )
+     istat = cudaStreamWaitEvent( dffts%a2a_comp, dffts%a2a_event(1), 0 )
+
+     nbase = nbase + notcnv
+
+!$cuf kernel do(1) <<<*,*,0,dffts%a2a_comp>>>
+    Do i=1,nbase
+        hc_d(i,i) = CMPLX( REAL( hc_d(i,i) ), 0.D0 ,kind=DP)
+        Do j=i+1,nbase
+           hc_d(j,i) = CONJG( hc_d(i,j) )
+        end do
+    end do
+
+     istat = cudaEventSynchronize( dffts%a2a_event(3) )
+     CALL mp_sum( comm_s_c( :, 1:notcnv ), intra_bgrp_comm )
+     istat = cudaMemcpyAsync( sc_d(1,nb1), comm_s_c, (nvecx * notcnv), cudaMemcpyHostToDevice, dffts%a2a_h2d )
+
+!$cuf kernel do(1) <<<*,*,0,0>>>
+    Do i=1,nbase
+        sc_d(i,i) = CMPLX( REAL( sc_d(i,i) ), 0.D0 ,kind=DP)
+        Do j=i+1,nbase
+           sc_d(j,i) = CONJG( sc_d(i,j) )
+        end do
+    end do
+
+     istat = cublasSetStream( cublasH, 0 )
+
      !CALL mp_sum( sc_d( :, nb1:nb1+notcnv-1 ), intra_bgrp_comm )
-     comm_h_c( :, nb1:nb1+notcnv-1 ) = sc_d( :, nb1:nb1+notcnv-1 )
-     CALL mp_sum( comm_h_c( :, nb1:nb1+notcnv-1 ), intra_bgrp_comm )
-     sc_d( :, nb1:nb1+notcnv-1 ) = comm_h_c( :, nb1:nb1+notcnv-1 )
+     !comm_h_c( :, nb1:nb1+notcnv-1 ) = sc_d( :, nb1:nb1+notcnv-1 )
+     !CALL mp_sum( comm_h_c( :, nb1:nb1+notcnv-1 ), intra_bgrp_comm )
+     !sc_d( :, nb1:nb1+notcnv-1 ) = comm_h_c( :, nb1:nb1+notcnv-1 )
 #else
      IF ( uspp ) THEN
         !
@@ -782,19 +848,20 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
      CALL stop_clock( 'cegterg:overlap' )
      !
 
-     nbase = nbase + notcnv
      !
-#ifdef USE_CUDA
-!$cuf kernel do(1) <<<*,*>>>
-    Do i=1,nbase
-        hc_d(i,i) = CMPLX( REAL( hc_d(i,i) ), 0.D0 ,kind=DP)
-        sc_d(i,i) = CMPLX( REAL( sc_d(i,i) ), 0.D0 ,kind=DP)
-        Do j=i+1,nbase
-           hc_d(j,i) = CONJG( hc_d(i,j) )
-           sc_d(j,i) = CONJG( sc_d(i,j) )
-        end do
-    end do
-#else
+!#ifdef USE_CUDA
+!!$cuf kernel do(1) <<<*,*>>>
+!    Do i=1,nbase
+!        hc_d(i,i) = CMPLX( REAL( hc_d(i,i) ), 0.D0 ,kind=DP)
+!        sc_d(i,i) = CMPLX( REAL( sc_d(i,i) ), 0.D0 ,kind=DP)
+!        Do j=i+1,nbase
+!           hc_d(j,i) = CONJG( hc_d(i,j) )
+!           sc_d(j,i) = CONJG( sc_d(i,j) )
+!        end do
+!    end do
+!#else
+#ifndef USE_CUDA
+     nbase = nbase + notcnv
      DO n = 1, nbase
         !
         ! ... the diagonal of hc and sc must be strictly real 
@@ -1042,13 +1109,14 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   DEALLOCATE( sc )
 
 #ifdef USE_CUDA
-  DEALLOCATE( conv_d )
-  DEALLOCATE( ew_d )
-  DEALLOCATE( vc_d )
-  DEALLOCATE( hc_d )
-  DEALLOCATE( sc_d )
+!  DEALLOCATE( conv_d )
+!  DEALLOCATE( ew_d )
+!  DEALLOCATE( vc_d )
+!  DEALLOCATE( hc_d )
+!  DEALLOCATE( sc_d )
 #endif
   !
+#ifndef USE_CUDA
   IF ( uspp ) then
    DEALLOCATE( spsi )
 #ifdef USE_CUDA
@@ -1058,7 +1126,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   !
   DEALLOCATE( hpsi )
   DEALLOCATE( psi )
-
+#endif
 #ifdef USE_CUDA
 !  DEALLOCATE( hpsi_d )
 !  DEALLOCATE( psi_d )
