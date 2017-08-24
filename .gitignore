@@ -9,3 +9,4 @@
 .github/PULL_REQUEST_TEMPLATE.md
 *.github
 tags
+.tags*
