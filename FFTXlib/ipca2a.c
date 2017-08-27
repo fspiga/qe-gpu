@@ -16,7 +16,7 @@
 #define MAXBUF (4)
 #define MAXPEER (16)
 static cudaStream_t streams[MAXPEER];
-static first_time = 1;
+static int first_time = 1;
 static double* buff_rem[MAXBUF][MAXPEER];
 static double* buff_base[MAXBUF];
 static cudaEvent_t events[MAXPEER];
