@@ -76,7 +76,7 @@ PROGRAM pwscf
   END IF
   !
   CALL stop_run( exit_status )
-  CALL do_stop( exit_status )
+  !CALL do_stop( exit_status )
   !
   STOP
   !
