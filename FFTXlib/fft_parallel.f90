@@ -648,16 +648,26 @@ SUBROUTINE tg_cft3s_gpu_batch( f_d, dfft, isgn, batchsize )
 
        IF (j > 0) i = cudaStreamWaitEvent(dfft%bstreams(j/dfft%subbatchsize + 1), dfft%bevents(j/dfft%subbatchsize), 0)
 
-       CALL fft_scatter_batch_a( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
-       f_h(j*dfft%nnr + 1:), aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       IF (dfft%nproc .ne. 1) THEN
+         CALL fft_scatter_batch_a( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+         f_h(j*dfft%nnr + 1:), aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       ELSE
+         CALL fft_scatter_batch_a( dfft, aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+         f_h(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       ENDIF
 
      ENDDO
 
      DO j = 0, batchsize-1, dfft%subbatchsize
        currsize = min(dfft%subbatchsize, batchsize - j)
 
-       CALL fft_scatter_batch_b( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
-       f_h(j*dfft%nnr + 1:), aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       IF (dfft%nproc .ne. 1) THEN
+         CALL fft_scatter_batch_b( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+         f_h(j*dfft%nnr + 1:), aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       ELSE
+         CALL fft_scatter_batch_b( dfft, aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+         f_h(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       ENDIF
 
        IF (currsize == dfft%subbatchsize) THEN
          CALL cft_2xy( f_d(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), currsize * nppx, n1, n2, nx1, nx2, isgn, planes, dfft%a2a_comp )
@@ -702,16 +712,26 @@ SUBROUTINE tg_cft3s_gpu_batch( f_d, dfft, isgn, batchsize )
 
        if (j > 0) i = cudaStreamWaitEvent(dfft%bstreams(j/dfft%subbatchsize + 1), dfft%bevents(j/dfft%subbatchsize), 0)
 
-       CALL fft_scatter_batch_a( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
-       f_h(j*dfft%nnr + 1:), aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       IF (dfft%nproc .ne. 1) THEN
+         CALL fft_scatter_batch_a( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+         f_h(j*dfft%nnr + 1:), aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       ELSE
+         CALL fft_scatter_batch_a( dfft, aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+         f_h(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       ENDIF
 
      ENDDO
 
      DO j = 0, batchsize-1, dfft%subbatchsize
        currsize = min(dfft%subbatchsize, batchsize - j)
 
-       CALL fft_scatter_batch_b( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
-       f_h(j*dfft%nnr + 1:), aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       IF (dfft%nproc .ne. 1) THEN
+         CALL fft_scatter_batch_b( dfft, aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+         f_h(j*dfft%nnr + 1:), aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       ELSE
+         CALL fft_scatter_batch_b( dfft, aux2_d(j*dfft%nnr + 1:), aux2_h(j*dfft%nnr + 1:), nx3, dfft%nnr, f_d(j*dfft%nnr + 1:), &
+         f_h(j*dfft%nnr + 1:), aux_d(j*dfft%nnr + 1:), aux_h(j*dfft%nnr + 1:), dfft%nsw, dfft%npp, isgn, currsize, j/dfft%subbatchsize + 1 )
+       ENDIF
 
        i = cudaEventRecord(dfft%bevents(j/dfft%subbatchsize + 1), dfft%bstreams(j/dfft%subbatchsize + 1))
        i = cudaStreamWaitEvent(dfft%a2a_comp, dfft%bevents(j/dfft%subbatchsize + 1), 0)

@@ -169,8 +169,8 @@ CONTAINS
     istat = cudaStreamCreate( desc%a2a_d2h )
     istat = cudaStreamCreate( desc%a2a_h2d )
 
-    ALLOCATE( desc%a2a_event( 2*nproc ) )
-    DO i = 1, 2*nproc
+    ALLOCATE( desc%a2a_event( max(2*nproc, 3) ) )
+    DO i = 1, max(2*nproc, 3)
        istat = cudaEventCreate( desc%a2a_event( i ) )
     ENDDO
 
