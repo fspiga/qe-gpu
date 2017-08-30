@@ -131,6 +131,7 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 
   cpu_path=0
 
+#if 0
   istat=CudaMemGetInfo(freeMem,totalMem)
   rFreeMem = freeMem/(10.**6)
   needMem = 8*2*ldh + 16*2*ldh*ldh + 16*max_lwork_d + 8*max_lrwork_d
@@ -144,6 +145,7 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
     write(*,"(A16,F8.1,A16,F8.1,A26)") "ZHEGVX: GPU has",rFreeMem,"MB available / ",rNeedMem,"MB required --> using CPU"
     cpu_path=1
   endif
+#endif
   
   if(cpu_path==1) then
     if(allocated(hdiag_d)) deallocate(hdiag_d)
