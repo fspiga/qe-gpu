@@ -2718,6 +2718,14 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
   !CALL start_clock ('fft_scatter')
   !istat = cudaDeviceSynchronize()
   !
+
+#ifdef USE_IPC
+#ifndef USE_GPU_MPI
+  call get_ipc_peers( dfft%IPC_PEER )
+#endif
+#endif
+
+
   ncpx = 0
   nppx = 0
   DO proc = 1, nprocp
@@ -2765,8 +2773,18 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
         if( istat ) print *,"ERROR cudaMemcpy2D failed : ",istat
 
 #else
+#ifdef USE_IPC
+     IF(dfft%IPC_PEER( dest + 1 ) .eq. 1) THEN
+        istat = cudaMemcpy2DAsync( f_aux_d(kdest + 1), nppx, f_in_d(kfrom + 1 ), nr3x, npp_(gproc), batchsize * ncpx,cudaMemcpyDeviceToDevice, dfft%bstreams(batch_id) )
+        if( istat ) print *,"ERROR cudaMemcpy2D failed : ",istat
+     ELSE
         istat = cudaMemcpy2DAsync( f_aux(kdest + 1), nppx, f_in_d(kfrom + 1 ), nr3x, npp_(gproc), batchsize * ncpx,cudaMemcpyDeviceToHost, dfft%bstreams(batch_id) )
         if( istat ) print *,"ERROR cudaMemcpy2D failed : ",istat
+     ENDIF
+#else
+        istat = cudaMemcpy2DAsync( f_aux(kdest + 1), nppx, f_in_d(kfrom + 1 ), nr3x, npp_(gproc), batchsize * ncpx,cudaMemcpyDeviceToHost, dfft%bstreams(batch_id) )
+        if( istat ) print *,"ERROR cudaMemcpy2D failed : ",istat
+#endif
 #endif
         !istat = cudaEventRecord( dfft%bevents(iter-1,batch_id), dfft%bstreams(batch_id) )
      ENDDO
@@ -2856,8 +2874,15 @@ SUBROUTINE fft_scatter_gpu_batch_a ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 
      DO proc = 1, dfft%nproc
        if (proc .ne. me) then
+#ifdef USE_IPC
+     IF(dfft%IPC_PEER( proc ) .eq. 0) THEN
          kdest = ( proc - 1 ) * sendsiz
          istat = cudaMemcpyAsync( f_aux2(kdest+1), f_aux2_d(kdest+1), sendsiz, stream=dfft%bstreams(batch_id) )
+     ENDIF
+#else
+         kdest = ( proc - 1 ) * sendsiz
+         istat = cudaMemcpyAsync( f_aux2(kdest+1), f_aux2_d(kdest+1), sendsiz, stream=dfft%bstreams(batch_id) )
+#endif
        endif
      ENDDO
 #endif
@@ -3030,8 +3055,15 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
 #ifndef USE_GPU_MPI
      DO proc = 1, nprocp
         if (proc .ne. me) then
+#ifdef USE_IPC
+     IF(dfft%IPC_PEER( proc ) .eq. 0) THEN
           kdest = ( proc - 1 ) * sendsiz
           istat = cudaMemcpyAsync( f_aux2_d(kdest+1), f_aux2(kdest+1), sendsiz, stream=dfft%bstreams(batch_id) )
+     ENDIF
+#else
+          kdest = ( proc - 1 ) * sendsiz
+          istat = cudaMemcpyAsync( f_aux2_d(kdest+1), f_aux2(kdest+1), sendsiz, stream=dfft%bstreams(batch_id) )
+#endif
         endif
      ENDDO
 #endif
@@ -3229,8 +3261,21 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
         !istat = cudaMemcpy2D( f_in_d(kfrom +1 ), nr3x, f_aux(kdest + 1), nppx, npp_(gproc), ncp_(me), cudaMemcpyHostToDevice )
         !istat = cudaMemcpy2D( f_in_d(kfrom +1 ), nr3x, f_aux(kdest + 1), nppx, npp_(gproc), batchsize * ncpx, cudaMemcpyHostToDevice )
         !istat = cudaMemcpy2DAsync( f_in_d(kfrom +1 ), nr3x, f_aux(kdest + 1), nppx, npp_(gproc), batchsize * ncpx, &
+#ifdef USE_IPC
+     IF(dfft%IPC_PEER( proc ) .eq. 1) THEN
+          istat = cudaMemcpy2DAsync( f_in_d(kfrom +1 ), nr3x, f_aux_d(kdest + 1), nppx, npp_(gproc), batchsize * ncpx, &
+          cudaMemcpyDeviceToDevice, dfft%bstreams(batch_id) )
+
+     ELSE
           istat = cudaMemcpy2DAsync( f_in_d(kfrom +1 ), nr3x, f_aux(kdest + 1), nppx, npp_(gproc), batchsize * ncpx, &
           cudaMemcpyHostToDevice, dfft%bstreams(batch_id) )
+
+     ENDIF
+#else
+
+          istat = cudaMemcpy2DAsync( f_in_d(kfrom +1 ), nr3x, f_aux(kdest + 1), nppx, npp_(gproc), batchsize * ncpx, &
+          cudaMemcpyHostToDevice, dfft%bstreams(batch_id) )
+#endif
 #endif
         endif
         offset = offset + npp_ ( gproc )
