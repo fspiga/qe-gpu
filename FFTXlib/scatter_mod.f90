@@ -2982,7 +2982,7 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      CALL start_clock ('A2A')
 #ifdef USE_IPC
      !TODO: possibly remove this barrier by ensuring recv buffer is not used by previous operation
-     call MPI_Barrier( gcomm )
+     call MPI_Barrier( gcomm, ierr )
 #endif
      req_cnt = 0
 
@@ -3163,7 +3163,7 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      CALL start_clock ('A2A')
 #ifdef USE_IPC
      ! TODO: possibly remove this barrier
-     call MPI_Barrier( gcomm )
+     call MPI_Barrier( gcomm, ierr )
 #endif
      req_cnt = 0
 
