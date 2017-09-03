@@ -10,6 +10,29 @@
 #define ONE  ( 1.D0, 0.D0 )
 ! define __VERBOSE to print a message after each eigenvalue is computed
 !
+#ifdef USE_CUDA
+SUBROUTINE cgDdot( n, A, B, res )
+  !
+  use kinds, ONLY : DP
+  use cudafor
+  use cublas
+  !
+  IMPLICIT NONE
+  !
+  INTEGER, INTENT(IN) :: n
+  !
+!!!!!pgi$ ignore_tkr A
+  REAL(DP), DEVICE, INTENT(IN) :: A(n), B(n)
+  !
+  REAL(DP), INTENT(OUT) :: res
+  !
+  res = cublasDdot( n, A, 1, B, 1 )
+  !
+  return
+  !
+END SUBROUTINE cgDdot
+#endif
+!
 !----------------------------------------------------------------------------
 #ifdef USE_CUDA
 SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, e_d, btype, precondition, &
@@ -76,7 +99,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
                                       hpsi_d(:), spsi_d(:), &
                                       lagrange_d(:),lagrange_r_d(:), &
                                       lagrange_i_d(:)
-  REAL(DP),DEVICE                  :: psi_norm_d
+  REAL(DP)                 :: e_temp
 #endif
   !
   ! ... external functions
@@ -115,7 +138,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
   ALLOCATE( lagrange( nbnd ), lagrange_r( nbnd ), lagrange_i( nbnd ))
   !
 #ifdef USE_CUDA
-  ALLOCATE(psi_d(npwx * npol, nbnd),hpsi_d(kdmx), &
+  ALLOCATE(psi_d(npwx * npol, nbnd), hpsi_d(kdmx), &
           spsi_d(kdmx), lagrange_d(nbnd),lagrange_r_d(nbnd), &
           lagrange_i_d(nbnd), psi_temp_d(npwx * npol, nbnd))
 #endif
@@ -173,11 +196,11 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
 #ifdef USE_CUDA
       ! FIX: possible alternative to the array copy
       lagrange_d = lagrange
-      lagrange_r = DBLE(lagrange)  ! Converting to read double
-      lagrange_i = AIMAG(lagrange) ! Immaginary part
-      lagrange_r_d = lagrange_r
-      lagrange_i_d = lagrange_i
-      psi_norm_d =  lagrange_r(m)
+      lagrange_r_d = DBLE(lagrange)  ! Converting to real double
+      lagrange_i_d = AIMAG(lagrange) ! Immaginary part extraction
+      ! lagrange_r_d = lagrange_r
+      ! lagrange_i_d = lagrange_i
+      psi_norm =  lagrange_r_d(m)
       !
 !$cuf kernel do(2) <<<*,*>>>
       DO j = 1, m - 1
@@ -187,15 +210,25 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
       END DO
 !$cuf kernel do(1) <<<*,*>>>
       DO j = 1, m-1
-         psi_norm_d = psi_norm_d - ( lagrange_r_d(j)**2 + lagrange_i_d(j)**2 )
+         psi_norm = psi_norm - ( lagrange_r_d(j)**2 + lagrange_i_d(j)**2 )
       END DO
       !
-      psi_norm_d = SQRT( psi_norm_d )
+      psi_norm = SQRT( psi_norm )
       !
 !$cuf kernel do(1) <<<*,*>>>
       DO i = 1, kdmx
-        psi_d(i,m) = psi_d(i,m) / psi_norm_d
+        psi_d(i,m) = psi_d(i,m) / psi_norm
       END DO
+      !
+      ! ... calculate starting gradient (|hpsi> = H|psi>) ...
+      !
+      CALL h_psi(npwx, npw, 1, psi_d(1,m), hpsi_d)
+      CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d) !FIX: Comment this out
+      !
+      ! ... and starting eigenvalue (e = <y|PHP|y> = <psi|H|psi>)
+      !
+      CALL cgDdot(kdim2, psi_d(1,m), hpsi_d, e_temp)
+      e_d(m) = e_temp
 #endif
 #ifndef USE_CUDA
      !
