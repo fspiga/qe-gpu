@@ -98,9 +98,11 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
   COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:), psi_temp_d(:,:), &
                                       hpsi_d(:), spsi_d(:), &
                                       lagrange_d(:),lagrange_r_d(:), &
-                                      lagrange_i_d(:)
+                                      lagrange_i_d(:), g_d(:), ppsi_d(:), &
+                                      scg_d(:)
   REAL(DP), DEVICE, ALLOCATABLE    :: precondition_d(:)
-  REAL(DP)                 :: e_temp
+  REAL(DP), DEVICE                 :: es_d
+  REAL(DP)                         :: e_temp, e_temp2
 #endif
   !
   ! ... external functions
@@ -139,10 +141,11 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
   ALLOCATE( lagrange( nbnd ), lagrange_r( nbnd ), lagrange_i( nbnd ))
   !
 #ifdef USE_CUDA
-  ALLOCATE(psi_d(npwx * npol, nbnd), hpsi_d(kdmx), &
+  ALLOCATE( psi_d(npwx * npol, nbnd), hpsi_d(kdmx), &
           spsi_d(kdmx), lagrange_d(nbnd),lagrange_r_d(nbnd), &
           lagrange_i_d(nbnd), psi_temp_d(npwx * npol, nbnd), &
-          precondition_d(npwx*npol))
+          precondition_d(npwx*npol), g_d(kdmx), ppsi_d(kdmx), &
+          scg_d(kdmx) )
 #endif
   !
   avg_iter = 0.D0
@@ -174,6 +177,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
 #ifdef USE_CUDA
     lagrange_d = ZERO
     precondition_d = precondition
+    scg_d = ZERO
 #endif
      !
      ! ... calculate S|psi>
@@ -266,8 +270,39 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
      ! ... start iteration for this band
      !
      iterate: DO iter = 1, maxter
+        !
 #ifdef USE_CUDA
         !
+        ! ... calculate  P (PHP)|y>
+        ! ... ( P = preconditioning matrix, assumed diagonal )
+        !
+!$cuf kernel do(1) <<<*,*>>>
+        DO i = 1, kdmx
+          g_d(i)    = hpsi_d(i) / precondition_d(i)
+          ppsi_d(i) = spsi_d(i) / precondition_d(i)
+        END DO
+        !
+        ! ... ppsi is now S P(P^2)|y> = S P^2|psi>)
+        !
+        CALL cgDdot(kdim2, spsi_d(1), g_d(1), es(1) )
+        CALL cgDdot(kdim2, spsi_d(1), ppsi_d(1), es(2) )
+        CALL mp_sum( es , intra_bgrp_comm )
+        !
+        es_d = es(1) / es(2)   ! es(1) = es(1) / es(2)
+        !
+!$cuf kernel do(1) <<<*,*>>>
+        DO i = 1, kdmx
+          g_d(i) = g_d(i) - es_d * ppsi_d(i)
+        END DO
+        !
+        ! ... e1 = <y| S P^2 PHP|y> / <y| S S P^2|y> ensures that
+        ! ... <g| S P^2|y> = 0
+        ! ... orthogonalize to lowest eigenfunctions (already calculated)
+        !
+        ! ... scg is used as workspace
+        !
+        call s_psi(npwx, npw, 1, g_d(1),scg_d(1))  !FIX with s_1psi
+        scg = scg_d
 #else
         !
         ! ... calculate  P (PHP)|y>
@@ -295,10 +330,15 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
         !
         CALL s_1psi( npwx, npw, g(1), scg(1) )
         !
+#endif
         CALL ZGEMV( 'C', kdim, ( m - 1 ), ONE, psi, &
                     kdmx, scg, 1, ZERO, lagrange, 1  )
         !
         CALL mp_sum( lagrange( 1:m-1 ), intra_bgrp_comm )
+        !
+#ifdef USE_CUDA
+
+#else
         !
         DO j = 1, ( m - 1 )
            !
