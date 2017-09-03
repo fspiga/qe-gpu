@@ -99,6 +99,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
                                       hpsi_d(:), spsi_d(:), &
                                       lagrange_d(:),lagrange_r_d(:), &
                                       lagrange_i_d(:)
+  REAL(DP), DEVICE, ALLOCATABLE    :: precondition_d(:)
   REAL(DP)                 :: e_temp
 #endif
   !
@@ -140,7 +141,8 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
 #ifdef USE_CUDA
   ALLOCATE(psi_d(npwx * npol, nbnd), hpsi_d(kdmx), &
           spsi_d(kdmx), lagrange_d(nbnd),lagrange_r_d(nbnd), &
-          lagrange_i_d(nbnd), psi_temp_d(npwx * npol, nbnd))
+          lagrange_i_d(nbnd), psi_temp_d(npwx * npol, nbnd), &
+          precondition_d(npwx*npol))
 #endif
   !
   avg_iter = 0.D0
@@ -171,6 +173,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
      lagrange = ZERO
 #ifdef USE_CUDA
     lagrange_d = ZERO
+    precondition_d = precondition
 #endif
      !
      ! ... calculate S|psi>
@@ -228,9 +231,9 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
       ! ... and starting eigenvalue (e = <y|PHP|y> = <psi|H|psi>)
       !
       CALL cgDdot(kdim2, psi_d(1,m), hpsi_d, e_temp)
+      CALL mp_sum( e_temp , intra_bgrp_comm )
       e_d(m) = e_temp
-#endif
-#ifndef USE_CUDA
+#else
      !
      psi_norm = DBLE( lagrange(m) )
      !
@@ -258,10 +261,14 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
      e(m) = ddot( kdim2, psi(1,m), 1, hpsi, 1 )
      !
      CALL mp_sum( e(m), intra_bgrp_comm )
+#endif
      !
      ! ... start iteration for this band
      !
      iterate: DO iter = 1, maxter
+#ifdef USE_CUDA
+        !
+#else
         !
         ! ... calculate  P (PHP)|y>
         ! ... ( P = preconditioning matrix, assumed diagonal )
@@ -420,8 +427,9 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
         !
         hpsi(:) = cost * hpsi(:) + sint / cg0 * ppsi(:)
         !
-     END DO iterate
 #endif
+        !
+     END DO iterate
      !
 !
 #if defined(__VERBOSE)
