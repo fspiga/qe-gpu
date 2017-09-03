@@ -99,7 +99,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
                                       hpsi_d(:), spsi_d(:), &
                                       lagrange_d(:),lagrange_r_d(:), &
                                       lagrange_i_d(:), g_d(:), ppsi_d(:), &
-                                      scg_d(:)
+                                      scg_d(:), g0_d(:)
   REAL(DP), DEVICE, ALLOCATABLE    :: precondition_d(:)
   REAL(DP), DEVICE                 :: es_d
   REAL(DP)                         :: e_temp, e_temp2
@@ -145,7 +145,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
           spsi_d(kdmx), lagrange_d(nbnd),lagrange_r_d(nbnd), &
           lagrange_i_d(nbnd), psi_temp_d(npwx * npol, nbnd), &
           precondition_d(npwx*npol), g_d(kdmx), ppsi_d(kdmx), &
-          scg_d(kdmx) )
+          scg_d(kdmx), g0_d(kdmx) )
 #endif
   !
   avg_iter = 0.D0
@@ -178,6 +178,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
     lagrange_d = ZERO
     precondition_d = precondition
     scg_d = ZERO
+    g0_d = ZERO
 #endif
      !
      ! ... calculate S|psi>
@@ -337,7 +338,26 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
         CALL mp_sum( lagrange( 1:m-1 ), intra_bgrp_comm )
         !
 #ifdef USE_CUDA
-
+        !
+        lagrange_d = lagrange
+!$cuf kernel do(2) <<<*,*>>>
+        DO i = 1, ( m -1 )
+          DO j = 1,kdmx
+            g_d(j)   = g_d(j)   - lagrange_d(i) * psi_d(j,i)
+            scg_d(j) = scg_d(j) - lagrange_d(i) * psi_d(j,i)
+          END DO
+        END DO
+        !
+        IF ( iter /= 1 ) THEN
+           !
+           ! ... gg1 is <g(n+1)|S|g(n)> (used in Polak-Ribiere formula)
+           !
+           CALL cgDdot( kdim2, g_d(1), g0_d(1), gg1 )
+           !
+           CALL mp_sum( gg1, intra_bgrp_comm )
+           !
+        END IF
+        !
 #else
         !
         DO j = 1, ( m - 1 )
