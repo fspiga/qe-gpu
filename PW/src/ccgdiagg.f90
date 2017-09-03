@@ -11,8 +11,13 @@
 ! define __VERBOSE to print a message after each eigenvalue is computed
 !
 !----------------------------------------------------------------------------
+#ifdef USE_CUDA
+SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, e_d, btype, precondition, &
+                     ethr, maxter, reorder, notconv, avg_iter )
+#else
 SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
                      ethr, maxter, reorder, notconv, avg_iter )
+#endif
   !----------------------------------------------------------------------------
   !
   ! ... "poor man" iterative diagonalization of a complex hermitian matrix
@@ -25,8 +30,15 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
   USE kinds,            ONLY : DP
   USE mp_bands,         ONLY : intra_bgrp_comm
   USE mp,               ONLY : mp_sum
+  USE cpu_gpu_interface, ONLY : s_psi, h_psi
 #if defined(__VERBOSE)
   USE io_global, only : stdout
+#endif
+#ifdef USE_CUDA
+  USE cudafor
+  USE gpu_routines
+  ! USE wvfct,                ONLY : psi_d, hpsi_d, spsi_d, comm_h_c
+!  USE ep_debug, ONLY : compare, MPI_Wtime
 #endif
   !
   IMPLICIT NONE
@@ -40,22 +52,30 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
   REAL(DP),    INTENT(INOUT) :: e(nbnd)
   INTEGER,     INTENT(OUT)   :: notconv
   REAL(DP),    INTENT(OUT)   :: avg_iter
+#ifdef USE_CUDA
+  REAL(DP), DEVICE, INTENT(OUT) :: e_d(nbnd)
+#endif
   !
   ! ... local variables
   !
   INTEGER                  :: i, j, m, iter, moved
   COMPLEX(DP), ALLOCATABLE :: hpsi(:), spsi(:), lagrange(:), &
-                              g(:), cg(:), scg(:), ppsi(:), g0(:)  
+                              g(:), cg(:), scg(:), ppsi(:), g0(:)
   REAL(DP)                 :: psi_norm, a0, b0, gg0, gamma, gg, gg1, &
                               cg0, e0, es(2)
   REAL(DP)                 :: theta, cost, sint, cos2t, sin2t
   LOGICAL                  :: reorder
   INTEGER                  :: kdim, kdmx, kdim2
   REAL(DP)                 :: empty_ethr, ethr_m
+#ifdef USE_CUDA
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:), hpsi_d(:), spsi_d(:)
+#endif
   !
   ! ... external functions
   !
+#ifndef USE_CUDA
   REAL (DP), EXTERNAL :: ddot
+#endif
   !
   !
   CALL start_clock( 'ccgdiagg' )
@@ -83,8 +103,12 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
   ALLOCATE( cg(   kdmx ) )
   ALLOCATE( g0(   kdmx ) )
   ALLOCATE( ppsi( kdmx ) )
-  !    
+  !
   ALLOCATE( lagrange( nbnd ) )
+  !
+#ifdef USE_CUDA
+  ALLOCATE(psi_d(npwx * npol, nbnd),hpsi_d(kdmx), spsi_d(kdmx))
+#endif
   !
   avg_iter = 0.D0
   notconv  = 0
@@ -115,6 +139,10 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
      !
      ! ... calculate S|psi>
      !
+#ifdef USE_CUDA
+     CALL s_psi( npwx, npw, 1, psi_d(1,m), spsi_d )
+#endif
+#ifndef USE_CUDA
      CALL s_1psi( npwx, npw, psi(1,m), spsi )
      !
      ! ... orthogonalize starting eigenfunction to those already calculated
@@ -171,7 +199,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
         !
         g(:) = g(:) - es(1) * ppsi(:)
         !
-        ! ... e1 = <y| S P^2 PHP|y> / <y| S S P^2|y> ensures that 
+        ! ... e1 = <y| S P^2 PHP|y> / <y| S S P^2|y> ensures that
         ! ... <g| S P^2|y> = 0
         ! ... orthogonalize to lowest eigenfunctions (already calculated)
         !
@@ -231,7 +259,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
            cg(:) = cg(:) * gamma
            cg(:) = g + cg(:)
            !
-           ! ... The following is needed because <y(n+1)| S P^2 |cg(n+1)> 
+           ! ... The following is needed because <y(n+1)| S P^2 |cg(n+1)>
            ! ... is not 0. In fact :
            ! ... <y(n+1)| S P^2 |cg(n)> = sin(theta)*<cg(n)|S|cg(n)>
            !
@@ -313,6 +341,8 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
         !
      END DO iterate
      !
+#endif
+!
 #if defined(__VERBOSE)
      IF ( iter >= maxter ) THEN
         WRITE(stdout,'("e(",i4,") = ",f12.6," eV  (not converged after ",i3,&
@@ -346,7 +376,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
            !
            moved = moved + 1
            !
-           ! ... last calculated eigenvalue should be in the 
+           ! ... last calculated eigenvalue should be in the
            ! ... i-th position: reorder
            !
            e0 = e(m)
