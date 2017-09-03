@@ -99,10 +99,10 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
                                       hpsi_d(:), spsi_d(:), &
                                       lagrange_d(:),lagrange_r_d(:), &
                                       lagrange_i_d(:), g_d(:), ppsi_d(:), &
-                                      scg_d(:), g0_d(:)
+                                      scg_d(:), g0_d(:), cg_d(:)
   REAL(DP), DEVICE, ALLOCATABLE    :: precondition_d(:)
   REAL(DP), DEVICE                 :: es_d
-  REAL(DP)                         :: e_temp, e_temp2
+  REAL(DP)                         :: es_temp, e_temp, e_temp2
 #endif
   !
   ! ... external functions
@@ -145,7 +145,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
           spsi_d(kdmx), lagrange_d(nbnd),lagrange_r_d(nbnd), &
           lagrange_i_d(nbnd), psi_temp_d(npwx * npol, nbnd), &
           precondition_d(npwx*npol), g_d(kdmx), ppsi_d(kdmx), &
-          scg_d(kdmx), g0_d(kdmx) )
+          scg_d(kdmx), g0_d(kdmx), cg_d(kdmx) )
 #endif
   !
   avg_iter = 0.D0
@@ -179,6 +179,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
     precondition_d = precondition
     scg_d = ZERO
     g0_d = ZERO
+    cg_d = ZERO
 #endif
      !
      ! ... calculate S|psi>
@@ -358,6 +359,137 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
            !
         END IF
         !
+        ! ... gg is <g(n+1)|S|g(n+1)>
+        !
+!$cuf kernel do(1) <<<*,*>>>
+        DO i = 1, ( m -1 )
+          g0_d(i) = scg_d(i)
+          g0_d(i) = g0_d(i) * precondition_d(i)
+        END DO
+        !
+        CALL cgDdot( kdim2, g_d(1), g0_d(1), gg)
+        !
+        CALL mp_sum( gg, intra_bgrp_comm )
+        !
+        IF ( iter == 1 ) THEN
+           !
+           ! ... starting iteration, the conjugate gradient |cg> = |g>
+           !
+           gg0 = gg
+           !
+!$cuf kernel do(1) <<<*,*>>>
+           DO i = 1, kdmx
+            cg_d(i) = g_d(i)
+           END DO
+           !
+        ELSE
+           !
+           ! ... |cg(n+1)> = |g(n+1)> + gamma(n) * |cg(n)>
+           !
+           ! ... Polak-Ribiere formula :
+           !
+           gamma = ( gg - gg1 ) / gg0
+           gg0   = gg
+           !
+!$cuf kernel do(1) <<<*,*>>>
+          DO i = 1, kdmx
+            cg_d(i) = cg_d(i) * gamma
+            cg_d(i) = g_d(i) + cg_d(i)
+          END DO
+           !
+           ! ... The following is needed because <y(n+1)| S P^2 |cg(n+1)>
+           ! ... is not 0. In fact :
+           ! ... <y(n+1)| S P^2 |cg(n)> = sin(theta)*<cg(n)|S|cg(n)>
+           !
+           psi_norm = gamma * cg0 * sint
+           !
+!$cuf kernel do(1) <<<*,*>>>
+           DO i = 1, kdmx
+             cg_d(i) = cg_d(i) - psi_norm * psi_d(i,m)
+           END DO
+           !
+        END IF
+        !
+        ! ... |cg> contains now the conjugate gradient
+        !
+        ! ... |scg> is S|cg>
+        !
+        CALL h_psi( npwx, npw, 1, cg_d(1), ppsi_d(1) ) !FIX with h_1psi
+        CALL s_psi( npwx, npw, 1, cg_d(1), scg_d(1) )  !FIX with h_1psi
+        !
+        CALL cgDdot( kdim2, cg_d(1), scg_d(1), cg0)
+        !
+        CALL mp_sum(  cg0 , intra_bgrp_comm )
+        !
+        cg0 = SQRT( cg0 )
+        !
+        ! For Comments see the CPU code
+        !
+        CALL cgDdot( kdim2, psi_d( 1,m ), ppsi_d(1), a0)
+        !
+        a0 = 2.D0 * a0 / cg0
+        !
+        CALL mp_sum(  a0 , intra_bgrp_comm )
+        !
+        CALL cgDdot( kdim2, cg_d(1), ppsi_d(1), b0)
+        b0 = b0/ cg0**2
+        !
+        CALL mp_sum(  b0 , intra_bgrp_comm )
+        !
+        e0 = e_d(m)
+        !
+        theta = 0.5D0 * ATAN( a0 / ( e0 - b0 ) )
+        !
+        cost = COS( theta )
+        sint = SIN( theta )
+        !
+        cos2t = cost*cost - sint*sint
+        sin2t = 2.D0*cost*sint
+        !
+        es(1) = 0.5D0 * (   ( e0 - b0 ) * cos2t + a0 * sin2t + e0 + b0 )
+        es(2) = 0.5D0 * ( - ( e0 - b0 ) * cos2t - a0 * sin2t + e0 + b0 )
+        !
+        ! ... there are two possible solutions, choose the minimum
+        !
+        IF ( es(2) < es(1) ) THEN
+           !
+           theta = theta + 0.5D0 * pi
+           !
+           cost = COS( theta )
+           sint = SIN( theta )
+           !
+        END IF
+        !
+        ! ... new estimate of the eigenvalue
+        !
+        e_d(m) = MIN( es(1), es(2) )
+        !
+        ! ... upgrade |psi>
+        !
+!$cuf kernel do(1) <<<*,*>>>
+        DO i = 1, kdmx
+          psi_d(i,m) = cost * psi_d(i,m) + sint / cg0 * cg_d(i)
+        END DO
+        !
+        ! ... here one could test convergence on the energy
+        !
+        es_temp = e_d(m)
+        IF ( ABS( es_temp - e0 ) < ethr_m ) EXIT iterate
+        !
+        ! ... upgrade H|psi> and S|psi>
+        !
+!$cuf kernel do(1) <<<*,*>>>
+        DO i = 1, kdmx
+          spsi_d(i) = cost * spsi_d(i) + sint / cg0 * scg_d(i)
+          hpsi_d(i) = cost * hpsi_d(i) + sint / cg0 * ppsi_d(i)
+        END DO
+        !
+        !FIX : Data back to CPU
+        e = e_d
+        psi = psi_d
+        ! ppsi = ppsi_d
+        hpsi = hpsi_d
+        spsi = spsi_d
 #else
         !
         DO j = 1, ( m - 1 )
@@ -564,6 +696,18 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
   DEALLOCATE( hpsi )
   DEALLOCATE( scg )
   DEALLOCATE( spsi )
+  !
+#ifdef USE_CUDA
+  DEALLOCATE( lagrange_d )
+  DEALLOCATE( ppsi_d )
+  DEALLOCATE( g0_d )
+  DEALLOCATE( cg_d )
+  DEALLOCATE( g_d )
+  DEALLOCATE( hpsi_d )
+  DEALLOCATE( scg_d )
+  DEALLOCATE( spsi_d )
+  DEALLOCATE( precondition_d )
+#endif
   !
   CALL stop_clock( 'ccgdiagg' )
   !
