@@ -37,6 +37,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
 #ifdef USE_CUDA
   USE cudafor
   USE gpu_routines
+  ! USE cublas
   ! USE wvfct,                ONLY : psi_d, hpsi_d, spsi_d, comm_h_c
 !  USE ep_debug, ONLY : compare, MPI_Wtime
 #endif
@@ -67,8 +68,15 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
   LOGICAL                  :: reorder
   INTEGER                  :: kdim, kdmx, kdim2
   REAL(DP)                 :: empty_ethr, ethr_m
+  !
+  !My test variables
+  REAL(DP), ALLOCATABLE    :: lagrange_r(:), lagrange_i(:)
 #ifdef USE_CUDA
-  COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:), hpsi_d(:), spsi_d(:)
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:), psi_temp_d(:,:), &
+                                      hpsi_d(:), spsi_d(:), &
+                                      lagrange_d(:),lagrange_r_d(:), &
+                                      lagrange_i_d(:)
+  REAL(DP),DEVICE                  :: psi_norm_d
 #endif
   !
   ! ... external functions
@@ -104,10 +112,12 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
   ALLOCATE( g0(   kdmx ) )
   ALLOCATE( ppsi( kdmx ) )
   !
-  ALLOCATE( lagrange( nbnd ) )
+  ALLOCATE( lagrange( nbnd ), lagrange_r( nbnd ), lagrange_i( nbnd ))
   !
 #ifdef USE_CUDA
-  ALLOCATE(psi_d(npwx * npol, nbnd),hpsi_d(kdmx), spsi_d(kdmx))
+  ALLOCATE(psi_d(npwx * npol, nbnd),hpsi_d(kdmx), &
+          spsi_d(kdmx), lagrange_d(nbnd),lagrange_r_d(nbnd), &
+          lagrange_i_d(nbnd), psi_temp_d(npwx * npol, nbnd))
 #endif
   !
   avg_iter = 0.D0
@@ -136,20 +146,58 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
      g0       = ZERO
      ppsi     = ZERO
      lagrange = ZERO
+#ifdef USE_CUDA
+    lagrange_d = ZERO
+#endif
      !
      ! ... calculate S|psi>
      !
 #ifdef USE_CUDA
+     psi_d = psi
+     !
      CALL s_psi( npwx, npw, 1, psi_d(1,m), spsi_d )
-#endif
-#ifndef USE_CUDA
+     !
+     spsi = spsi_d  !FIX: Avoid this copy by calling cublasZgemv()
+#else
+     !
      CALL s_1psi( npwx, npw, psi(1,m), spsi )
+     !
+#endif
      !
      ! ... orthogonalize starting eigenfunction to those already calculated
      !
      CALL ZGEMV( 'C', kdim, m, ONE, psi, kdmx, spsi, 1, ZERO, lagrange, 1 )
      !
      CALL mp_sum( lagrange( 1:m ), intra_bgrp_comm )
+     !
+#ifdef USE_CUDA
+      ! FIX: possible alternative to the array copy
+      lagrange_d = lagrange
+      lagrange_r = DBLE(lagrange)  ! Converting to read double
+      lagrange_i = AIMAG(lagrange) ! Immaginary part
+      lagrange_r_d = lagrange_r
+      lagrange_i_d = lagrange_i
+      psi_norm_d =  lagrange_r(m)
+      !
+!$cuf kernel do(2) <<<*,*>>>
+      DO j = 1, m - 1
+        DO i = 1,kdmx
+         psi_d(i,m)  = psi_d(i,m) - lagrange_d(j) * psi_d(i,j)
+        END DO
+      END DO
+!$cuf kernel do(1) <<<*,*>>>
+      DO j = 1, m-1
+         psi_norm_d = psi_norm_d - ( lagrange_r_d(j)**2 + lagrange_i_d(j)**2 )
+      END DO
+      !
+      psi_norm_d = SQRT( psi_norm_d )
+      !
+!$cuf kernel do(1) <<<*,*>>>
+      DO i = 1, kdmx
+        psi_d(i,m) = psi_d(i,m) / psi_norm_d
+      END DO
+#endif
+#ifndef USE_CUDA
      !
      psi_norm = DBLE( lagrange(m) )
      !
@@ -340,8 +388,8 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
         hpsi(:) = cost * hpsi(:) + sint / cg0 * ppsi(:)
         !
      END DO iterate
-     !
 #endif
+     !
 !
 #if defined(__VERBOSE)
      IF ( iter >= maxter ) THEN
