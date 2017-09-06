@@ -154,7 +154,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
   !
   ! ... every eigenfunction is calculated separately
   !
-  DO m = 1, nbnd
+  cgiter: DO m = 1, nbnd
      !
      IF ( btype(m) == 1 ) THEN
         !
@@ -684,7 +684,7 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
         !
      END IF
      !
-  END DO
+  END DO cgiter
   !
   avg_iter = avg_iter / DBLE( nbnd )
   !
