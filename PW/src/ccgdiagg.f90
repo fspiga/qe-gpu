@@ -176,10 +176,11 @@
          lagrange = ZERO
 #ifdef USE_CUDA
          lagrange_d = ZERO
-         precondition_d = precondition
+         precondition_d = 0
          scg_d = ZERO
          g0_d = ZERO
          cg_d = ZERO
+         precondition_d = precondition
 #endif
          !
          ! ... calculate S|psi>
@@ -271,7 +272,9 @@
          !
          CALL mp_sum( e(m), intra_bgrp_comm )
 #endif
-
+          !
+          ! Main CG loop
+          !
 #ifdef USE_CUDA
          !
          ! ... start iteration for this band
@@ -461,12 +464,6 @@
                hpsi_d(i) = cost * hpsi_d(i) + sint / cg0 * ppsi_d(i)
             END DO
             !
-            !FIX : Data back to CPU
-            e = e_d
-            psi = psi_d
-            ! ppsi = ppsi_d
-            hpsi = hpsi_d
-            spsi = spsi_d
             ! exit cgiter
             !
          END DO iterate
@@ -642,6 +639,71 @@
          !
          !
 #endif
+        !
+        ! Reorder eigen values
+        !
+#ifdef USE_CUDA
+        IF ( iter >= maxter ) notconv = notconv + 1
+        !
+        avg_iter = avg_iter + iter + 1
+        !
+        ! ... reorder eigenvalues if they are not in the right order
+        ! ... ( this CAN and WILL happen in not-so-special cases )
+        !
+        IF ( m > 1 .AND. reorder ) THEN
+           !
+           IF ( e_d(m) - e_d(m-1) < - 2.D0 * ethr_m ) THEN
+              !
+              ! ... if the last calculated eigenvalue is not the largest...
+              !
+              DO i = m - 2, 1, - 1
+                 !
+                 IF ( e_d(m) - e_d(i) > 2.D0 * ethr_m ) EXIT
+                 !
+              END DO
+              !
+              i = i + 1
+              !
+              moved = moved + 1
+              !
+              ! ... last calculated eigenvalue should be in the
+              ! ... i-th position: reorder
+              !
+              e0 = e_d(m)
+              !
+!$cuf kernel do(1) <<<*,*>>>
+              DO i = 1, kdmx
+                ppsi_d(i) = psi_d(i,m)
+              END DO
+              !
+!$cuf kernel do(1) <<<*,*>>>
+              DO j = m, i + 1, - 1
+                 e_d(j) = e_d(j-1)
+              END DO
+
+              !FIX : this copy of psi_d
+              psi = psi_d
+              DO j = m, i + 1, - 1
+                 psi(:,j) = psi(:,j-1)
+              END DO
+              psi_d = psi
+              !
+              e_d(i) = e0
+              !
+!$cuf kernel do(1) <<<*,*>>>
+              DO i = 1, kdmx
+                psi_d(i,i) = ppsi_d(i)
+              END DO
+              !
+              ! ... this procedure should be good if only a few inversions occur,
+              ! ... extremely inefficient if eigenvectors are often in bad order
+              ! ... ( but this should not happen )
+              !
+           END IF
+           !
+        END IF
+        !
+#else
 #if defined(__VERBOSE)
          IF ( iter >= maxter ) THEN
             WRITE(stdout,'("e(",i4,") = ",f12.6," eV  (not converged after ",i3,&
@@ -702,6 +764,14 @@
             !
          END IF
          !
+         !FIX : Data back to CPU
+         e = e_d
+         psi = psi_d
+         ! ppsi = ppsi_d
+         hpsi = hpsi_d
+         spsi = spsi_d
+#endif
+      !
       END DO cgiter
       !
       avg_iter = avg_iter / DBLE( nbnd )
@@ -717,6 +787,8 @@
       !
 #ifdef USE_CUDA
       DEALLOCATE( lagrange_d )
+      DEALLOCATE( lagrange_r_d )
+      DEALLOCATE( lagrange_i_d )
       DEALLOCATE( ppsi_d )
       DEALLOCATE( g0_d )
       DEALLOCATE( cg_d )
