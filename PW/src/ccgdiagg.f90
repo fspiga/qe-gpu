@@ -271,12 +271,13 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
      !
      CALL mp_sum( e(m), intra_bgrp_comm )
 #endif
-     !
-     ! ... start iteration for this band
-     !
-     iterate: DO iter = 1, maxter
-        !
+
 #ifdef USE_CUDA
+      !
+      ! ... start iteration for this band
+      !
+      iterate: DO iter = 1, maxter
+         !
         !
         ! ... calculate  P (PHP)|y>
         ! ... ( P = preconditioning matrix, assumed diagonal )
@@ -308,42 +309,15 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
         !
         call s_psi(npwx, npw, 1, g_d(1),scg_d(1))  !FIX with s_1psi
         scg = scg_d
-#else
+        psi = psi_d
         !
-        ! ... calculate  P (PHP)|y>
-        ! ... ( P = preconditioning matrix, assumed diagonal )
-        !
-        g(:)    = hpsi(:) / precondition(:)
-        ppsi(:) = spsi(:) / precondition(:)
-        !
-        ! ... ppsi is now S P(P^2)|y> = S P^2|psi>)
-        !
-        es(1) = ddot( kdim2, spsi(1), 1, g(1), 1 )
-        es(2) = ddot( kdim2, spsi(1), 1, ppsi(1), 1 )
-        !
-        CALL mp_sum( es , intra_bgrp_comm )
-        !
-        es(1) = es(1) / es(2)
-        !
-        g(:) = g(:) - es(1) * ppsi(:)
-        !
-        ! ... e1 = <y| S P^2 PHP|y> / <y| S S P^2|y> ensures that
-        ! ... <g| S P^2|y> = 0
-        ! ... orthogonalize to lowest eigenfunctions (already calculated)
-        !
-        ! ... scg is used as workspace
-        !
-        CALL s_1psi( npwx, npw, g(1), scg(1) )
-        !
-#endif
         CALL ZGEMV( 'C', kdim, ( m - 1 ), ONE, psi, &
                     kdmx, scg, 1, ZERO, lagrange, 1  )
         !
         CALL mp_sum( lagrange( 1:m-1 ), intra_bgrp_comm )
         !
-#ifdef USE_CUDA
-        !
         lagrange_d = lagrange
+        !
 !$cuf kernel do(2) <<<*,*>>>
         DO i = 1, ( m -1 )
           DO j = 1,kdmx
@@ -493,7 +467,48 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
         ! ppsi = ppsi_d
         hpsi = hpsi_d
         spsi = spsi_d
+        ! exit cgiter
+        !
+     END DO iterate
+     !
+!
 #else
+      !
+      ! ... start iteration for this band
+      !
+      iterate: DO iter = 1, maxter
+         !
+        !
+        ! ... calculate  P (PHP)|y>
+        ! ... ( P = preconditioning matrix, assumed diagonal )
+        !
+        g(:)    = hpsi(:) / precondition(:)
+        ppsi(:) = spsi(:) / precondition(:)
+        !
+        ! ... ppsi is now S P(P^2)|y> = S P^2|psi>)
+        !
+        es(1) = ddot( kdim2, spsi(1), 1, g(1), 1 )
+        es(2) = ddot( kdim2, spsi(1), 1, ppsi(1), 1 )
+        !
+        CALL mp_sum( es , intra_bgrp_comm )
+        !
+        es(1) = es(1) / es(2)
+        !
+        g(:) = g(:) - es(1) * ppsi(:)
+        !
+        ! ... e1 = <y| S P^2 PHP|y> / <y| S S P^2|y> ensures that
+        ! ... <g| S P^2|y> = 0
+        ! ... orthogonalize to lowest eigenfunctions (already calculated)
+        !
+        ! ... scg is used as workspace
+        !
+        CALL s_1psi( npwx, npw, g(1), scg(1) )
+        !
+        CALL ZGEMV( 'C', kdim, ( m - 1 ), ONE, psi, &
+                    kdmx, scg, 1, ZERO, lagrange, 1  )
+        !
+        CALL mp_sum( lagrange( 1:m-1 ), intra_bgrp_comm )
+        !
         !
         DO j = 1, ( m - 1 )
            !
@@ -622,11 +637,11 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
         !
         hpsi(:) = cost * hpsi(:) + sint / cg0 * ppsi(:)
         !
-#endif
         !
      END DO iterate
      !
 !
+#endif
 #if defined(__VERBOSE)
      IF ( iter >= maxter ) THEN
         WRITE(stdout,'("e(",i4,") = ",f12.6," eV  (not converged after ",i3,&
