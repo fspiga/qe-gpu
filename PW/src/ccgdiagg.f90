@@ -226,9 +226,17 @@
          !
          ! ... calculate starting gradient (|hpsi> = H|psi>) ...
          !
-         CALL h_psi(npwx, npw, 1, psi_d(1,m), hpsi_d)
-         CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d) !FIX: Comment this out
-         !
+         !============================================FIX
+        !  CALL h_psi(npwx, npw, 1, psi_d(1,m), hpsi_d)
+        !  CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d) !FIX: Comment this out
+         psi = psi_d
+         hpsi =hpsi_d
+         spsi = spsi_d
+         CALL h_1psi( npwx, npw, psi(1,m), hpsi, spsi )
+         psi_d = psi
+         hpsi_d =hpsi
+         spsi_d = spsi
+         !=============================================
          ! ... and starting eigenvalue (e = <y|PHP|y> = <psi|H|psi>)
          !
          CALL cgDdot(kdim2, psi_d(1,m), hpsi_d, e_temp)
@@ -310,15 +318,20 @@
             !
             ! ... scg is used as workspace
             !
-            CALL s_psi(npwx, npw, 1, g_d(1),scg_d(1))  !FIX with s_1psi
+            !==========================================FIX
+            g = g_d
             scg = scg_d
-            psi = psi_d
+            CALL s_1psi( npwx, npw, g(1), scg(1) )
+            ! CALL s_psi(npwx, npw, 1, g_d(1),scg_d(1))  !FIX with s_1psi
+            !===========================================
             !
             CALL ZGEMV( 'C', kdim, ( m - 1 ), ONE, psi, &
                  kdmx, scg, 1, ZERO, lagrange, 1  )
             !
             CALL mp_sum( lagrange( 1:m-1 ), intra_bgrp_comm )
             !
+            scg_d = scg
+            psi_d = psi
             lagrange_d = lagrange
             !
 !$cuf kernel do(2) <<<*,*>>>
@@ -393,9 +406,17 @@
             ! ... |cg> contains now the conjugate gradient
             !
             ! ... |scg> is S|cg>
-            !
-            CALL h_psi( npwx, npw, 1, cg_d(1), ppsi_d(1) ) !FIX with h_1psi
-            CALL s_psi( npwx, npw, 1, cg_d(1), scg_d(1) )  !FIX with h_1psi
+            !================================================FIX
+            ! CALL h_psi( npwx, npw, 1, cg_d(1), ppsi_d(1) ) !FIX with h_1psi
+            ! CALL s_psi( npwx, npw, 1, cg_d(1), scg_d(1) )  !FIX with h_1psi
+            cg=cg_d
+            scg=scg_d
+            ppsi = ppsi_d
+            CALL h_1psi( npwx, npw, cg(1), ppsi(1), scg(1) )
+            cg_d=cg
+            scg_d=scg
+            ppsi_d = ppsi
+            !=================================================
             !
             CALL cgDdot( kdim2, cg_d(1), scg_d(1), cg0)
             !
@@ -465,7 +486,13 @@
             END DO
             !
             ! exit cgiter
-            !
+            !==================================FIX : Data back to CPU
+            e = e_d
+            psi = psi_d
+            ppsi = ppsi_d
+            hpsi = hpsi_d
+            spsi = spsi_d
+            !================================================
          END DO iterate
          !
          !
@@ -633,7 +660,6 @@
             spsi(:) = cost * spsi(:) + sint / cg0 * scg(:)
             !
             hpsi(:) = cost * hpsi(:) + sint / cg0 * ppsi(:)
-            !
             !
          END DO iterate
          !
