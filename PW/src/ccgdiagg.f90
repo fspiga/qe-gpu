@@ -185,26 +185,20 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
      ! ... calculate S|psi>
      !
 #ifdef USE_CUDA
-     psi_d = psi
-     !
-     CALL s_psi( npwx, npw, 1, psi_d(1,m), spsi_d )
-     !
-     spsi = spsi_d  !FIX: Avoid this copy by calling cublasZgemv()
-#else
-     !
-     CALL s_1psi( npwx, npw, psi(1,m), spsi )
-     !
-#endif
-     !
-     ! ... orthogonalize starting eigenfunction to those already calculated
-     !
-     CALL ZGEMV( 'C', kdim, m, ONE, psi, kdmx, spsi, 1, ZERO, lagrange, 1 )
-     !
-     CALL mp_sum( lagrange( 1:m ), intra_bgrp_comm )
-     !
-#ifdef USE_CUDA
-      ! FIX: possible alternative to the array copy
+      !
+      CALL s_1psi( npwx, npw, psi(1,m), spsi )
+      !
+      !
+      ! ... orthogonalize starting eigenfunction to those already calculated
+      !
+      CALL ZGEMV( 'C', kdim, m, ONE, psi, kdmx, spsi, 1, ZERO, lagrange, 1 )
+      !
+      CALL mp_sum( lagrange( 1:m ), intra_bgrp_comm )
+      !
+      !
+      psi_d = psi
       lagrange_d = lagrange
+      ! FIX: possible alternative to the array copy
       lagrange_r_d = DBLE(lagrange)  ! Converting to real double
       lagrange_i_d = AIMAG(lagrange) ! Immaginary part extraction
       ! lagrange_r_d = lagrange_r
@@ -240,6 +234,15 @@ SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
       CALL mp_sum( e_temp , intra_bgrp_comm )
       e_d(m) = e_temp
 #else
+     !
+     CALL s_1psi( npwx, npw, psi(1,m), spsi )
+     !
+     !
+     ! ... orthogonalize starting eigenfunction to those already calculated
+     !
+     CALL ZGEMV( 'C', kdim, m, ONE, psi, kdmx, spsi, 1, ZERO, lagrange, 1 )
+     !
+     CALL mp_sum( lagrange( 1:m ), intra_bgrp_comm )
      !
      psi_norm = DBLE( lagrange(m) )
      !
