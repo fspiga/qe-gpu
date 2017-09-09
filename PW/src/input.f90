@@ -1473,13 +1473,9 @@ SUBROUTINE iosys()
      !
      ! ... set default value of wmass
      !
-#if defined __PGI
      DO ia = 1, nat_
         wmass = wmass + amass( ityp(ia) )
      ENDDO
-#else
-     wmass = sum( amass(ityp(:)) )
-#endif
      !
      wmass = wmass * amu_ry
      IF ( calc == 'nd' .or. calc == 'nm' ) THEN
