@@ -28,6 +28,10 @@
 !#define __TRACE
 ! ... See also comments in subroutine print_this_clock about parallel case
 !
+
+! This mode is set by default
+#define __CLOCK_SECONDS
+
 !----------------------------------------------------------------------------
 MODULE mytime
   !----------------------------------------------------------------------------
