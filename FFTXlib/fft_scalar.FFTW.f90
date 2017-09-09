@@ -17,6 +17,8 @@
 
 #include "fft_defs.h"
 
+! This mode is set by default
+#define __FFTW_ALL_XY_PLANES
 
 !=----------------------------------------------------------------------=!
    MODULE fft_scalar_FFTW
@@ -596,7 +598,7 @@
      END SUBROUTINE lookup
 
      SUBROUTINE init_plan()
-#if defined __FFTW_ALL_XY_PLANES
+#if defined(__FFTW_ALL_XY_PLANES)
        IF( fw_plan_2d( icurrent) /= 0 )  CALL DESTROY_PLAN_2D(fw_plan_2d(icurrent) )
        IF( bw_plan_2d( icurrent) /= 0 )  CALL DESTROY_PLAN_2D(bw_plan_2d(icurrent) )
        idir = -1; CALL CREATE_PLAN_2D( fw_plan_2d(icurrent), nx, ny, idir)
@@ -655,7 +657,7 @@
      REAL (DP), SAVE :: xyflops( ndims ) = 0.d0
 #endif
 
-#if defined __FFTW_ALL_XY_PLANES
+#if defined(__FFTW_ALL_XY_PLANES)
      INTEGER, SAVE :: cufft_plan_2d( ndims ) = 0
 #else
      INTEGER, SAVE :: cufft_plan_x( ndims ) = 0
@@ -715,7 +717,7 @@
        stream = 0
      ENDIF
 
-#if defined __FFTW_ALL_XY_PLANES
+#if defined(__FFTW_ALL_XY_PLANES)
      istat = cufftSetStream(cufft_plan_2d(ip), stream)
 #else
      istat = cufftSetStream(cufft_plan_x(ip), stream)
@@ -735,7 +737,7 @@
         !
         !tscale = 1.0_DP / ( nx * ny ) 
         !
-#if defined __FFTW_ALL_XY_PLANES
+#if defined(__FFTW_ALL_XY_PLANES)
         istat = cufftExecZ2Z( cufft_plan_2d(ip), r(1,1,1), r(1,1,1), CUFFT_FORWARD )
 #else
         istat = cufftExecZ2Z( cufft_plan_x(ip), r(1,1,1), r(1,1,1), CUFFT_FORWARD )
@@ -776,7 +778,7 @@
      ELSE IF( isign > 0 ) THEN
         !
         !print *,"exec cufft INV",nx,ny,ldx,ldy,nzl
-#if defined __FFTW_ALL_XY_PLANES
+#if defined(__FFTW_ALL_XY_PLANES)
         istat = cufftExecZ2Z( cufft_plan_2d(ip), r(1,1,1), r(1,1,1), CUFFT_INVERSE )
 #else
 !$cuf kernel do(3) <<<*,(16,16,1), 0, stream>>>
@@ -847,7 +849,7 @@
 
      SUBROUTINE init_plan()
        IMPLICIT NONE
-#if defined __FFTW_ALL_XY_PLANES
+#if defined(__FFTW_ALL_XY_PLANES)
        INTEGER, PARAMETER :: RANK=2
        INTEGER :: FFT_DIM(RANK), DATA_DIM(RANK)
        INTEGER :: STRIDE, DIST, BATCH
