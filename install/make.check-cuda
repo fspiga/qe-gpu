@@ -1,0 +1,12 @@
+# check for CUDA directory and give user hint how to set it
+ifeq ($(CUDADIR),)
+    cuda := $(shell which nvcc | perl -pe 's|/bin/nvcc||')
+    ifeq ($(cuda),)
+        cuda := /usr/local/cuda
+    endif
+$(error Set $$CUDADIR, preferably in your environment, e.g., run "export CUDADIR=$(cuda)" in ~/.bashrc, or "setenv CUDADIR $(cuda)" in ~/.cshrc)
+endif
+
+ifeq ($(wildcard $(CUDADIR)),)
+$(error $$CUDADIR=$(CUDADIR) does not exist. Please set $$CUDADIR to where CUDA is installed.)
+endif
