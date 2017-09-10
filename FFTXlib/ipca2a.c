@@ -25,9 +25,12 @@
 #include <stdlib.h>
 #include <stddef.h>
 
+#ifdef USE_CUDA
 #include <cuda_runtime.h>
+#endif
 #include <mpi.h>
 
+#ifdef USE_CUDA
 #define CHECK_CUDART(x) do { \
   cudaError_t res = (x); \
   if(res != cudaSuccess) { \
@@ -35,21 +38,25 @@
     exit(1); \
   } \
 } while(0)
+#endif
 
 #define MAXBUF (4)
 #define MAXPEER (16)
 
+#ifdef USE_CUDA
 static cudaStream_t streams[MAXPEER];
+static cudaEvent_t events[MAXPEER];
+#endif
 static int first_time = 1;
 static double* buff_rem[MAXBUF][MAXPEER];
 static double* buff_base[MAXBUF];
-static cudaEvent_t events[MAXPEER];
 static int can_access_peer[MAXPEER];
 static int gprocs;
 static int grank;
 
 void init_ipc_( double* buffer, int *buff_id_p, MPI_Fint *Fcomm, int* ipc_peers)
 {
+#ifdef USE_CUDA
   int buff_id = *buff_id_p;
   int rank, nprocs, i;
   cudaIpcMemHandle_t loc_handle;
@@ -95,6 +102,7 @@ void init_ipc_( double* buffer, int *buff_id_p, MPI_Fint *Fcomm, int* ipc_peers)
   }
   gprocs = nprocs;
   grank = rank;
+#endif
   return;
 }
 
@@ -111,6 +119,7 @@ void get_ipc_peers_( int* ipc_peers)
 
 void sync_ipc_sends_( MPI_Fint *Fcomm )
 {
+#ifdef USE_CUDA
   int rank, nprocs, i;
   MPI_Comm comm = MPI_Comm_f2c(*Fcomm);
   MPI_Comm_rank(comm, &rank);
@@ -121,10 +130,13 @@ void sync_ipc_sends_( MPI_Fint *Fcomm )
         if(can_access_peer[i] == 1)  CHECK_CUDART( cudaEventSynchronize( events[i] ) );
     }
   }
+#endif
+  return;
 }
 
 void ipc_send_( double *sendbuff, int *elems_p, double *recvbuff, int *buff_id_p, int *peer_id_p, MPI_Fint *Fcomm, int *ierr_p )
 {
+#ifdef USE_CUDA
   int buff_id = *buff_id_p;
   int elems = 2*(*elems_p);
   int dest = *peer_id_p;
@@ -139,6 +151,8 @@ void ipc_send_( double *sendbuff, int *elems_p, double *recvbuff, int *buff_id_p
     printf("CANNOT ACCESS PEER!!!! \n");
     exit(1);
   }
+#endif
+  return;
 }
 
 #if 0
