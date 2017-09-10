@@ -210,19 +210,20 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
   USE mp_bands,      ONLY : me_bgrp
   USE fft_base,      ONLY : dffts, dtgs
   USE fft_parallel,  ONLY : tg_gather
-  USE fft_interfaces,ONLY : fwfft, invfft
+  USE fft_interfaces,ONLY : fwfft, invfft, fwfft_batch, invfft_batch
 #ifdef USE_GPU
   USE cudafor
   USE gvecs, ONLY : nls=>nls_d, nlsm
   USE klist, ONLY : igk_k=>igk_k_d
-  USE wavefunctions_module,  ONLY: psic=>psic_d
+  USE wavefunctions_module,  ONLY: psic=>psic_d, psic_batch=> psic_batch_d
 #else
   USE gvecs, ONLY : nls, nlsm
   USE klist, ONLY : igk_k
-  USE wavefunctions_module,  ONLY: psic
+  USE wavefunctions_module,  ONLY: psic, psic_batch
 #endif
 #ifdef TRACK_FLOPS
   USE flops_tracker, ONLY : fft_ops
+  USE mpiDeviceUtil, ONLY : hostname
 #endif
   !
   IMPLICIT NONE
@@ -234,14 +235,16 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
 #ifdef USE_GPU
   ATTRIBUTES( DEVICE ) :: psi, hpsi, v
 #endif
+  INTEGER :: currsize
   !
-  INTEGER :: ibnd, j, incr
+  INTEGER :: ibnd, i, j, incr
   !
   LOGICAL :: use_tg
   ! Task Groups
   REAL(DP),    ALLOCATABLE :: tg_v(:)
   COMPLEX(DP), ALLOCATABLE :: tg_psic(:)
-  INTEGER :: v_siz, idx, ioff
+  REAL(DP) :: v_tmp
+  INTEGER :: v_siz, idx, ioff, nst, istat
   !
 #ifdef TRACK_FLOPS
   REAL(DP) :: fft_flops, fft_ops_start, fft_ops_end, fft_time
@@ -251,6 +254,9 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
   !
 #endif
   !
+!#ifdef USE_GPU
+!  istat = cudaDeviceSynchronize()
+!#endif
   CALL start_clock ('vloc_psi')
   use_tg = dtgs%have_task_groups 
   !
@@ -277,7 +283,9 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
   !
   ! the local potential V_Loc psi. First bring psi to real space
   !
-  DO ibnd = 1, m, incr
+  !DO ibnd = 1, m, incr
+  DO ibnd = 1, m, dffts%batchsize
+     currsize = min(dffts%batchsize, m - ibnd + 1)
      !
      IF( use_tg ) THEN
 #ifndef USE_GPU
@@ -306,14 +314,19 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
         !
         ! USE cuf kenrel because CUDAFortran implementation of cudaMemset is slow
         !psic(:) = (0.d0, 0.d0)
+
+        nst = dffts%nr3x*dffts%nsw( dffts%mype + 1 )
 #ifndef USE_GPU
-!$omp parallel do
+        !$omp parallel do
 #else
-!$cuf kernel do(1) <<<*,*>>>
+        !$cuf kernel do(2) <<<*,*>>>
 #endif
-        DO j = 1, dffts%nnr
-           psic (j) = (0.d0, 0.d0)
+        DO i = 0, currsize-1
+          DO j = 1, nst
+           psic_batch (j + i*dffts%nnr) = (0.d0, 0.d0)
+          ENDDO
         ENDDO
+ 
 #ifndef USE_GPU
 !$omp end parallel do
 #endif
@@ -322,17 +335,23 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
 #ifndef USE_GPU
 !$omp parallel do
 #else
-!$cuf kernel do(1) <<<*,*>>>
+!$cuf kernel do(2) <<<*,*>>>
 #endif
-        DO j = 1, n
-          psic( nls( igk_k(j,current_k) ) ) = psi( j, ibnd )
-        ENDDO
+        DO i = 0, currsize-1
+          DO j = 1, n
+            psic_batch( nls( igk_k(j,current_k) ) + i*dffts%nnr ) = psi( j, ibnd + i )
+          ENDDO
+        END DO
 #ifndef USE_GPU
 !$omp end parallel do
 #endif
 
-        !
-        CALL invfft ('Wave', psic, dffts)
+
+#ifdef USE_GPU
+        CALL invfft_batch ('Wave', psic_batch, dffts, currsize)
+#else
+        CALL invfft ('Wave', psic_batch, dffts)
+#endif
         !
      ENDIF
      !
@@ -360,13 +379,20 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
 !$cuf kernel do(1) <<<*,*>>>
 #endif
         DO j = 1, dffts%nnr
-           psic (j) = psic (j) * v(j)
+          v_tmp = v(j)
+          DO i = 0, currsize-1
+           psic_batch (j + i*dffts%nnr) = psic_batch (j + i*dffts%nnr) * v_tmp
+          ENDDO
         ENDDO
 #ifndef USE_GPU
 !$omp end parallel do
 #endif
-        !
-        CALL fwfft ('Wave', psic, dffts)
+
+#ifdef USE_GPU
+        CALL fwfft_batch ('Wave', psic_batch, dffts, currsize)
+#else
+        CALL fwfft ('Wave', psic_batch, dffts)
+#endif
         !
      ENDIF
      !
@@ -397,10 +423,13 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
 #ifndef USE_GPU
 !$omp parallel do
 #else
-!$cuf kernel do(1) <<<*,*>>>
+!!$cuf kernel do(1) <<<*,*>>>
+!$cuf kernel do(2) <<<*,*>>>
 #endif
-        DO j = 1, n
-           hpsi (j, ibnd)   = hpsi (j, ibnd)   + psic (nls(igk_k(j,current_k)))
+        DO i = 0, currsize-1
+          DO j = 1, n
+             hpsi (j, ibnd + i)   = hpsi (j, ibnd + i)   + psic_batch (nls(igk_k(j,current_k)) + i * dffts%nnr)
+          ENDDO
         ENDDO
 #ifndef USE_GPU
 !$omp end parallel do
@@ -417,11 +446,15 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
      !
 #endif
   ENDIF
+!#ifdef USE_GPU
+!  istat = cudaDeviceSynchronize()
+!#endif
+
 #ifdef TRACK_FLOPS
   fft_time = MPI_Wtime() - fft_time
   fft_ops_end = fft_ops
   fft_flops = (fft_ops_end - fft_ops_start)/fft_time
-  print *,"vloc_psi in",fft_time," FFT GFLOPS: ",fft_flops*1.d-9*REAL( dffts%nproc )
+  if(dffts%mype .eq. 0) write(0,"(A20,2X,A15,2X,F12.6,2X,A15,F6.1)") TRIM(hostname), "vloc_psi in",fft_time," FFT GFLOPS: ",fft_flops*1.d-9*REAL( dffts%nproc )
 #endif
   CALL stop_clock ('vloc_psi')
   !

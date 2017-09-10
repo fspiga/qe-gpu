@@ -23,7 +23,11 @@ MODULE becmod
   !
   TYPE bec_type
      REAL(DP),   ALLOCATABLE :: r(:,:)    ! appropriate for gammaonly
+#ifdef USE_CUDA
+     COMPLEX(DP),ALLOCATABLE, PINNED :: k(:,:)    ! appropriate for generic k
+#else
      COMPLEX(DP),ALLOCATABLE :: k(:,:)    ! appropriate for generic k
+#endif
      COMPLEX(DP),ALLOCATABLE :: nc(:,:,:)   ! appropriate for noncolin
 #ifdef USE_CUDA
      REAL(DP),    DEVICE, ALLOCATABLE :: r_d(:,:)    ! appropriate for gammaonly
@@ -194,7 +198,7 @@ CONTAINS
     ELSE
        !
 #endif
-       CALL  calbec_k_gpu ( npw, beta, psi, betapsi%k_d, local_nbnd )
+       CALL  calbec_k_gpu ( npw, beta, psi, betapsi%k_d, betapsi%k, local_nbnd )
 #if 0
        !
     ENDIF
@@ -343,7 +347,7 @@ CONTAINS
   END SUBROUTINE calbec_k
   !
 #ifdef USE_CUDA
-  SUBROUTINE calbec_k_gpu ( npw, beta, psi, betapsi, nbnd )
+  SUBROUTINE calbec_k_gpu ( npw, beta, psi, betapsi, betapsi_h, nbnd )
     !-----------------------------------------------------------------------
     !
     ! ... matrix times matrix with summation index (k=1,npw) running on
@@ -356,6 +360,7 @@ CONTAINS
     IMPLICIT NONE
     COMPLEX (DP), INTENT (in) :: beta(:,:), psi(:,:)
     COMPLEX (DP), INTENT (out) :: betapsi(:,:)
+    COMPLEX (DP), INTENT (inout) :: betapsi_h(:,:)
     ATTRIBUTES(DEVICE) :: beta, psi, betapsi
 
     INTEGER, INTENT (in) :: npw
@@ -391,10 +396,10 @@ CONTAINS
 
 
     !
-    !betapsi( :, 1:m ) = betapsi_d( :, 1:m )
-    CALL mp_sum( betapsi( :, 1:m ), intra_bgrp_comm )
-    !
-    !betapsi_d( :, 1:m ) = betapsi( :, 1:m )
+    betapsi_h( :, 1:m ) = betapsi( :, 1:m )
+    !CALL mp_sum( betapsi( :, 1:m ), intra_bgrp_comm )
+    CALL mp_sum( betapsi_h( :, 1:m ), intra_bgrp_comm )
+    betapsi( :, 1:m ) = betapsi_h( :, 1:m )
     !
     CALL stop_clock( 'calbec' )
     !
@@ -462,7 +467,9 @@ CONTAINS
     IMPLICIT NONE
     TYPE (bec_type) :: bec
     LOGICAL :: isalloc
+
     isalloc = (allocated(bec%r) .or. allocated(bec%nc) .or. allocated(bec%k))
+
     RETURN
     !
     !-----------------------------------------------------------------------
@@ -477,8 +484,11 @@ CONTAINS
     TYPE (bec_type) :: bec
     INTEGER, INTENT (in) :: nkb, nbnd
     INTEGER, INTENT (in), OPTIONAL :: comm
-    INTEGER :: ierr, nbnd_siz
+    INTEGER :: ierr, nbnd_siz, i, j
     INTEGER, EXTERNAL :: ldim_block, lind_block, gind_block
+#ifdef USE_CUDA
+    COMPLEX(dp), DEVICE, pointer :: becp_k_d(:,:)
+#endif
     !
     nbnd_siz = nbnd
     bec%comm = mp_get_comm_null()
@@ -518,14 +528,41 @@ CONTAINS
        !
     ELSE
        !
+#ifdef USE_CUDA
+       if(allocated( bec%k   ) .and. size(bec%k  ) < nkb*nbnd_siz) deallocate( bec%k   )
+       if(allocated( bec%k_d ) .and. size(bec%k_d) < nkb*nbnd_siz) deallocate( bec%k_d )
+
+       if(.not. allocated(bec%k) ) then
+         ALLOCATE( bec%k( nkb, nbnd_siz ), STAT=ierr )
+         IF( ierr /= 0 ) &
+            CALL errore( ' allocate_bec_type ', ' cannot allocate bec%k ', ABS(ierr) )
+         !
+       endif
+       bec%k(:,:)=(0.0D0,0.0D0)
+
+       if(.not. allocated(bec%k_d) ) then
+#ifdef __CUDA_DEBUG
+         print *,"alloc bec%k_d",nkb,nbnd_siz
+#endif
+         ALLOCATE( bec%k_d( nkb, nbnd_siz ), STAT=ierr )
+         IF( ierr /= 0 ) &
+            CALL errore( ' allocate_bec_type ', ' cannot allocate bec%k_d ', ABS(ierr) )
+         !
+       endif
+       becp_k_d => becp%k_d
+!$cuf kernel do(2) <<<*,*>>>
+       DO j = 1, nbnd_siz
+          DO i = 1, nkb
+             becp_k_d(i,j)=(0.0D0,0.0D0)
+          ENDDO
+       ENDDO
+
+#else
        ALLOCATE( bec%k( nkb, nbnd_siz ), STAT=ierr )
        IF( ierr /= 0 ) &
           CALL errore( ' allocate_bec_type ', ' cannot allocate bec%k ', ABS(ierr) )
        !
        bec%k(:,:)=(0.0D0,0.0D0)
-#ifdef USE_CUDA
-       ALLOCATE( bec%k_d(nkb, nbnd_siz ) )
-       bec%k_d = (0.0D0, 0.0D0)
 #endif
        !
     ENDIF
