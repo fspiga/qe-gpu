@@ -8,7 +8,7 @@ DFLAGS         = -D__MPI -D__OPENMP -D__FFTW -DUSE_CUDA -DUSE_IPC
 
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
-IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve
+IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve
 
 MOD_FLAG      = -I
 
@@ -27,7 +27,7 @@ F90FLAGS_WORKAROUND = -O3 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFL
 
 LD             = mpif90
 LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
-LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a
+LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a
 
 MATH_LIBS      = -L/opt/ibm/xlf/15.1.5/lib -lessl -lxl -lxlf90_r -lxlfmath -llapack -lblas
 
