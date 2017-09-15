@@ -53,6 +53,7 @@
       USE kinds,            ONLY : DP
       USE mp_bands,         ONLY : intra_bgrp_comm
       USE mp,               ONLY : mp_sum
+      USE cpu_gpu_interface, ONLY : s_psi, h_psi
 #if defined(__VERBOSE)
       USE io_global, ONLY : stdout
 #endif
@@ -93,6 +94,7 @@
 #ifdef USE_CUDA
       COMPLEX(DP),DEVICE, ALLOCATABLE :: hpsi_d(:), spsi_d(:), lagrange_d(:), &
            g_d(:), cg_d(:), scg_d(:), ppsi_d(:), g0_d(:)
+      REAL(DP), DEVICE        :: psi_norm_d
 #endif
       !
       ! ... external functions
@@ -179,7 +181,8 @@
          ! ... calculate S|psi>
          !
 #ifdef USE_CUDA
-         CALL s_1psi( npwx, npw, psi(1,m), spsi )
+        !  CALL s_1psi( npwx, npw, psi(1,m), spsi ) !Original
+         CALL s_psi(npwx, npw, 1, psi(1,m), spsi)
          !
          ! ... orthogonalize starting eigenfunction to those already calculated
          !
@@ -200,25 +203,25 @@
          !
          psi_norm = SQRT( psi_norm )
          !
-         psi(:,m) = psi(:,m) / psi_norm
-         !
-         !        psi_d = psi
-         ! !$cuf kernel do(1) <<<*,*>>>
-         !        DO i = 1, kdmx
-         !          psi_d(i,m) = psi_d(i,m) / psi_norm
-         !        END DO
-         !        psi = psi_d
+         psi_d = psi
+         psi_norm_d = psi_norm
+!$cuf kernel do(1) <<<*,*>>>
+         DO i = 1, kdmx
+           psi_d(i,m) = psi_d(i,m) / psi_norm_d
+         END DO
          !
          ! ... calculate starting gradient (|hpsi> = H|psi>) ...
          !
-         CALL h_1psi( npwx, npw, psi(1,m), hpsi, spsi )
+         !FIX=========================================
+         !  CALL h_1psi( npwx, npw, psi(1,m), hpsi, spsi )
+         CALL h_psi(npwx, npw, 1, psi_d(1,m), hpsi_d)
+         CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d)
+         !============================================
          !
          ! ... and starting eigenvalue (e = <y|PHP|y> = <psi|H|psi>)
          !
          ! ... NB:  ddot(2*npw,a,1,b,1) = REAL( zdotc(npw,a,1,b,1) )
          !
-         hpsi_d = hpsi
-         psi_d =psi
          CALL cgddot( kdim2, psi_d(1,m), hpsi_d, ddot_temp )
          e(m) = ddot_temp
          !
@@ -226,6 +229,9 @@
          !
          ! ... start iteration for this band
          !
+         psi = psi_d
+         hpsi = hpsi_d
+         spsi = spsi_d
          iterate: DO iter = 1, maxter
             !
             ! ... calculate  P (PHP)|y>
