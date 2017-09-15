@@ -31,12 +31,12 @@ SUBROUTINE c_bands( iter )
   USE mp_pools,             ONLY : npool, kunit, inter_pool_comm
   USE mp,                   ONLY : mp_sum
   USE check_stop,           ONLY : check_stop_now
-#ifdef USE_CUDA                                               
+#ifdef USE_CUDA
   USE klist,                ONLY : igk_k_d
-  USE uspp,                 ONLY : vkb_d                      
+  USE uspp,                 ONLY : vkb_d
   USE wvfct,                ONLY : et_d
-  USE nvtx                                                    
-  USE wavefunctions_module, ONLY : evc_d                      
+  USE nvtx
+  USE wavefunctions_module, ONLY : evc_d
 #endif
   !
   IMPLICIT NONE
@@ -59,7 +59,7 @@ SUBROUTINE c_bands( iter )
   IF ( restart ) CALL restart_in_cbands(ik_, ethr, avg_iter, et )
   !
   ! ... If restarting, calculated wavefunctions have to be read from file
-  ! ... (not needed for a single k-point: this is done in wfcinit, 
+  ! ... (not needed for a single k-point: this is done in wfcinit,
   ! ...  directly from file, in order to avoid wasting memory)
   !
   DO ik = 1, ik_
@@ -89,7 +89,7 @@ SUBROUTINE c_bands( iter )
      !
      IF ( nkb > 0 ) then
 #ifdef USE_CUDA
-        CALL init_us_2_gpu( ngk(ik), igk_k_d(1,ik), xk(1,ik), vkb_d ) 
+        CALL init_us_2_gpu( ngk(ik), igk_k_d(1,ik), xk(1,ik), vkb_d )
 #else
         CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
 #endif
@@ -181,10 +181,10 @@ SUBROUTINE diag_bands( iter, ik, avg_iter )
                                    gamma_only, use_para_diag
   USE noncollin_module,     ONLY : noncolin, npol
   USE wavefunctions_module, ONLY : evc
-#ifdef USE_CUDA                                               
-  USE wvfct,                ONLY : et_d, g2kin_d, psi_d, hpsi_d, spsi_d                    
-  USE wavefunctions_module, ONLY : evc_d                      
-  USE g_psi_mod,            ONLY : h_diag_d, s_diag_d         
+#ifdef USE_CUDA
+  USE wvfct,                ONLY : et_d, g2kin_d, psi_d, hpsi_d, spsi_d
+  USE wavefunctions_module, ONLY : evc_d
+  USE g_psi_mod,            ONLY : h_diag_d, s_diag_d
 #endif
   USE g_psi_mod,            ONLY : h_diag, s_diag
   USE scf,                  ONLY : v_of_0
@@ -224,16 +224,16 @@ SUBROUTINE diag_bands( iter, ik, avg_iter )
   IF( ierr /= 0 ) &
      CALL errore( ' diag_bands ', ' cannot allocate s_diag ', ABS(ierr) )
 
-#ifdef USE_CUDA                                                                       
-  ALLOCATE( h_diag_d( npwx, npol ), STAT=ierr )                                       
-  IF( ierr /= 0 ) &                                                                   
-     CALL errore( ' diag_bands ', ' cannot allocate h_diag_d ', ABS(ierr) )           
-  !                                                                                   
-  ALLOCATE( s_diag_d( npwx, npol ), STAT=ierr )                                       
-  IF( ierr /= 0 ) &                                                                   
-     CALL errore( ' diag_bands ', ' cannot allocate s_diag_d ', ABS(ierr) )   
-#endif                                                                                
-  
+#ifdef USE_CUDA
+  ALLOCATE( h_diag_d( npwx, npol ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' diag_bands ', ' cannot allocate h_diag_d ', ABS(ierr) )
+  !
+  ALLOCATE( s_diag_d( npwx, npol ), STAT=ierr )
+  IF( ierr /= 0 ) &
+     CALL errore( ' diag_bands ', ' cannot allocate s_diag_d ', ABS(ierr) )
+#endif
+
   !
   ipw=npwx
   CALL mp_sum(ipw, intra_bgrp_comm)
@@ -243,8 +243,8 @@ SUBROUTINE diag_bands( iter, ik, avg_iter )
   ! ... allocate space for <beta_i|psi_j> - used in h_psi and s_psi
   !
 
-  call nvtxStartRange("alloc_bec_type",6)  
-  CALL allocate_bec_type ( nkb, nbnd, becp, intra_bgrp_comm )  
+  call nvtxStartRange("alloc_bec_type",6)
+  CALL allocate_bec_type ( nkb, nbnd, becp, intra_bgrp_comm )
   call nvtxEndRange()
 
 #ifdef USE_CUDA
@@ -269,10 +269,10 @@ SUBROUTINE diag_bands( iter, ik, avg_iter )
 #endif
   DEALLOCATE( s_diag )
   DEALLOCATE( h_diag )
-#ifdef USE_CUDA                                                                       
+#ifdef USE_CUDA
   DEALLOCATE( s_diag_d )
   DEALLOCATE( h_diag_d )
-#endif 
+#endif
   !
   IF ( notconv > MAX( 5, nbnd / 4 ) ) THEN
      !
@@ -393,11 +393,11 @@ CONTAINS
     !
     ! ... Complex Hamiltonian diagonalization
     !
-#ifdef USE_CUDA                                                                       
-#ifdef USE_NVTX                                                                       
-    use nvtx                                                                          
-#endif                                                                                
-#endif                                                                                
+#ifdef USE_CUDA
+#ifdef USE_NVTX
+    use nvtx
+#endif
+#endif
     IMPLICIT NONE
     !
     ! ... here the local variables
@@ -430,7 +430,7 @@ CONTAINS
        IF ( okvan ) THEN
           !
           call allocate_bec_type(nkb,nbnd,bec_evcel)
-          
+
           !
           CALL calbec(npw, vkb, evcel, bec_evcel)
           !
@@ -460,14 +460,31 @@ CONTAINS
           !
           IF ( .NOT. lrot ) THEN
              !
+#ifdef USE_CUDA
+             evc_d = evc
+             et_d=et
+             CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc_d, npol, okvan, evc_d, et_d(1,ik) )
+             evc = evc_d
+             et = et_d
+#else
              CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc, npol, okvan, evc, et(1,ik) )
+#endif
              !
              avg_iter = avg_iter + 1.D0
              !
           END IF
           !
+#ifdef USE_CUDA
+          et_d(:,ik) = et(:,ik)
+          evc_d = evc
+          CALL ccgdiagg( npwx, npw, nbnd, npol, evc, evc_d, et(1,ik), et_d(1,ik), btype(1,ik), &
+               h_diag, ethr, max_cg_iter, .NOT. lscf, notconv, cg_iter )
+          evc = evc_d
+          et = et_d
+#else
           CALL ccgdiagg( npwx, npw, nbnd, npol, evc, et(1,ik), btype(1,ik), &
                h_diag, ethr, max_cg_iter, .NOT. lscf, notconv, cg_iter )
+#endif
           !
           avg_iter = avg_iter + cg_iter
           !
@@ -494,14 +511,14 @@ CONTAINS
        END DO
        !
 
-#ifdef USE_CUDA                                                                       
-!#if 0                                                                                
-! TODO: evc_d = evc can overlap usnldiag_gpu (need to create h2d_stream)  istat = cud 
-       CALL usnldiag_gpu( npw, h_diag, h_diag_d, s_diag, s_diag_d )                        
-!call nvtxEndRange                                                                    
-#else                                                                                 
-       CALL usnldiag( npw, h_diag, s_diag )                                                
-#endif                                                                              
+#ifdef USE_CUDA
+!#if 0
+! TODO: evc_d = evc can overlap usnldiag_gpu (need to create h2d_stream)  istat = cud
+       CALL usnldiag_gpu( npw, h_diag, h_diag_d, s_diag, s_diag_d )
+!call nvtxEndRange
+#else
+       CALL usnldiag( npw, h_diag, s_diag )
+#endif
 
        !
        ntry = 0
@@ -518,24 +535,24 @@ CONTAINS
              !
           ELSE
              !
-#ifdef USE_CUDA                                                                       
-!#if 0                                                                                
-             et_d(:,ik) = et(:,ik)                                                    
-             !evc_d = evc                                                              
-                                                                                      
-!             h_diag_d = h_diag                                                       
-!             s_diag_d = s_diag                                                       
-                                                                                      
-             CALL cegterg ( npw, npwx, nbnd, nbndx, npol, evc, evc_d, ethr, &         
-                         okvan, et(1,ik), et_d(1,ik), btype(1,ik), &                  
-                         notconv, lrot, dav_iter )                                    
-!             et = et_d                                                               
-!             evc = evc_d                                                             
-#else                                                                                 
-             CALL cegterg ( npw, npwx, nbnd, nbndx, npol, evc, ethr, &                
-                         okvan, et(1,ik), btype(1,ik), &                              
-                         notconv, lrot, dav_iter )                                    
-#endif                                                                                
+#ifdef USE_CUDA
+!#if 0
+             et_d(:,ik) = et(:,ik)
+             !evc_d = evc
+
+!             h_diag_d = h_diag
+!             s_diag_d = s_diag
+
+             CALL cegterg ( npw, npwx, nbnd, nbndx, npol, evc, evc_d, ethr, &
+                         okvan, et(1,ik), et_d(1,ik), btype(1,ik), &
+                         notconv, lrot, dav_iter )
+!             et = et_d
+!             evc = evc_d
+#else
+             CALL cegterg ( npw, npwx, nbnd, nbndx, npol, evc, ethr, &
+                         okvan, et(1,ik), btype(1,ik), &
+                         notconv, lrot, dav_iter )
+#endif
 
           END IF
           !
@@ -555,7 +572,7 @@ CONTAINS
        !
     END IF
     !
-    IF ( lelfield .AND. okvan ) call deallocate_bec_type( bec_evcel) 
+    IF ( lelfield .AND. okvan ) call deallocate_bec_type( bec_evcel)
     !
     RETURN
     !
@@ -665,10 +682,10 @@ SUBROUTINE c_bands_nscf( )
   USE mp_pools,             ONLY : npool, kunit, inter_pool_comm
   USE mp,                   ONLY : mp_sum
   USE check_stop,           ONLY : check_stop_now
-#ifdef USE_CUDA                                                                       
+#ifdef USE_CUDA
   USE klist,                ONLY : igk_k_d
-  USE uspp,                 ONLY : vkb_d                                              
-#endif                                                                                
+  USE uspp,                 ONLY : vkb_d
+#endif
   !
   IMPLICIT NONE
   !
@@ -711,15 +728,15 @@ SUBROUTINE c_bands_nscf( )
      current_k = ik
      IF ( lsda ) current_spin = isk(ik)
      call g2_kin( ik )
-     ! 
+     !
      ! ... More stuff needed by the hamiltonian: nonlocal projectors
      !
      IF ( nkb > 0 ) then
-#ifdef USE_CUDA                                                                       
+#ifdef USE_CUDA
         CALL init_us_2_gpu( ngk(ik), igk_k_d(1,ik), xk(1,ik), vkb_d )
 #else
         CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
-#endif                                                                                
+#endif
      endif
      !
      ! ... Needed for LDA+U
