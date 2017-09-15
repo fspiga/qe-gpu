@@ -190,7 +190,70 @@ MODULE exx
   INTEGER :: ngw_loc, ngs_loc
   INTEGER :: ngw_exx, ngs_exx
 
- CONTAINS
+#ifdef USE_CUDA
+  interface assignment(=)
+   module procedure copy_fft_descriptor
+  end interface
+#endif
+
+  contains
+
+#ifdef USE_CUDA
+  SUBROUTINE copy_fft_descriptor(new_desc,old_desc)
+  use cudafor
+   TYPE(fft_type_descriptor), intent(in),target :: old_desc
+   TYPE(fft_type_descriptor), intent(out),target:: new_desc
+   integer:: i
+   integer,device, pointer :: pold_d(:),pnew_d(:)
+   type(cudaEvent),device, pointer :: eold_d(:),enew_d(:)
+
+    new_desc%nst = old_desc%nst
+    new_desc%nsp = old_desc%nsp
+    new_desc%nsw = old_desc%nsw
+    new_desc%nr1 = old_desc%nr1
+    new_desc%nr2 = old_desc%nr2
+    new_desc%nr3 = old_desc%nr3
+    new_desc%nr1x = old_desc%nr1x
+    new_desc%nr2x = old_desc%nr2x
+    new_desc%nr3x = old_desc%nr3x
+    new_desc%npl = old_desc%npl
+    new_desc%nnp = old_desc%nnp
+    new_desc%nnr = old_desc%nnr
+    new_desc%ngl = old_desc%ngl
+    new_desc%nwl = old_desc%nwl
+    new_desc%npp = old_desc%npp
+    new_desc%ipp = old_desc%ipp
+    new_desc%iss = old_desc%iss
+    new_desc%isind = old_desc%isind
+    new_desc%ismap = old_desc%ismap
+
+    pnew_d=>new_desc%ismap_d
+    pold_d=>old_desc%ismap_d
+  !$cuf kernel do(1) <<<*,*>>>
+    do i= lbound(old_desc%ismap_d,1), ubound(old_desc%ismap_d, 1)
+     pnew_d(i) = pold_d(i)
+    end do
+    enew_d=>new_desc%a2a_event
+    eold_d=>old_desc%a2a_event
+  !$cuf kernel do(1) <<<*,*>>>
+    do i= lbound(old_desc%a2a_event,1), ubound(old_desc%a2a_event, 1)
+     enew_d(i) = eold_d(i)
+    end do
+     new_desc%a2a_comp = old_desc%a2a_comp
+     new_desc%a2a_h2d = old_desc%a2a_h2d
+     new_desc%a2a_d2h = old_desc%a2a_d2h
+
+    new_desc%iplp = old_desc%iplp
+    new_desc%iplw = old_desc%iplw
+    new_desc%mype = old_desc%mype
+    new_desc%comm = old_desc%comm
+    new_desc%nproc = old_desc%nproc
+    new_desc%root = old_desc%root
+    new_desc%lpara = old_desc%lpara
+
+  END SUBROUTINE copy_fft_descriptor
+#endif
+
 #define _CX(A)  CMPLX(A,0._dp,kind=DP)
 #define _CY(A)  CMPLX(0._dp,-A,kind=DP)
   !
@@ -4571,14 +4634,8 @@ END SUBROUTINE compute_becpsi
     IF (is_exx) THEN
        exx_mode = 1
        IF(first_data_structure_change)THEN
-#ifdef USE_CUDA
-      call  copy_fft_descriptor(dfftp_loc,dfftp)
-      call  copy_fft_descriptor(dffts_loc,dffts)
-#else
           dfftp_loc = dfftp
           dffts_loc = dffts
-#endif
-
 
           CALL fft_type_init( dffts_exx, smap_exx, "wave", gamma_only, &
                lpara, intra_egrp_comm, at, bg, gkcut, gcutms/gkcut, &
@@ -4592,23 +4649,13 @@ END SUBROUTINE compute_becpsi
              ngs_ = (ngs_ + 1)/2
              ngm_ = (ngm_ + 1)/2
           END IF
-#ifdef USE_CUDA
-      call  copy_fft_descriptor(dfftp,dfftp_exx)
-      call  copy_fft_descriptor(dffts,dffts_exx)
-#else
           dfftp = dfftp_exx
           dffts = dffts_exx
-#endif
           ngm = ngm_
           ngms = ngs_
        ELSE
-#ifdef USE_CUDA
-      call  copy_fft_descriptor(dfftp,dfftp_exx)
-      call  copy_fft_descriptor(dffts,dffts_exx)
-#else
           dfftp = dfftp_exx
           dffts = dffts_exx
-#endif
           ngm = ngm_exx
           ngms = ngms_exx
        END IF
@@ -4618,13 +4665,8 @@ END SUBROUTINE compute_becpsi
        call gvecs_init( ngms , intra_egrp_comm )
     ELSE
        exx_mode = 2
-#ifdef USE_CUDA
-      call  copy_fft_descriptor(dfftp,dfftp_loc)
-      call  copy_fft_descriptor(dffts,dffts_loc)
-#else
        dfftp = dfftp_loc
        dffts = dffts_loc
-#endif
        ngm = ngm_loc
        ngms = ngms_loc
        call deallocate_gvect_exx()
@@ -5610,64 +5652,6 @@ IMPLICIT NONE
   CALL stop_clock('vexxace')
 
 END SUBROUTINE
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE copy_fft_descriptor(new_desc,old_desc)
-#ifdef USE_CUDA
-  use cudafor
-#endif
-   TYPE(fft_type_descriptor), intent(in),target :: old_desc
-   TYPE(fft_type_descriptor), intent(out),target:: new_desc
-#ifdef USE_CUDA
-   integer:: i
-   integer,device, pointer :: pold_d(:),pnew_d(:)
-   type(cudaEvent),device, pointer :: eold_d(:),enew_d(:)
-#endif
-
-    new_desc%nst = old_desc%nst
-    new_desc%nsp = old_desc%nsp
-    new_desc%nsw = old_desc%nsw
-    new_desc%nr1 = old_desc%nr1
-    new_desc%nr2 = old_desc%nr2
-    new_desc%nr3 = old_desc%nr3
-    new_desc%nr1x = old_desc%nr1x
-    new_desc%nr2x = old_desc%nr2x
-    new_desc%nr3x = old_desc%nr3x
-    new_desc%npl = old_desc%npl
-    new_desc%nnp = old_desc%nnp
-    new_desc%nnr = old_desc%nnr
-    new_desc%ngl = old_desc%ngl
-    new_desc%nwl = old_desc%nwl
-    new_desc%npp = old_desc%npp
-    new_desc%ipp = old_desc%ipp
-    new_desc%iss = old_desc%iss
-    new_desc%isind = old_desc%isind
-    new_desc%ismap = old_desc%ismap
-#ifdef USE_CUDA
-    pnew_d=>new_desc%ismap_d
-    pold_d=>old_desc%ismap_d
-  !$cuf kernel do(1) <<<*,*>>>
-    do i= lbound(old_desc%ismap_d,1), ubound(old_desc%ismap_d, 1)
-     pnew_d(i) = pold_d(i)
-    end do
-    enew_d=>new_desc%a2a_event
-    eold_d=>old_desc%a2a_event
-  !$cuf kernel do(1) <<<*,*>>>
-    do i= lbound(old_desc%a2a_event,1), ubound(old_desc%a2a_event, 1)
-     enew_d(i) = eold_d(i)
-    end do
-     new_desc%a2a_comp = old_desc%a2a_comp
-     new_desc%a2a_h2d = old_desc%a2a_h2d
-     new_desc%a2a_d2h = old_desc%a2a_d2h
-#endif
-    new_desc%iplp = old_desc%iplp
-    new_desc%iplw = old_desc%iplw
-    new_desc%mype = old_desc%mype
-    new_desc%comm = old_desc%comm
-    new_desc%nproc = old_desc%nproc
-    new_desc%root = old_desc%root
-    new_desc%lpara = old_desc%lpara
-
-  END SUBROUTINE copy_fft_descriptor
 
 !-----------------------------------------------------------------------
 END MODULE exx

@@ -257,6 +257,7 @@ cegterg.o : ../../Modules/kind.o
 cegterg.o : ../../Modules/mp.o
 cegterg.o : ../../Modules/mp_bands.o
 cegterg.o : ../../Modules/mp_diag.o
+cegterg.o : pwcom.o
 cegterg.o : cdiaghg.o
 clean_pw.o : ../../FFTXlib/fft_types.o
 clean_pw.o : ../../Modules/atom.o

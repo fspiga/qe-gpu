@@ -23,6 +23,11 @@
 ! Iotk macros which are not defined take their default values.
 ! See the manual for a list of iotk macros.
 
+! This is the default since PGI is the only supported compiler for QE-GPU
+#ifndef __PGI
+#define __PGI
+#endif
+
 #ifndef __IOTK_CONFIG_H
 #define __IOTK_CONFIG_H
 

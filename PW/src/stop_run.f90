@@ -56,7 +56,7 @@ SUBROUTINE stop_run( exit_status )
 #if defined(__GPU_DEBUG)
   print *,"calling cudaThreadExit"
 #endif
-  istat = cudaThreadExit
+  !istat = cudaThreadExit
   !
 #endif
 

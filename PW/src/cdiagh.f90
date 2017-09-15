@@ -57,13 +57,8 @@ SUBROUTINE cdiagh( n, h, ldh, e, v )
      !
      ! ... allocate workspace
      !
-#if defined(__PGI)
-     !     workaround for PGI compiler bug
-     !
      v(1:ldh,1:n) = h(1:ldh,1:n)
-#else
-     v = h
-#endif
+     !v = h
      !
      ALLOCATE( work( lwork ) )    
      ALLOCATE( rwork( 3 * n - 2 ) )    
@@ -79,15 +74,10 @@ SUBROUTINE cdiagh( n, h, ldh, e, v )
      !
   END IF
   !
-#if defined(__PGI)
-  !      workaround for PGI compiler bug
-  !
   CALL mp_bcast( e(1:n), root_bgrp, intra_bgrp_comm )
   CALL mp_bcast( v(1:ldh,1:n), root_bgrp, intra_bgrp_comm )      
-#else
-  CALL mp_bcast( e, root_bgrp, intra_bgrp_comm )
-  CALL mp_bcast( v, root_bgrp, intra_bgrp_comm )      
-#endif
+  !CALL mp_bcast( e, root_bgrp, intra_bgrp_comm )
+  !CALL mp_bcast( v, root_bgrp, intra_bgrp_comm )      
   !
   CALL stop_clock( 'diagh' )
   !

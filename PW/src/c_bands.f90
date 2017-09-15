@@ -117,8 +117,12 @@ SUBROUTINE c_bands( iter )
      ! ... iterative diagonalization of the next scf iteration
      ! ... and for rho calculation
      !
-     IF ( nks > 1 .OR. lelfield ) &
+     IF ( nks > 1 .OR. lelfield ) then
+#ifdef USE_CUDA
+        evc = evc_d
+#endif
           CALL save_buffer ( evc, nwordwfc, iunwfc, ik )
+     endif
      !
      ! ... beware: with pools, if the number of k-points on different
      ! ... pools differs, make sure that all processors are still in
@@ -260,7 +264,9 @@ SUBROUTINE diag_bands( iter, ik, avg_iter )
   !
   ! ... deallocate work space
   !
+#ifndef USE_CUDA
   CALL deallocate_bec_type ( becp )
+#endif
   DEALLOCATE( s_diag )
   DEALLOCATE( h_diag )
 #ifdef USE_CUDA

@@ -1,0 +1,59 @@
+# For a verbose description of these fields please refer to the original 
+# Quantum ESPRESSO make.inc file
+
+TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
+
+# See include/defs.h.README for a list of options and their meaning
+DFLAGS         = -D__MPI -D__OPENMP -D__LINUX_ESSL
+FDFLAGS        = $(DFLAGS)
+
+IFLAGS         = -I$(TOPDIR)/include -I../include/ 
+
+MOD_FLAG      = -I
+
+MPIF90         = mpif90
+CC             = pgcc
+F77            = pgf90
+
+CFLAGS         = -O3 -mp -Mpreprocess $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O3 -mp -Mpreprocess  -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS) 
+FFLAGS         = -O3 -mp -Mpreprocess 
+
+# If this flag is present some files are compiled differently as workaround for compiler bugs
+F90FLAGS_WORKAROUND = -O3 -Mpreprocess  -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+
+LD             = mpif90
+LDFLAGS        = -mp -Mlarge_arrays
+LD_LIBS        =  
+
+MATH_LIBS       = -L/opt/ibm/xlf/15.1.5/lib -lesslsmp -lessl -lxl -lxlf90_r -lxlfmath -L/opt/ibm/xlsmp/4.1.5/lib -lxlsmp -lxlfmath -llapack -lblas
+
+EIGENSOLVER_VERSION     =
+
+
+# Do not edit below this line
+
+AR             = ar
+ARFLAGS        = ruv
+RANLIB         = ranlib
+WGET           = wget -O
+
+.SUFFIXES :
+.SUFFIXES : .o .c .f .f90 .F90
+
+.F90.o:
+	$(MPIF90) $(F90FLAGS) -c $< -o $(*)_cpu.o ;
+	ld -r $(*)_cpu.o -o $(*).o ;
+	rm $(*)_cpu.o
+
+.f90.o:
+	$(MPIF90) $(F90FLAGS) -c $(*).f90 -o $(*).o
+
+.f.o:
+	$(F77) $(FFLAGS) -c $<
+
+.c.o:
+	$(CC) $(CFLAGS)  -c $<
+
+LIBOBJS        = $(TOPDIR)/clib/clib.a $(TOPDIR)/iotk/src/libiotk.a
+LIBS           = $(MATH_LIBS) $(LD_LIBS)

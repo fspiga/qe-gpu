@@ -25,7 +25,8 @@
                     ! is a combined PW + spin index
      !
      COMPLEX(DP) , ALLOCATABLE, TARGET :: &
-       psic(:), &      ! additional memory for FFT
+       psic(:), &            ! additional memory for FFT
+       psic_batch(:), &      ! additional memory for batched FFT
        psic_nc(:,:)    ! as above for the noncolinear case
 
 #ifdef USE_CUDA
@@ -37,7 +38,8 @@
 
      attributes(pinned) :: psic
      COMPLEX(DP) , DEVICE, ALLOCATABLE, TARGET :: &
-       psic_d(:)         ! additional memory for FFT
+       psic_d(:),&         ! additional memory for FFT
+       psic_batch_d(:)     ! additional memory for batched FFT
 #endif
      !
      !

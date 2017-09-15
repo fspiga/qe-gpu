@@ -148,12 +148,14 @@ SUBROUTINE usnldiag_gpu (npw, h_diag, h_diag_d, s_diag, s_diag_d)
   !
   ! initialise s_diag
   !
-  s_diag = 1.d0
+  !s_diag = 1.d0
   s_diag_d = 1.d0
   h_diag_d = h_diag
 
-  deeq_d = deeq
-  qq_d = qq
+  !deeq_d = deeq
+  !qq_d = qq
+
+  if ( lspinorb .or. noncolin ) call errore('usnldiag_gpu','lspinorb or noncolin not yet supported on GPU',1)
   !
   !    multiply on projectors
   !

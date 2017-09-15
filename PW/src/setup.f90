@@ -161,14 +161,10 @@ SUBROUTINE setup()
   zv_d = zv
 #endif
   !
-#if defined (__PGI)
-     ionic_charge = 0._DP
-     DO na = 1, nat
-        ionic_charge = ionic_charge + zv( ityp(na) )
-     END DO
-#else
-     ionic_charge = SUM( zv(ityp(1:nat)) ) 
-#endif
+  ionic_charge = 0._DP
+  DO na = 1, nat
+     ionic_charge = ionic_charge + zv( ityp(na) )
+  END DO
   !
   ! ... set the number of electrons 
   !
@@ -298,13 +294,9 @@ SUBROUTINE setup()
      !
      DO is = 1, nspin_lsda
         !
-#if defined (__PGI)
         DO ibnd = 1, nbnd
            iocc = iocc + f_inp(ibnd,is)
         END DO
-#else
-        iocc = iocc + SUM( f_inp(1:nbnd,is) )
-#endif
         !
         DO ibnd = 1, nbnd
            if (f_inp(ibnd,is) > 2.d0/nspin_lsda .or. f_inp(ibnd,is) < 0.d0) &
