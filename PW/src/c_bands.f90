@@ -475,8 +475,8 @@ CONTAINS
           END IF
           !
 #ifdef USE_CUDA
-          et_d(:,ik) = et(:,ik)
-          evc_d = evc
+          ! et_d(:,ik) = et(:,ik)
+          ! evc_d = evc
           CALL ccgdiagg( npwx, npw, nbnd, npol, evc, evc_d, et(1,ik), et_d(1,ik), btype(1,ik), &
                h_diag, ethr, max_cg_iter, .NOT. lscf, notconv, cg_iter )
           evc = evc_d
