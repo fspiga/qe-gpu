@@ -52,7 +52,21 @@ MODULE fft_types
     INTEGER, ALLOCATABLE, DEVICE:: ismap_d(:)
     INTEGER(kind=cuda_stream_kind) :: a2a_comp, a2a_h2d, a2a_d2h
     TYPE(cudaEvent), allocatable, dimension(:) :: a2a_event
+    INTEGER(kind=cuda_stream_kind), allocatable, dimension(:) :: bstreams
+    TYPE(cudaEvent), allocatable, dimension(:) :: bevents
 #endif
+
+#ifdef USE_CUDA
+    INTEGER              :: batchsize = 16    ! how many ffts to batch together
+    INTEGER              :: subbatchsize = 4  ! size of subbatch for pipelining
+#else
+    INTEGER              :: batchsize = 1    ! how many ffts to batch together
+    INTEGER              :: subbatchsize = 1  ! size of subbatch for pipelining
+#endif
+#ifdef USE_IPC
+    INTEGER :: IPC_PEER(16)
+#endif
+    INTEGER, ALLOCATABLE :: srh(:,:) ! Isend/recv handles by subbatch
     INTEGER, ALLOCATABLE :: iplp(:)  ! indicate which "Y" plane should be FFTed ( potential )
     INTEGER, ALLOCATABLE :: iplw(:)  ! indicate which "Y" plane should be FFTed ( wave func )
     !
@@ -110,6 +124,7 @@ CONTAINS
     INTEGER, INTENT(in) :: comm ! mype starting from 0
     INTEGER :: nx, ny, ierr
     INTEGER :: mype, root, nproc ! mype starting from 0
+    INTEGER :: nsubbatches
 #ifdef USE_CUDA
     INTEGER :: istat,i
 #endif
@@ -154,12 +169,22 @@ CONTAINS
     istat = cudaStreamCreate( desc%a2a_d2h )
     istat = cudaStreamCreate( desc%a2a_h2d )
 
-    ALLOCATE( desc%a2a_event( 2*nproc ) )
-    DO i = 1, 2*nproc
+    ALLOCATE( desc%a2a_event( max(2*nproc, 3) ) )
+    DO i = 1, max(2*nproc, 3)
        istat = cudaEventCreate( desc%a2a_event( i ) )
     ENDDO
 
+    nsubbatches = ceiling(real(desc%batchsize)/desc%subbatchsize)
+
+    ALLOCATE( desc%bstreams( nsubbatches ) )
+    ALLOCATE( desc%bevents( nsubbatches ) )
+    DO i = 1, nsubbatches
+      istat = cudaStreamCreate( desc%bstreams(i) )
+      istat = cudaEventCreate( desc%bevents(i) )
+    ENDDO
+
 #endif
+    ALLOCATE( desc%srh(2*nproc, nsubbatches))
     ALLOCATE( desc%iplp( nx ) )
     ALLOCATE( desc%iplw( nx ) )
 
@@ -184,6 +209,8 @@ CONTAINS
 
   SUBROUTINE fft_type_deallocate( desc )
     TYPE (fft_type_descriptor) :: desc
+    INTEGER :: nsubbatches
+
 #ifdef USE_CUDA
     INTEGER :: istat,i,nproc
 #endif
@@ -208,10 +235,19 @@ CONTAINS
     DO i = 1, 2*nproc
        istat = cudaEventDestroy( desc%a2a_event( i ) )
     ENDDO
-
     DEALLOCATE( desc%a2a_event( 2*nproc ) )
 
+    nsubbatches = ceiling(real(desc%batchsize)/desc%subbatchsize)
+    DO i = 1, nsubbatches
+      istat = cudaStreamDestroy( desc%bstreams(i) )
+      istat = cudaEventDestroy( desc%bevents(i) )
+    ENDDO
+
+    DEALLOCATE( desc%bstreams )
+    DEALLOCATE( desc%bevents )
+
 #endif
+    IF ( ALLOCATED( desc%srh ) )   DEALLOCATE( desc%srh )
     IF ( ALLOCATED( desc%iplp ) )   DEALLOCATE( desc%iplp )
     IF ( ALLOCATED( desc%iplw ) )   DEALLOCATE( desc%iplw )
 #if defined(__MPI)

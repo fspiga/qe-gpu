@@ -53,7 +53,7 @@
           mp_sum_c1, mp_sum_cv, mp_sum_cm, mp_sum_ct, mp_sum_c4d, &
           mp_sum_c5d, mp_sum_c6d, mp_sum_rmm, mp_sum_cmm, mp_sum_r5d
 #ifdef USE_CUDA
-         MODULE PROCEDURE mp_sum_cm_d
+         MODULE PROCEDURE mp_sum_cm_d, mp_sum_r1_d
 #endif
       END INTERFACE
 
@@ -1330,6 +1330,25 @@
       END SUBROUTINE mp_sum_r1
 
 !
+#ifdef USE_CUDA
+      SUBROUTINE mp_sum_r1_d(msg, gid)
+        IMPLICIT NONE
+        REAL (DP), DEVICE, INTENT (INOUT) :: msg
+        REAL (DP) :: msg_h
+        INTEGER, INTENT (IN) :: gid
+#if defined(__MPI)
+        INTEGER :: msglen
+        msglen = 1
+#if defined(USE_GPU_MPI)
+        CALL reduce_base_real_gpu( msglen, msg, gid, -1 )
+#else
+        msg_h = msg
+        CALL reduce_base_real( msglen, msg_h, gid, -1 )
+        msg = msg_h
+#endif
+#endif
+      END SUBROUTINE mp_sum_r1_d
+#endif
 !------------------------------------------------------------------------------!
 
       SUBROUTINE mp_sum_rv(msg,gid)
@@ -2312,4 +2331,3 @@ END FUNCTION mp_get_comm_self
 !------------------------------------------------------------------------------!
     END MODULE mp
 !------------------------------------------------------------------------------!
-

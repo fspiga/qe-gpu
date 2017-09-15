@@ -13,6 +13,7 @@ module mpiDeviceUtil
 #if defined(__MPI)
   INCLUDE 'mpif.h'
 #endif
+    character (len=MPI_MAX_PROCESSOR_NAME) :: hostname
 
   interface
      subroutine quicksort(base, nmemb, elemsize, compar) &
@@ -38,7 +39,7 @@ contains
     implicit none
     integer :: dev
     character (len=MPI_MAX_PROCESSOR_NAME), allocatable :: hosts(:)
-    character (len=MPI_MAX_PROCESSOR_NAME) :: hostname
+    !character (len=MPI_MAX_PROCESSOR_NAME) :: hostname
     integer :: namelength, color, i, j
     integer :: nProcs, myrank, newComm, newRank, ierr
 

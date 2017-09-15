@@ -36,6 +36,7 @@ PROGRAM pwscf
 !  USE mpiDeviceUtil, ONLY : assignDevice
   USE mpiDeviceUtil, ONLY : assignDevice
   USE gpu_routines, ONLY : setupCublasHandle
+  USE eigsolve_vars, ONLY: init_eigsolve_gpu
 #endif
   !
   IMPLICIT NONE
@@ -54,6 +55,7 @@ PROGRAM pwscf
   ! This routine assigns a different GPU to each MPI rank in the same server
   CALL assignDevice( dev )
   CALL setupCublasHandle()
+  CALL init_eigsolve_gpu()
 #if defined(__GPU_DEBUG)
   print *,"Running on GPU dev = ",dev
 #endif
@@ -76,7 +78,7 @@ PROGRAM pwscf
   END IF
   !
   CALL stop_run( exit_status )
-  CALL do_stop( exit_status )
+  !CALL do_stop( exit_status )
   !
   STOP
   !

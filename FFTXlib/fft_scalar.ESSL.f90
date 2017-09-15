@@ -7,6 +7,9 @@
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
 
+! This mode is set by default
+#define __FFTW_ALL_XY_PLANES
+
 !=----------------------------------------------------------------------=!
    MODULE fft_scalar_essl
 !=----------------------------------------------------------------------=!
@@ -553,7 +556,7 @@
      REAL (DP), SAVE :: xyflops( ndims ) = 0.d0
 #endif
 
-#if defined __FFTW_ALL_XY_PLANES
+#if defined(__FFTW_ALL_XY_PLANES)
      INTEGER, SAVE :: cufft_plan_2d( ndims ) = 0
 #else
      INTEGER, SAVE :: cufft_plan_x( ndims ) = 0
@@ -622,7 +625,7 @@
 
         tscale = 1.0_DP / ( nx * ny )
         !
-#if defined __FFTW_ALL_XY_PLANES
+#if defined(__FFTW_ALL_XY_PLANES)
         istat = cufftExecZ2Z( cufft_plan_2d(ip), r(1,1,1), r(1,1,1),
 CUFFT_FORWARD )
 #else
@@ -670,7 +673,7 @@ CUFFT_FORWARD )
      ELSE IF( isign > 0 ) THEN
         !
         !print *,"exec cufft INV",nx,ny,ldx,ldy,nzl
-#if defined __FFTW_ALL_XY_PLANES
+#if defined(__FFTW_ALL_XY_PLANES)
         istat = cufftExecZ2Z( cufft_plan_2d(ip), r(1,1,1), r(1,1,1), CUFFT_INVERSE )
 #else
 !$cuf kernel do(3) <<<*,(16,16,1)>>>
@@ -742,7 +745,7 @@ CUFFT_FORWARD )
 
      SUBROUTINE init_plan()
        IMPLICIT NONE
-#if defined __FFTW_ALL_XY_PLANES
+#if defined(__FFTW_ALL_XY_PLANES)
        INTEGER, PARAMETER :: RANK=2
        INTEGER :: FFT_DIM(RANK), DATA_DIM(RANK)
        INTEGER :: STRIDE, DIST, BATCH
