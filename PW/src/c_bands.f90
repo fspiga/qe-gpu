@@ -459,19 +459,24 @@ CONTAINS
           lrot = ( iter == 1 .AND. ntry == 0 )
           !
           IF ( .NOT. lrot ) THEN
-             !
-             CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc, npol, okvan, evc, et(1,ik) )
-             !
-             avg_iter = avg_iter + 1.D0
+#ifdef USE_CUDA
+            evc_d = evc
+            et_d = et
+            CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc_d, npol, okvan, evc_d, et_d(1,ik) )
+            evc = evc_d
+            et = et_d
+#else
+            CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc, npol, okvan, evc, et(1,ik) )
+#endif             avg_iter = avg_iter + 1.D0
              !
           END IF
           !
 #ifdef USE_CUDA
-          et_d(:,ik) = et(:,ik)
-          CALL ccgdiagg( npwx, npw, nbnd, npol, evc, et(1,ik), et_d(1,ik), &
+          CALL ccgdiagg( npwx, npw, nbnd, npol, evc, evc_d, et(1,ik), et_d(1,ik), &
            btype(1,ik), h_diag, ethr, max_cg_iter, .NOT. lscf, &
            notconv, cg_iter )
            et = et_d
+           evc = evc_d
 #else
 
           CALL ccgdiagg( npwx, npw, nbnd, npol, evc, et(1,ik), btype(1,ik), &
