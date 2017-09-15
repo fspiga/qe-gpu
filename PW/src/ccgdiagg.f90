@@ -35,7 +35,7 @@
   !
   !----------------------------------------------------------------------------
 #ifdef USE_CUDA
-  SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, e_d, btype, precondition, &
+  SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, psi_d, e, e_d, btype, precondition, &
        ethr, maxter, reorder, notconv, avg_iter )
 #else
     SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
@@ -78,6 +78,7 @@
       REAL(DP),    INTENT(OUT)   :: avg_iter
 #ifdef USE_CUDA
       REAL(DP), DEVICE, INTENT(OUT) :: e_d(nbnd)
+      COMPLEX(DP), DEVICE, INTENT(INOUT) :: psi_d(npwx*npol,nbnd)
 #endif
       !
       ! ... local variables
@@ -95,7 +96,7 @@
       !My test variables
       REAL(DP), ALLOCATABLE    :: lagrange_r(:), lagrange_i(:)
 #ifdef USE_CUDA
-      COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:), psi_temp_d(:,:), &
+      COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_temp_d(:,:), &
            hpsi_d(:), spsi_d(:), &
            lagrange_d(:),lagrange_r_d(:), &
            lagrange_i_d(:), g_d(:), ppsi_d(:), &
@@ -141,7 +142,7 @@
       ALLOCATE( lagrange( nbnd ), lagrange_r( nbnd ), lagrange_i( nbnd ))
       !
 #ifdef USE_CUDA
-      ALLOCATE( psi_d(npwx * npol, nbnd), hpsi_d(kdmx), &
+      ALLOCATE( hpsi_d(kdmx), &
            spsi_d(kdmx), lagrange_d(nbnd),lagrange_r_d(nbnd), &
            lagrange_i_d(nbnd), psi_temp_d(npwx * npol, nbnd), &
            precondition_d(npwx*npol), g_d(kdmx), ppsi_d(kdmx), &
