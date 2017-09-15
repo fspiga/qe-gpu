@@ -913,9 +913,9 @@ SUBROUTINE electrons_scf ( printout, exxen )
   call destroy_scf_type ( rhoin )
 
 #ifdef USE_CUDA
-  IF (ALLOCATED(psi_d)) DEALLOCATE(psi_d)
-  IF (ALLOCATED(hpsi_d)) DEALLOCATE(hpsi_d)
-  IF (ALLOCATED(spsi_d)) DEALLOCATE(spsi_d)
+!  IF (ALLOCATED(psi_d)) DEALLOCATE(psi_d)
+!  IF (ALLOCATED(hpsi_d)) DEALLOCATE(hpsi_d)
+!  IF (ALLOCATED(spsi_d)) DEALLOCATE(spsi_d)
 !  IF (ALLOCATED(comm_h_c)) DEALLOCATE(comm_h_c)
 !  IF (ALLOCATED(comm_s_c)) DEALLOCATE(comm_s_c)
 !  IF (ALLOCATED(hc_d)) DEALLOCATE(hc_d)
