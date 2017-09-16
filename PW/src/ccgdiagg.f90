@@ -88,7 +88,7 @@
            cg0, e0, es(2)
       REAL(DP)                 :: theta, cost, sint, cos2t, sin2t
       LOGICAL                  :: reorder
-      INTEGER                  :: kdim, kdmx, kdim2, istat
+      INTEGER                  :: kdim, kdmx, kdim2, istat, ierr
       REAL(DP)                 :: empty_ethr, ethr_m, ddot_temp
       !
 #ifdef USE_CUDA
@@ -134,9 +134,34 @@
       ALLOCATE( lagrange( nbnd ) )
       !
 #ifdef USE_CUDA
-      ALLOCATE( hpsi_d(kdmx), spsi_d(kdmx), lagrange_d(nbnd), &
-           g_d(kdmx), cg_d(kdmx), scg_d(kdmx), ppsi_d(kdmx), g0_d(kdmx), &
-           precondition_d(kdmx))
+      ALLOCATE(  hpsi_d(kdmx), STAT=ierr )
+      IF( ierr /= 0 ) &
+      CALL errore( ' ccgdiagg ',' cannot allocate hpsi_d ', ABS(ierr) )
+      ALLOCATE(  spsi_d(kdmx), STAT=ierr )
+      IF( ierr /= 0 ) &
+      CALL errore( ' ccgdiagg ',' cannot allocate spsi_d ', ABS(ierr) )
+      ALLOCATE(  g_d(kdmx), STAT=ierr )
+      IF( ierr /= 0 ) &
+      CALL errore( ' ccgdiagg ',' cannot allocate g_d ', ABS(ierr) )
+      ALLOCATE(  cg_d(kdmx), STAT=ierr )
+      IF( ierr /= 0 ) &
+      CALL errore( ' ccgdiagg ',' cannot allocate cg_d ', ABS(ierr) )
+      ALLOCATE(  scg_d(kdmx), STAT=ierr )
+      IF( ierr /= 0 ) &
+      CALL errore( ' ccgdiagg ',' cannot allocate scg_d ', ABS(ierr) )
+      ALLOCATE(  ppsi_d(kdmx), STAT=ierr )
+      IF( ierr /= 0 ) &
+      CALL errore( ' ccgdiagg ',' cannot allocate ppsi_d ', ABS(ierr) )
+      ALLOCATE(  g0_d(kdmx), STAT=ierr )
+      IF( ierr /= 0 ) &
+      CALL errore( ' ccgdiagg ',' cannot allocate g0_d ', ABS(ierr) )
+      ALLOCATE(  precondition_d(kdmx), STAT=ierr )
+      IF( ierr /= 0 ) &
+      CALL errore( ' ccgdiagg ',' cannot allocate precondition_d ', ABS(ierr) )
+      !
+      ALLOCATE(  lagrange_d(nbnd), STAT=ierr )
+      IF( ierr /= 0 ) &
+      CALL errore( ' ccgdiagg ',' cannot allocate lagrange_d ', ABS(ierr) )
 #endif
       avg_iter = 0.D0
       notconv  = 0
@@ -146,10 +171,6 @@
 #endif
       !
       ! ... every eigenfunction is calculated separately
-      !
-      ! #ifdef USE_CUDA
-      !     psi_d = psi
-      ! #endif
       !
       cgiter: DO m = 1, nbnd
          !
@@ -193,6 +214,7 @@
          !
          spsi = spsi_d
          psi = psi_d
+         ! Following is the desired function for ZGEMV
          ! istat = cublaszgemv3m(cublasH, CUBLAS_OP_H, kdim, m, ONE, &
               ! psi_d, kdmx, spsi_d, 1, ZERO, lagrange_d, 1 )
          CALL ZGEMV( 'C', kdim, m, ONE, psi, kdmx, spsi, 1, ZERO, lagrange, 1 )
@@ -278,7 +300,7 @@
             !
             ! ... scg is used as workspace
             !
-            ! CALL s_1psi( npwx, npw, g(1), scg(1) )
+            ! CALL s_1psi( npwx, npw, g(1), scg(1) ) !original
             CALL s_psi(npwx, npw, 1, g_d(1), scg_d(1))
             scg = scg_d
             !
