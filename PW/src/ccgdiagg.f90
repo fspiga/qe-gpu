@@ -94,7 +94,8 @@
 #ifdef USE_CUDA
       COMPLEX(DP),DEVICE, ALLOCATABLE :: hpsi_d(:), spsi_d(:), lagrange_d(:), &
            g_d(:), cg_d(:), scg_d(:), ppsi_d(:), g0_d(:)
-      REAL(DP), DEVICE        :: psi_norm_d
+      REAL(DP), DEVICE, ALLOCATABLE  :: precondition_d(:)
+      REAL(DP), DEVICE        :: psi_norm_d, es_d
 #endif
       !
       ! ... external functions
@@ -134,7 +135,8 @@
       !
 #ifdef USE_CUDA
       ALLOCATE( hpsi_d(kdmx), spsi_d(kdmx), lagrange_d(nbnd), &
-           g_d(kdmx), cg_d(kdmx), scg_d(kdmx), ppsi_d(kdmx), g0_d(kdmx))
+           g_d(kdmx), cg_d(kdmx), scg_d(kdmx), ppsi_d(kdmx), g0_d(kdmx), &
+           precondition_d(kdmx))
 #endif
       avg_iter = 0.D0
       notconv  = 0
@@ -176,6 +178,7 @@
          g0_d       = ZERO
          ppsi_d     = ZERO
          lagrange_d = ZERO
+         precondition_d = precondition
 #endif
          !
          ! ... calculate S|psi>
@@ -237,14 +240,14 @@
             ! ... calculate  P (PHP)|y>
             ! ... ( P = preconditioning matrix, assumed diagonal )
             !
-            g(:)    = hpsi(:) / precondition(:)
-            ppsi(:) = spsi(:) / precondition(:)
+!$cuf kernel do(1) <<<*,*>>>
+            DO i = 1, kdmx
+               g_d(i)    = hpsi_d(i) / precondition_d(i)
+               ppsi_d(i) = spsi_d(i) / precondition_d(i)
+            END DO
             !
             ! ... ppsi is now S P(P^2)|y> = S P^2|psi>)
             !
-            spsi_d = spsi
-            g_d = g
-            ppsi_d = ppsi
             CALL cgddot( kdim2, spsi_d(1), g_d(1), ddot_temp)
             es(1) = ddot_temp
             CALL cgddot( kdim2, spsi_d(1), ppsi_d(1), ddot_temp)
@@ -253,8 +256,12 @@
             CALL mp_sum( es , intra_bgrp_comm )
             !
             es(1) = es(1) / es(2)
+            es_d = es(1)
             !
-            g(:) = g(:) - es(1) * ppsi(:)
+!$cuf kernel do(1) <<<*,*>>>
+            DO i = 1, kdmx
+               g_d(i) = g_d(i) - es_d * ppsi_d(i)
+            END DO
             !
             ! ... e1 = <y| S P^2 PHP|y> / <y| S S P^2|y> ensures that
             ! ... <g| S P^2|y> = 0
@@ -262,13 +269,18 @@
             !
             ! ... scg is used as workspace
             !
-            CALL s_1psi( npwx, npw, g(1), scg(1) )
+            ! CALL s_1psi( npwx, npw, g(1), scg(1) )
+            CALL s_psi(npwx, npw, 1, g_d(1), scg_d(1))
+            g = g_d
+            ppsi = ppsi_d
+            scg = scg_d
             !
             CALL ZGEMV( 'C', kdim, ( m - 1 ), ONE, psi, &
                  kdmx, scg, 1, ZERO, lagrange, 1  )
             !
             CALL mp_sum( lagrange( 1:m-1 ), intra_bgrp_comm )
             !
+            lagrange_d = lagrange
             DO j = 1, ( m - 1 )
                !
                g(:)   = g(:)   - lagrange(j) * psi(:,j)
@@ -409,6 +421,11 @@
             spsi(:) = cost * spsi(:) + sint / cg0 * scg(:)
             !
             hpsi(:) = cost * hpsi(:) + sint / cg0 * ppsi(:)
+            !
+            e_d = e
+            psi_d = psi
+            spsi_d = spsi
+            hpsi_d = hpsi
             !
          END DO iterate
          !
