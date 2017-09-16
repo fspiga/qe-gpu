@@ -88,7 +88,7 @@
            cg0, e0, es(2)
       REAL(DP)                 :: theta, cost, sint, cos2t, sin2t
       LOGICAL                  :: reorder
-      INTEGER                  :: kdim, kdmx, kdim2
+      INTEGER                  :: kdim, kdmx, kdim2, istat
       REAL(DP)                 :: empty_ethr, ethr_m, ddot_temp
       !
 #ifdef USE_CUDA
@@ -187,19 +187,29 @@
          !
 #ifdef USE_CUDA
         !  CALL s_1psi( npwx, npw, psi(1,m), spsi ) !Original
-         CALL s_psi(npwx, npw, 1, psi(1,m), spsi)
+         CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d)
          !
          ! ... orthogonalize starting eigenfunction to those already calculated
          !
+         spsi = spsi_d
+         psi = psi_d
+         ! istat = cublaszgemv3m(cublasH, CUBLAS_OP_H, kdim, m, ONE, &
+              ! psi_d, kdmx, spsi_d, 1, ZERO, lagrange_d, 1 )
          CALL ZGEMV( 'C', kdim, m, ONE, psi, kdmx, spsi, 1, ZERO, lagrange, 1 )
          !
-         CALL mp_sum( lagrange( 1:m ), intra_bgrp_comm )
+         lagrange_d = lagrange
+         CALL mp_sum( lagrange_d( 1:m ), intra_bgrp_comm )
+         lagrange = lagrange_d
          !
-         psi_norm = DBLE( lagrange(m) )
+         psi_norm_d = DBLE( lagrange(m) )
+         psi_norm = psi_norm_d
          !
          DO j = 1, m - 1
             !
-            psi(:,m)  = psi(:,m) - lagrange(j) * psi(:,j)
+!$cuf kernel do(1) <<<*,*>>>
+            DO i = 1, kdmx
+               psi_d(i,m)  = psi_d(i,m) - lagrange_d(j) * psi_d(i,j)
+            END DO
             !
             psi_norm = psi_norm - &
                  ( DBLE( lagrange(j) )**2 + AIMAG( lagrange(j) )**2 )
@@ -209,7 +219,7 @@
          psi_norm = SQRT( psi_norm )
          psi_norm_d = psi_norm
          !
-         psi_d = psi       
+         ! psi_d = psi       
 !$cuf kernel do(1) <<<*,*>>>
          DO i = 1, kdmx
            psi_d(i,m) = psi_d(i,m) / psi_norm_d
@@ -451,7 +461,6 @@
             END DO
             !
          END DO iterate
-         psi = psi_d     !FIX : COPY for reordering eigenvalues
          !
 #if defined(__VERBOSE)
          IF ( iter >= maxter ) THEN
@@ -491,19 +500,28 @@
                !
                e0 = e(m)
                !
-               ppsi(:) = psi(:,m)
+!$cuf kernel do(1) <<<*,*>>>
+               DO i = 1, kdmx
+                  ppsi_d(i) = psi_d(i,m)
+               END DO
                !
                DO j = m, i + 1, - 1
                   !
                   e(j) = e(j-1)
                   !
-                  psi(:,j) = psi(:,j-1)
+!$cuf kernel do(1) <<<*,*>>>
+                  DO i = 1, kdmx
+                     psi_d(i,j) = psi_d(i,j-1)
+                  END DO
                   !
                END DO
                !
                e(i) = e0
                !
-               psi(:,i) = ppsi(:)
+!$cuf kernel do(1) <<<*,*>>>
+               DO i = 1, kdmx
+                  psi_d(i,i) = ppsi_d(i)
+               END DO
                !
                ! ... this procedure should be good if only a few inversions occur,
                ! ... extremely inefficient if eigenvectors are often in bad order
@@ -513,8 +531,8 @@
             !
          END IF
          !
-         !  e = e_d   !FIX
-         spsi = spsi_d
+         ! FIX : COPY's
+         psi = psi_d 
          hpsi = hpsi_d
          e_d = e
 #else
