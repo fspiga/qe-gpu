@@ -53,7 +53,7 @@
           mp_sum_c1, mp_sum_cv, mp_sum_cm, mp_sum_ct, mp_sum_c4d, &
           mp_sum_c5d, mp_sum_c6d, mp_sum_rmm, mp_sum_cmm, mp_sum_r5d
 #ifdef USE_CUDA
-         MODULE PROCEDURE mp_sum_cm_d
+         MODULE PROCEDURE mp_sum_cm_d, mp_sum_cv_d
 #endif
       END INTERFACE
 
@@ -1513,6 +1513,27 @@
         CALL reduce_base_real( 2 * msglen, msg, gid, -1 )
 #endif
       END SUBROUTINE mp_sum_cv
+!
+#ifdef USE_CUDA
+      SUBROUTINE mp_sum_cv_d(msg, gid)
+        IMPLICIT NONE
+        COMPLEX (DP), DEVICE, INTENT (INOUT) :: msg(:)
+        COMPLEX (DP), ALLOCATABLE :: msg_h(:)
+        INTEGER, INTENT (IN) :: gid
+#if defined(__MPI)
+        INTEGER :: msglen
+        msglen = size(msg)
+#if defined(USE_GPU_MPI)
+        CALL reduce_base_real_gpu( 2 * msglen, msg, gid, -1 )
+#else
+        ALLOCATE( msg_h, source=msg )
+        CALL reduce_base_real( 2 * msglen, msg_h, gid, -1 )
+        msg = msg_h
+        DEALLOCATE( msg_h )
+#endif
+#endif
+      END SUBROUTINE mp_sum_cv_d
+#endif
 !
 !------------------------------------------------------------------------------!
 
