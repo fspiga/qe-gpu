@@ -95,7 +95,7 @@
       COMPLEX(DP),DEVICE, ALLOCATABLE :: hpsi_d(:), spsi_d(:), lagrange_d(:), &
            g_d(:), cg_d(:), scg_d(:), ppsi_d(:), g0_d(:)
       REAL(DP), DEVICE, ALLOCATABLE  :: precondition_d(:)
-      REAL(DP), DEVICE        :: psi_norm_d, es_d
+      REAL(DP), DEVICE  :: psi_norm_d, es_d, gamma_d, cost_d, sint_d, cg0_d
 #endif
       !
       ! ... external functions
@@ -141,6 +141,9 @@
       avg_iter = 0.D0
       notconv  = 0
       moved    = 0
+#ifdef USE_CUDA
+      precondition_d = precondition
+#endif
       !
       ! ... every eigenfunction is calculated separately
       !
@@ -148,7 +151,7 @@
       !     psi_d = psi
       ! #endif
       !
-      DO m = 1, nbnd
+      cgiter: DO m = 1, nbnd
          !
          !
          IF ( btype(m) == 1 ) THEN
@@ -178,7 +181,6 @@
          g0_d       = ZERO
          ppsi_d     = ZERO
          lagrange_d = ZERO
-         precondition_d = precondition
 #endif
          !
          ! ... calculate S|psi>
@@ -205,9 +207,9 @@
          END DO
          !
          psi_norm = SQRT( psi_norm )
-         !
-         psi_d = psi
          psi_norm_d = psi_norm
+         !
+         psi_d = psi       
 !$cuf kernel do(1) <<<*,*>>>
          DO i = 1, kdmx
            psi_d(i,m) = psi_d(i,m) / psi_norm_d
@@ -215,11 +217,11 @@
          !
          ! ... calculate starting gradient (|hpsi> = H|psi>) ...
          !
-         !FIX=========================================
+         !FIX============================================
          !  CALL h_1psi( npwx, npw, psi(1,m), hpsi, spsi )
          CALL h_psi(npwx, npw, 1, psi_d(1,m), hpsi_d)
          CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d)
-         !============================================
+         !===============================================
          !
          ! ... and starting eigenvalue (e = <y|PHP|y> = <psi|H|psi>)
          !
@@ -232,9 +234,6 @@
          !
          ! ... start iteration for this band
          !
-         psi = psi_d
-         hpsi = hpsi_d
-         spsi = spsi_d
          iterate: DO iter = 1, maxter
             !
             ! ... calculate  P (PHP)|y>
@@ -271,8 +270,6 @@
             !
             ! CALL s_1psi( npwx, npw, g(1), scg(1) )
             CALL s_psi(npwx, npw, 1, g_d(1), scg_d(1))
-            g = g_d
-            ppsi = ppsi_d
             scg = scg_d
             !
             CALL ZGEMV( 'C', kdim, ( m - 1 ), ONE, psi, &
@@ -283,8 +280,11 @@
             lagrange_d = lagrange
             DO j = 1, ( m - 1 )
                !
-               g(:)   = g(:)   - lagrange(j) * psi(:,j)
-               scg(:) = scg(:) - lagrange(j) * psi(:,j)
+!$cuf kernel do(1) <<<*,*>>>
+               DO i = 1, kdmx
+                  g_d(i)   = g_d(i)   - lagrange_d(j) * psi_d(i,j)
+                  scg_d(i) = scg_d(i) - lagrange_d(j) * psi_d(i,j)
+               END DO
                !
             END DO
             !
@@ -292,8 +292,7 @@
                !
                ! ... gg1 is <g(n+1)|S|g(n)> (used in Polak-Ribiere formula)
                !
-               g_d = g
-               g0_d =g0
+               g0_d = g0
                CALL cgddot( kdim2, g_d(1), g0_d(1), ddot_temp )
                gg1 = ddot_temp
                !
@@ -303,11 +302,16 @@
             !
             ! ... gg is <g(n+1)|S|g(n+1)>
             !
-            g0(:) = scg(:)
+!$cuf kernel do(1) <<<*,*>>>
+            DO i = 1, kdmx
+               g0_d(i) = scg_d(i)
+            END DO
             !
-            g0(:) = g0(:) * precondition(:)
+!$cuf kernel do(1) <<<*,*>>>
+            DO i = 1, kdmx
+               g0_d(i) = g0_d(i) * precondition_d(i)
+            END DO
             !
-            g0_d=g0
             CALL cgddot( kdim2, g_d(1), g0_d(1), ddot_temp )
             gg = ddot_temp
             !
@@ -319,7 +323,10 @@
                !
                gg0 = gg
                !
-               cg(:) = g(:)
+!$cuf kernel do(1) <<<*,*>>>
+               DO i = 1, kdmx
+                  cg_d(i) = g_d(i)
+               END DO
                !
             ELSE
                !
@@ -329,17 +336,28 @@
                !
                gamma = ( gg - gg1 ) / gg0
                gg0   = gg
+               gamma_d = gamma
                !
-               cg(:) = cg(:) * gamma
-               cg(:) = g + cg(:)
+!$cuf kernel do(1) <<<*,*>>>
+               DO i = 1, kdmx
+                  cg_d(i) = cg_d(i) * gamma_d
+               END DO
+!$cuf kernel do(1) <<<*,*>>>
+               DO i = 1, kdmx
+                  cg_d(i) = g_d(i) + cg_d(i)
+               END DO
                !
                ! ... The following is needed because <y(n+1)| S P^2 |cg(n+1)>
                ! ... is not 0. In fact :
                ! ... <y(n+1)| S P^2 |cg(n)> = sin(theta)*<cg(n)|S|cg(n)>
                !
                psi_norm = gamma * cg0 * sint
+               psi_norm_d = psi_norm
                !
-               cg(:) = cg(:) - psi_norm * psi(:,m)
+!$cuf kernel do(1) <<<*,*>>>
+               DO i = 1, kdmx
+                  cg_d(i) = cg_d(i) - psi_norm_d * psi_d(i,m)
+               END DO
                !
             END IF
             !
@@ -347,10 +365,12 @@
             !
             ! ... |scg> is S|cg>
             !
-            CALL h_1psi( npwx, npw, cg(1), ppsi(1), scg(1) )
+            !FIX==============================================
+            ! CALL h_1psi( npwx, npw, cg(1), ppsi(1), scg(1) )
+            CALL h_psi(npwx, npw, 1, cg_d(1), ppsi_d(1))
+            CALL s_psi(npwx, npw, 1, cg_d(1), scg_d(1))
+            !================================================
             !
-            cg_d = cg
-            scg_d =scg
             CALL cgddot( kdim2, cg_d(1), scg_d(1), ddot_temp )
             cg0 = ddot_temp
             !
@@ -366,10 +386,6 @@
             ! ... so that the result is correctly normalized :
             ! ...                           <y(t)|P^2S|y(t)> = 1
             !
-
-            ppsi_d =ppsi
-            psi_d = psi
-            cg_d = cg
             CALL cgddot( kdim2, psi_d(1,m), ppsi_d(1), ddot_temp)
             a0 = 2.D0 * ddot_temp / cg0
             !
@@ -410,7 +426,13 @@
             !
             ! ... upgrade |psi>
             !
-            psi(:,m) = cost * psi(:,m) + sint / cg0 * cg(:)
+            cost_d = cost
+            sint_d = sint
+            cg0_d = cg0
+!$cuf kernel do(1) <<<*,*>>>
+            DO i = 1, kdmx
+               psi_d(i,m) = cost_d * psi_d(i,m) + sint_d / cg0_d * cg_d(i)
+            END DO  
             !
             ! ... here one could test convergence on the energy
             !
@@ -418,16 +440,18 @@
             !
             ! ... upgrade H|psi> and S|psi>
             !
-            spsi(:) = cost * spsi(:) + sint / cg0 * scg(:)
+!$cuf kernel do(1) <<<*,*>>>
+            DO i = 1, kdmx
+               spsi_d(i) = cost_d * spsi_d(i) + sint_d / cg0_d * scg_d(i)
+            END DO
             !
-            hpsi(:) = cost * hpsi(:) + sint / cg0 * ppsi(:)
-            !
-            e_d = e
-            psi_d = psi
-            spsi_d = spsi
-            hpsi_d = hpsi
+!$cuf kernel do(1) <<<*,*>>>
+            DO i = 1, kdmx
+               hpsi_d(i) = cost_d * hpsi_d(i) + sint_d / cg0_d * ppsi_d(i)
+            END DO
             !
          END DO iterate
+         psi = psi_d     !FIX : COPY for reordering eigenvalues
          !
 #if defined(__VERBOSE)
          IF ( iter >= maxter ) THEN
@@ -490,6 +514,9 @@
          END IF
          !
          !  e = e_d   !FIX
+         spsi = spsi_d
+         hpsi = hpsi_d
+         e_d = e
 #else
          CALL s_1psi( npwx, npw, psi(1,m), spsi )
          !
@@ -750,7 +777,7 @@
          END IF
          !
 #endif
-      END DO
+      END DO cgiter
       !
       avg_iter = avg_iter / DBLE( nbnd )
       !
