@@ -42,34 +42,7 @@ module gpu_routines
       integer(c_int), value :: ldc
       end function cublaszgemm3m
   end interface cublaszgemm3m
-
-    interface
-#if (GPU_ARCH == 35)
-   ! Works for Kepler
-   integer(c_int) function cublas_zgemv(handle, transa, m, n, &
-     alpha, A, lda, x, incx, beta, y, incy) bind(C, name='cublasZgemv_v2')
-! #else
-!    ! Works for pascal, Volta and beyond
-!    integer(c_int) function cublas_zgemv(handle, transa, m, n, &
-!      alpha, A, lda, x, incx, beta, y, incy) bind(C, name='cublasZgemv')
-#endif
-      use cudafor
-      use cublas_v2
-
-      type(cublasHandle), value :: handle
-      integer(c_int), value :: transa
-      integer(c_int), value :: m
-      integer(c_int), value :: n
-      complex(8) :: alpha
-      integer(c_int), value :: lda
-      complex(8), device :: A(lda,*)
-      complex(8), device :: x(*), y(*)
-      integer(c_int), value :: incx
-      complex(8) :: beta
-      integer(c_int), value :: incy
-      end function cublas_zgemv
-  end interface cublas_zgemv
-
+  
   type(cublasHandle) :: cublasH
 !=----------------------------------------------------------------------=!
 contains
