@@ -212,7 +212,7 @@
          !
          ! ... orthogonalize starting eigenfunction to those already calculated
          !
-         istat = cublas_zgemv(cublasH, 2, kdim, m, ONE, &
+         istat = cublasZgemv(cublasH, 2, kdim, m, ONE, &
               psi_d, kdmx, spsi_d, 1, ZERO, lagrange_d, 1 )
          !
          CALL mp_sum( lagrange_d( 1:m ), intra_bgrp_comm )
@@ -298,7 +298,7 @@
             CALL s_psi(npwx, npw, 1, g_d(1), scg_d(1))
             scg = scg_d
             !
-            istat = cublas_zgemv(cublasH, 2, kdim, (m -1) , ONE, &
+            istat = cublasZgemv(cublasH, 2, kdim, (m -1) , ONE, &
                       psi_d, kdmx, scg_d, 1, ZERO, lagrange_d, 1 )
             !
             CALL mp_sum( lagrange_d( 1:m-1 ), intra_bgrp_comm )
