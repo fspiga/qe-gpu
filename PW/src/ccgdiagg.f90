@@ -212,14 +212,9 @@
          !
          ! ... orthogonalize starting eigenfunction to those already calculated
          !
-         spsi = spsi_d
-         psi = psi_d
-         ! Following is the desired function for ZGEMV
-         ! istat = cublaszgemv3m(cublasH, CUBLAS_OP_H, kdim, m, ONE, &
-              ! psi_d, kdmx, spsi_d, 1, ZERO, lagrange_d, 1 )
-         CALL ZGEMV( 'C', kdim, m, ONE, psi, kdmx, spsi, 1, ZERO, lagrange, 1 )
+         istat = cublas_zgemv(cublasH, 2, kdim, m, ONE, &
+              psi_d, kdmx, spsi_d, 1, ZERO, lagrange_d, 1 )
          !
-         lagrange_d = lagrange
          CALL mp_sum( lagrange_d( 1:m ), intra_bgrp_comm )
          lagrange = lagrange_d
          !
@@ -241,7 +236,6 @@
          psi_norm = SQRT( psi_norm )
          psi_norm_d = psi_norm
          !
-         ! psi_d = psi       
 !$cuf kernel do(1) <<<*,*>>>
          DO i = 1, kdmx
            psi_d(i,m) = psi_d(i,m) / psi_norm_d
@@ -304,12 +298,11 @@
             CALL s_psi(npwx, npw, 1, g_d(1), scg_d(1))
             scg = scg_d
             !
-            CALL ZGEMV( 'C', kdim, ( m - 1 ), ONE, psi, &
-                 kdmx, scg, 1, ZERO, lagrange, 1  )
+            istat = cublas_zgemv(cublasH, 2, kdim, (m -1) , ONE, &
+                      psi_d, kdmx, scg_d, 1, ZERO, lagrange_d, 1 )
             !
-            CALL mp_sum( lagrange( 1:m-1 ), intra_bgrp_comm )
+            CALL mp_sum( lagrange_d( 1:m-1 ), intra_bgrp_comm )
             !
-            lagrange_d = lagrange
             DO j = 1, ( m - 1 )
                !
 !$cuf kernel do(1) <<<*,*>>>
@@ -464,7 +457,7 @@
 !$cuf kernel do(1) <<<*,*>>>
             DO i = 1, kdmx
                psi_d(i,m) = cost_d * psi_d(i,m) + sint_d / cg0_d * cg_d(i)
-            END DO  
+            END DO
             !
             ! ... here one could test convergence on the energy
             !
@@ -553,9 +546,8 @@
             !
          END IF
          !
-         ! FIX : COPY's
-         psi = psi_d 
-         hpsi = hpsi_d
+         ! FIX : NOT Sure about this COPY's
+         psi = psi_d
          e_d = e
 #else
          CALL s_1psi( npwx, npw, psi(1,m), spsi )
