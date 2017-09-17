@@ -43,33 +43,32 @@ module gpu_routines
       end function cublaszgemm3m
   end interface cublaszgemm3m
 
-!     interface
-! #if (GPU_ARCH == 35)
-!    ! Works for Kepler
-!    integer(c_int) function cublaszgemv3m(handle, transa, m, n, &
-!      alpha, A, lda, x, incx, beta, y, incy) bind(C, name='cublasZgemv_v2')
+    interface
+#if (GPU_ARCH == 35)
+   ! Works for Kepler
+   integer(c_int) function cublas_zgemv(handle, transa, m, n, &
+     alpha, A, lda, x, incx, beta, y, incy) bind(C, name='cublasZgemv_v2')
 ! #else
 !    ! Works for pascal, Volta and beyond
-!    integer(c_int) function cublaszgemv3m(handle, transa, m, n, &
-!      alpha, A, lda, x, incx, beta, y, incy) bind(C, name='cublasZgemv3m')
-! #endif
-!       use cudafor
-!       use cublas_v2
+!    integer(c_int) function cublas_zgemv(handle, transa, m, n, &
+!      alpha, A, lda, x, incx, beta, y, incy) bind(C, name='cublasZgemv')
+#endif
+      use cudafor
+      use cublas_v2
 
-!       type(cublasHandle), value :: handle
-!       integer(c_int), value :: transa
-!       integer(c_int), value :: m
-!       integer(c_int), value :: n
-!       complex(8) :: alpha
-!       complex(8), device :: A(*)
-!       integer(c_int), value :: lda
-!       complex(8), device :: x(*)
-!       integer(c_int), value :: incx
-!       complex(8) :: beta
-!       complex(8), device :: y(*)
-!       integer(c_int), value :: incy
-!       end function cublaszgemv3m
-!   end interface cublaszgemv3m
+      type(cublasHandle), value :: handle
+      integer(c_int), value :: transa
+      integer(c_int), value :: m
+      integer(c_int), value :: n
+      complex(8) :: alpha
+      integer(c_int), value :: lda
+      complex(8), device :: A(lda,*)
+      complex(8), device :: x(*), y(*)
+      integer(c_int), value :: incx
+      complex(8) :: beta
+      integer(c_int), value :: incy
+      end function cublas_zgemv
+  end interface cublas_zgemv
 
   type(cublasHandle) :: cublasH
 !=----------------------------------------------------------------------=!
@@ -85,7 +84,7 @@ contains
     if (istat .ne. 0) then
       print*, "setupCublasHandle failed!"; flush(6); stop
     endif
-    
+
   END SUBROUTINE setupCublasHandle
 
   SUBROUTINE cufMemcpy2D( dst, dpitch, src, spitch, n, m )
@@ -109,7 +108,7 @@ contains
     USE kinds
     USE cudafor
     IMPLICIT NONE
-    REAL(DP), DEVICE  :: dst(*) 
+    REAL(DP), DEVICE  :: dst(*)
     COMPLEX(DP), DEVICE, INTENT(IN)  :: src(1:spitch, *)
     INTEGER, INTENT(IN) :: spitch, n
     INTEGER :: i
@@ -124,7 +123,7 @@ contains
     USE kinds
     USE cudafor
     IMPLICIT NONE
-    REAL(DP), DEVICE, INTENT(IN)  :: diag(*) 
+    REAL(DP), DEVICE, INTENT(IN)  :: diag(*)
     COMPLEX(DP), DEVICE  :: a(1:lda, *)
     INTEGER, INTENT(IN) :: lda, n
     INTEGER :: i, j
