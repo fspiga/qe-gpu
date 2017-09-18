@@ -34,6 +34,7 @@ IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0
 MOD_FLAG      = -I
 
 MPIF90         = mpif90
+MPICC          = mpicc
 CC             = pgcc
 F77            = pgf90
 
