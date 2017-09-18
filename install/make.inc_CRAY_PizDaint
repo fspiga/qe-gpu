@@ -44,11 +44,18 @@
 #   $ module load intel pgi cudatoolkit
 #   $ module swap PrgEnv-cray PrgEnv-pgi
 #
-# And run the configure as follow:
+# For best performance currently, we suggest reverting the following commits and removing the -DCRAY flag
+# from DFLAGS before compilation:
 #
-#   $ ./configure ARCH=cray --enable-gpu=pascal
-#
-# The configure may fails. Please edit it according to the below template
+#   git revert b86a695c1d64e1de1ce7f6d5eb699ae84a8e660a
+#   git add install/make.inc_CRAY_PizDaint
+#   git revert continue
+#   git revert a3cd8fdddc0f37b7306e0fd1291e42664317ed81
+#   git revert 68ee7449a1bf326d8aaba892225cf01baf8c9ad9
+#  
+# This reenables v_of_rho computations on the GPU. This process may require some merging and is suggested only for those 
+# comfortable with git. Hopefully this will not be required once compilers are updated on this system.
+
 
 .SUFFIXES :
 .SUFFIXES : .o .c .f .f90 .F90
