@@ -22,10 +22,10 @@
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 
 # See install/README.DFLAGS for a list of options and their meaning
-DFLAGS         =  -D__OPENMP -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
+DFLAGS         =  -D__OPENMP -D__PGI -DUSE_CUDA -D__FFTW -D__MPI -D__MKL
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
-IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve
+IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve -I${MKLROOT}/include
 
 MOD_FLAG      = -I
 

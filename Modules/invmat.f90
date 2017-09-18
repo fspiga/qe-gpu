@@ -27,6 +27,9 @@ MODULE matrix_inversion
   !
   USE kinds, ONLY : DP
   IMPLICIT NONE
+#ifdef __MKL
+  include "mkl_service.fi"
+#endif
   INTEGER, INTENT(in) :: n
   REAL(DP), DIMENSION (n,n), INTENT(inout)  :: a
   REAL(DP), DIMENSION (n,n), INTENT(out), OPTIONAL :: a_inv
@@ -40,6 +43,7 @@ MODULE matrix_inversion
   REAL(DP), ALLOCATABLE :: work (:)
   ! more work space
   INTEGER, SAVE :: lworkfact = 64
+  integer:: numt, istat
   !
   IF ( PRESENT(da) ) THEN
      IF ( n == 3 ) THEN
@@ -52,6 +56,18 @@ MODULE matrix_inversion
      ENDIF
   ENDIF
   !
+! There is a bug in several versions of MKL that will cause an hang in the multithreaded  DGEMM for AVX2.
+! To avoid the bug, we have two options, set the number of MKL threads to one or force to use AVX instead of AVX2.
+! To force the single threads, we need to read the current number of threads with   numt=mkl_get_max_threads(), set it
+! temporarely to one with "call mkl_set_num_threads(1)" and then  resetting it to the original numt at the end of the function.
+! To force AVX, we can call mkl_cbwr_set(MKL_CBWR_AVX). 
+
+#ifdef __MKL
+  !numt = mkl_cbwr_get(MKL_CBWR_BRANCH)
+  !istat = mkl_cbwr_set(MKL_CBWR_AVX)
+   numt=mkl_get_max_threads()
+   call mkl_set_num_threads(1) 
+#endif
   lda = n
   lwork=64*n
   ALLOCATE(ipiv(n), work(lwork) )
@@ -72,6 +88,10 @@ MODULE matrix_inversion
   !
   lworkfact = INT (work(1)/n)
   DEALLOCATE ( work, ipiv )
+#ifdef _MKL
+   !istat = mkl_cbwr_set(numt)
+    call mkl_set_num_threads(numt)
+#endif
 
   END SUBROUTINE invmat_r
 

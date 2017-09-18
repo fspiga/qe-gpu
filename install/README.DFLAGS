@@ -15,6 +15,7 @@ Libraries:
       __FFTW3       FFT routines from external FFTW v3 library
       __LINUX_ESSL  Use blas/lapack/fft routines from IBM ESSL library
       __DFTI        FFT routines from external Intel MKL    
+      __MKL         When doing "relax" computations, enable work around for bug in MKL (multithreaded GEMM will hang on AVX2)
 
 IO / Reporting:
       __HDF5           Enable I/O using parallel HDF5
