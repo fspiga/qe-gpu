@@ -41,13 +41,14 @@
     SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
          ethr, maxter, reorder, notconv, avg_iter )
 #endif
-      !----------------------------------------------------------------------------
+      !------------------------------------------------------------------------
       !
       ! ... "poor man" iterative diagonalization of a complex hermitian matrix
       ! ... through preconditioned conjugate gradient algorithm
       ! ... Band-by-band algorithm with minimal use of memory
       ! ... Calls h_1psi and s_1psi to calculate H|psi> and S|psi>
-      ! ... Works for generalized eigenvalue problem (US pseudopotentials) as well
+      ! ... Works for generalized eigenvalue problem (US pseudopotentials) as 
+      ! ... well
       !
       USE constants,        ONLY : pi
       USE kinds,            ONLY : DP
