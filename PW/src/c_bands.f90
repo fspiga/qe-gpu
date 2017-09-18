@@ -461,8 +461,8 @@ CONTAINS
           IF ( .NOT. lrot ) THEN
              !
 #ifdef USE_CUDA
-             evc_d = evc
-             et_d=et
+             ! evc_d = evc
+             ! et_d=et
              CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc_d, npol, okvan, evc_d, et_d(1,ik) )
              evc = evc_d
              et = et_d
