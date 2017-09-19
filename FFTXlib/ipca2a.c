@@ -83,14 +83,17 @@ void init_ipc_( double* buffer, int *buff_id_p, MPI_Fint *Fcomm, int* ipc_peers)
                   comm);
 
   for(i=0; i<nprocs; i++){
+    can_access_peer[i] = 0;
+
     if(i!=rank){
       istat = cudaIpcOpenMemHandle((void **)(&buff_rem[buff_id][i]), rem_handle[i], cudaIpcMemLazyEnablePeerAccess);
       if(istat == cudaSuccess){
         can_access_peer[i] = 1;
-      }else if(istat == 64){
-        can_access_peer[i] = 0;
       }else{
+        istat = cudaGetLastError();
+#ifdef __CUDA_DEBUG
         printf("Error in cudaIpcOpenMemHandle: %d %s\n",istat, cudaGetErrorString(istat));
+#endif
       }
     }
   }
