@@ -188,17 +188,20 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   IF( ierr /= 0 ) &
      CALL errore( ' cegterg ',' cannot allocate hpsi ', ABS(ierr) )
   !
+#endif
   IF ( uspp ) THEN
+#ifndef USE_CUDA
      ALLOCATE( spsi( npwx, npol, nvecx ), STAT=ierr )
      IF( ierr /= 0 ) &
         CALL errore( ' cegterg ',' cannot allocate spsi ', ABS(ierr) )
+#endif
 #ifdef USE_CUDA
-!     ALLOCATE( spsi_d( npwx, npol, nvecx ), STAT=ierr )
-!     IF( ierr /= 0 ) &
-!        CALL errore( ' cegterg ',' cannot allocate spsi_d ', ABS(ierr) )
+     IF (SIZE(spsi_d) < npwx*npol*nvecx) DEALLOCATE(spsi_d) 
+     IF( .not. ALLOCATED(spsi_d)) ALLOCATE( spsi_d( npwx, npol, nvecx ), STAT=ierr )
+     !IF( ierr /= 0 ) &
+     !   CALL errore( ' cegterg ',' cannot allocate spsi_d ', ABS(ierr) )
 #endif
   END IF
-#endif
   !
   ALLOCATE( sc( nvecx, nvecx ), STAT=ierr )
   IF( ierr /= 0 ) &
@@ -265,6 +268,8 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 !call flush(6)
 !#endif
 
+  IF (SIZE(psi_d) < npwx*npol*nvecx) DEALLOCATE(psi_d) 
+  IF( .not. ALLOCATED(psi_d)) ALLOCATE( psi_d( npwx, npol, nvecx ), STAT=ierr )
 !  ALLOCATE(  psi_d( npwx, npol, nvecx ), STAT=ierr )
 !  IF( ierr /= 0 ) &
 !     CALL errore( ' cegterg ',' cannot allocate psi_d ', ABS(ierr) )
@@ -280,6 +285,8 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
 !call flush(6)
 !#endif
 
+  IF (SIZE(hpsi_d) < npwx*npol*nvecx) DEALLOCATE(hpsi_d) 
+  IF( .not. ALLOCATED(hpsi_d)) ALLOCATE( hpsi_d( npwx, npol, nvecx ), STAT=ierr )
 !  ALLOCATE( hpsi_d( npwx, npol, nvecx ), STAT=ierr )
 !  IF( ierr /= 0 ) &
 !     CALL errore( ' cegterg ',' cannot allocate hpsi_d ', ABS(ierr) )
