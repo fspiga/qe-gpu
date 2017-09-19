@@ -82,7 +82,7 @@
       !
       ! ... local variables
       !
-      INTEGER                  :: i, j, m, iter, moved
+      INTEGER                  :: i, j, k, m, iter, moved
       COMPLEX(DP), ALLOCATABLE :: hpsi(:), spsi(:), lagrange(:), &
            g(:), cg(:), scg(:), ppsi(:), g0(:)
       REAL(DP)                 :: psi_norm, a0, b0, gg0, gamma, gg, gg1, &
@@ -517,8 +517,8 @@
                e0 = e(m)
                !
 !$cuf kernel do(1) <<<*,*>>>
-               DO i = 1, kdmx
-                  ppsi_d(i) = psi_d(i,m)
+               DO k = 1, kdmx
+                  ppsi_d(k) = psi_d(k,m)
                END DO
                !
                DO j = m, i + 1, - 1
@@ -526,8 +526,8 @@
                   e(j) = e(j-1)
                   !
 !$cuf kernel do(1) <<<*,*>>>
-                  DO i = 1, kdmx
-                     psi_d(i,j) = psi_d(i,j-1)
+                  DO k = 1, kdmx
+                     psi_d(k,j) = psi_d(k,j-1)
                   END DO
                   !
                END DO
@@ -535,8 +535,8 @@
                e(i) = e0
                !
 !$cuf kernel do(1) <<<*,*>>>
-               DO i = 1, kdmx
-                  psi_d(i,i) = ppsi_d(i)
+               DO k = 1, kdmx
+                  psi_d(k,k) = ppsi_d(k)
                END DO
                !
                ! ... this procedure should be good if only a few inversions occur,
