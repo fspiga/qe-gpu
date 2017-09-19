@@ -65,6 +65,9 @@ MODULE matrix_inversion
 #ifdef __MKL
   !numt = mkl_cbwr_get(MKL_CBWR_BRANCH)
   !istat = mkl_cbwr_set(MKL_CBWR_AVX)
+#ifdef __CUDA_DEBUG
+   print *,"setting mkl threads=",1
+#endif
    numt=mkl_get_max_threads()
    call mkl_set_num_threads(1) 
 #endif
@@ -88,8 +91,11 @@ MODULE matrix_inversion
   !
   lworkfact = INT (work(1)/n)
   DEALLOCATE ( work, ipiv )
-#ifdef _MKL
+#ifdef __MKL
    !istat = mkl_cbwr_set(numt)
+#ifdef __CUDA_DEBUG
+    print *,"setting mkl threads=",numt
+#endif
     call mkl_set_num_threads(numt)
 #endif
 
