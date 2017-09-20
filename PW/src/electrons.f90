@@ -653,7 +653,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
            !CALL v_of_rho( rhoin, rho_core, rhog_core, &
            !               ehart, etxc, vtxc, eth, etotefield, charge, v)
 #else
-#if defined (USE_CUDA) && !defined (CRAY)
+#if defined (USE_CUDA) && !defined(__CRAY)
            iexch = get_iexch
            icorr = get_icorr
            igcx = get_igcx
