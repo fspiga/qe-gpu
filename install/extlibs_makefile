@@ -16,7 +16,7 @@ include install_utils
 
 EIGENSOLVER_GPU=v${EIGENSOLVER_VERSION}.tar.gz
 EIGENSOLVER_GPU_NAME=Eigensolver_gpu-${EIGENSOLVER_VERSION}
-EIGENSOLVER_GPU_URL=https://github.com/NVIDIA/Eigensolver_gpu/archive/${EIGENSOLVER_GPU}
+EIGENSOLVER_GPU_URL=https://github.com/fspiga/Eigensolver_gpu/archive/${EIGENSOLVER_GPU}
 
 all: 
 ifdef EIGENSOLVER_VERSION

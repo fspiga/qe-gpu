@@ -1,28 +1,10 @@
 # For a verbose description of these fields please refer to the original 
 # Quantum ESPRESSO make.inc file
 
-.SUFFIXES :
-.SUFFIXES : .o .c .f .f90 .F90
-
-.F90.o:
-	$(MPIF90) $(F90FLAGS) -c $< -o $(*)_cpu.o ; \
-	$(MPIF90) $(F90FLAGS) -c -DUSE_GPU $< -o $(*)_gpu.o ; \
-	ld -r $(*)_cpu.o $(*)_gpu.o -o $(*).o ; \
-	rm $(*)_cpu.o $(*)_gpu.o
-
-.f90.o:
-	$(MPIF90) $(F90FLAGS) -c $(*).f90 -o $(*).o
-
-.f.o:
-	$(F77) $(FFLAGS) -c $<
-
-.c.o:
-	$(CC) $(CFLAGS)  -c $<
-
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 
 # See install/README.DFLAGS for a list of options and their meaning
-DFLAGS         =  -D__OPENMP -D__PGI -DUSE_CUDA -D__FFTW -D__MPI -D__MKL
+DFLAGS         =  -D__OPENMP -DUSE_CUDA -D__FFTW -D__MPI -D__MKL
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
 IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve -I${MKLROOT}/include
@@ -48,17 +30,34 @@ LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_e
 
 MATH_LIBS      = -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -pgf90libs -lmkl_core -lmkl_pgi_thread
 
-EIGENSOLVER_VERSION	= 0.2
+EIGENSOLVER_VERSION	= 0.2-beta
 
-SCALAPACK_LIBS = 
+
+# Do not edit below this line
+-include install/make.check-cuda
 
 AR             = ar
 ARFLAGS        = ruv
-RANLIB				 = ranlib
+RANLIB         = ranlib
+WGET           = wget -O
+
+.SUFFIXES :
+.SUFFIXES : .o .c .f .f90 .F90
+
+.F90.o:
+	$(MPIF90) $(F90FLAGS) -c $< -o $(*)_cpu.o ; \
+	$(MPIF90) $(F90FLAGS) -c -DUSE_GPU $< -o $(*)_gpu.o ; \
+	ld -r $(*)_cpu.o $(*)_gpu.o -o $(*).o ; \
+	rm $(*)_cpu.o $(*)_gpu.o
+
+.f90.o:
+	$(MPIF90) $(F90FLAGS) -c $(*).f90 -o $(*).o
+
+.f.o:
+	$(F77) $(FFLAGS) -c $<
+
+.c.o:
+	$(CC) $(CFLAGS)  -c $<
 
 LIBOBJS        = $(TOPDIR)/clib/clib.a $(TOPDIR)/iotk/src/libiotk.a
-LIBS           = $(SCALAPACK_LIBS) $(MATH_LIBS) $(LD_LIBS)
-
-WGET = wget -O
-
-PREFIX = /usr/local
+LIBS           = $(MATH_LIBS) $(LD_LIBS)
