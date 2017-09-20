@@ -6,9 +6,10 @@ Parallel execution:
       __OPENMP      OpenMP parallelization
 
 GPU execution:
-      __USE_CUDA      Enable GPU support via CUDA FORTRAN
-      __USE_GPU_MPI   Enable support to CUDA-aware MPI
-      __USE_IPC       Enable intra-GPu communication via CUDA IPC primitives
+      USE_CUDA      Enable GPU support via CUDA FORTRAN
+      USE_GPU_MPI   Enable support to CUDA-aware MPI
+      USE_IPC       Enable intra-GPU communication via CUDA IPC primitives
+      NO_CURAND     Disable CURAND random-number generation for initialization (use slower CPU initialization)
 
 Libraries:
       __FFTW        FFT routines from internal FFTW library
