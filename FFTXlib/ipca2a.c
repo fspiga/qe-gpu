@@ -67,7 +67,9 @@ void init_ipc_( double* buffer, int *buff_id_p, MPI_Fint *Fcomm, int* ipc_peers)
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &nprocs);
 
+#ifdef __CUDA_DEBUG
   if(rank==0) printf("initializing IPC buffer: %d \n",buff_id);
+#endif
 
   if(first_time){
     for(i=0; i<MAXPEER; i++) CHECK_CUDART( cudaStreamCreate( &streams[i] ) );
