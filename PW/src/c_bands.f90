@@ -402,7 +402,7 @@ CONTAINS
     !
     ! ... here the local variables
     !
-    INTEGER :: ipol
+    INTEGER :: ipol, i, j
     REAL(dp) :: eps
     !  --- Define a small number ---
     eps=0.000001d0
@@ -444,6 +444,14 @@ CONTAINS
        !
        ! ... h_diag is the precondition matrix
        !
+#ifdef USE_CUDA
+!$cuf kernel do(1) <<<*,*>>>
+      DO i = 1, npwx
+        DO j = 1, npol
+          h_diag_d(i,j) = 1.D0 + g2kin_d(i) + SQRT( 1.D0 + ( g2kin_d(i) - 1.D0 )**2 )
+        END DO
+      END DO 
+#else
        h_diag = 1.D0
        !
        FORALL( ig = 1 : npwx )
@@ -452,8 +460,14 @@ CONTAINS
           !
        END FORALL
        !
+       ! print*,"h_diag_d before", sum(h_diag)
+#endif
        ntry = 0
        !
+#ifdef USE_CUDA
+       h_diag = h_diag_d
+       ! print*,"h_diag_d before", sum(h_diag)
+#endif
        CG_loop : DO
           !
           lrot = ( iter == 1 .AND. ntry == 0 )
@@ -462,10 +476,10 @@ CONTAINS
              !
 #ifdef USE_CUDA
              ! evc_d = evc
-             ! et_d=et
+             et_d(:,ik)=et(:,ik)
              CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc_d, npol, okvan, evc_d, et_d(1,ik) )
              evc = evc_d
-             et = et_d
+             et(:,ik) = et_d(:,ik)
 #else
              CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc, npol, okvan, evc, et(1,ik) )
 #endif
@@ -475,15 +489,36 @@ CONTAINS
           END IF
           !
 #ifdef USE_CUDA
-          ! et_d(:,ik) = et(:,ik)
-          ! evc_d = evc
+          ! print*, "====in main loop====" 
+          et_d(:,ik) = et(:,ik) 
+          ! print*, "evc before" , sum(evc) 
+          evc = evc_d 
+          ! print*, "evc_d before", sum(evc) 
+
+          ! print*, "et before" , sum(et(:,ik)) 
+          ! et(:,ik) = et_d(:,ik) 
+          ! print*, "et_d before" , sum(et_d(:,ik))
+          ! print*,"-----------------------"
           CALL ccgdiagg( npwx, npw, nbnd, npol, evc, evc_d, et(1,ik), et_d(1,ik), btype(1,ik), &
-               h_diag, ethr, max_cg_iter, .NOT. lscf, notconv, cg_iter )
-          evc = evc_d
+               h_diag, h_diag_d,  ethr, max_cg_iter, .NOT. lscf, notconv, cg_iter )
+            
+          ! print*, "evc after" , sum(evc) 
+          evc = evc_d 
+          ! print*, "evc_d after" , sum(evc) 
+
+          ! print*, "et after" , sum(et(:,ik)) 
+          et(:,ik) = et_d(:,ik) 
+          ! print*, "et_d after" , sum(et_d(:,ik)) 
           et = et_d
 #else
+          ! print*, "====in main loop====" 
+          ! print*, "evc before" , sum(evc) 
+          ! print*, "et before" , sum(et(:,ik)) 
+          ! print*,"-----------------------"
           CALL ccgdiagg( npwx, npw, nbnd, npol, evc, et(1,ik), btype(1,ik), &
                h_diag, ethr, max_cg_iter, .NOT. lscf, notconv, cg_iter )
+          ! print*, "evc after" , sum(evc) 
+          ! print*, "et after" , sum(et(:,ik)) 
 #endif
           !
           avg_iter = avg_iter + cg_iter
