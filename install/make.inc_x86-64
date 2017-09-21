@@ -1,6 +1,46 @@
 # For a verbose description of these fields please refer to the original 
 # Quantum ESPRESSO make.inc file
 
+TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
+
+# See install/README.DFLAGS for a list of options and their meaning
+DFLAGS         =  -D__OPENMP -DUSE_CUDA -D__FFTW -D__MPI -D__MKL
+FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
+
+IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve -I${MKLROOT}/include
+
+MOD_FLAG      = -I
+
+MPIF90         = mpif90
+MPICC          = mpicc
+CC             = pgcc
+F77            = pgf77
+
+# Kepler = 35, Pascal = 60 (suggested)
+GPU_ARCH=60
+
+CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O3 -Mpreprocess -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+FFLAGS         = -O3 -Mpreprocess -mp
+
+
+LD             = mpif90
+LDFLAGS        = -pgf90libs  -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays
+LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a
+
+MATH_LIBS      = -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -pgf90libs -lmkl_core -lmkl_pgi_thread
+
+EIGENSOLVER_VERSION	= 0.2-beta
+
+
+# Do not edit below this line
+-include install/make.check-cuda
+
+AR             = ar
+ARFLAGS        = ruv
+RANLIB         = ranlib
+WGET           = wget -O
+
 .SUFFIXES :
 .SUFFIXES : .o .c .f .f90 .F90
 
@@ -19,45 +59,5 @@
 .c.o:
 	$(CC) $(CFLAGS)  -c $<
 
-TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
-
-# See install/README.DFLAGS for a list of options and their meaning
-DFLAGS         =  -D__OPENMP -D__PGI -DUSE_CUDA -D__FFTW -D__MPI
-FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
-
-IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve
-
-MOD_FLAG      = -I
-
-MPIF90         = mpif90
-CC             = pgcc
-F77            = pgf77
-
-# Kepler = 35, Pascal = 60 (suggested)
-GPU_ARCH=60
-
-CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O3 -Mpreprocess -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-FFLAGS         = -O3 -Mpreprocess -mp
-
-
-LD             = mpif90
-LDFLAGS        = -pgf90libs  -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays
-LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a
-
-MATH_LIBS      = -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -pgf90libs -lmkl_core -lmkl_pgi_thread
-
-EIGENSOLVER_VERSION	= 0.2
-
-SCALAPACK_LIBS = 
-
-AR             = ar
-ARFLAGS        = ruv
-RANLIB				 = ranlib
-
 LIBOBJS        = $(TOPDIR)/clib/clib.a $(TOPDIR)/iotk/src/libiotk.a
-LIBS           = $(SCALAPACK_LIBS) $(MATH_LIBS) $(LD_LIBS)
-
-WGET = wget -O
-
-PREFIX = /usr/local
+LIBS           = $(MATH_LIBS) $(LD_LIBS)

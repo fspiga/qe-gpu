@@ -13,6 +13,7 @@ IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/l
 MOD_FLAG      = -I
 
 MPIF90         = mpif90
+MPICC          = mpicc
 CC             = pgcc
 F77            = pgf90
 
@@ -31,7 +32,7 @@ LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_e
 
 MATH_LIBS 	= -L/opt/ibm/xlf/15.1.5/lib -lesslsmp -lessl -lxl -lxlf90_r -lxlfmath -L/opt/ibm/xlsmp/4.1.5/lib -lxlsmp -lxlfmath -llapack -lblas
 
-EIGENSOLVER_VERSION     = 0.2
+EIGENSOLVER_VERSION     = 0.2-beta
 
 CUDADIR ?= /usr/local/cuda
 

@@ -6,15 +6,17 @@ Parallel execution:
       __OPENMP      OpenMP parallelization
 
 GPU execution:
-      __USE_CUDA      Enable GPU support via CUDA FORTRAN
-      __USE_GPU_MPI   Enable support to CUDA-aware MPI
-      __USE_IPC       Enable intra-GPu communication via CUDA IPC primitives
+      USE_CUDA      Enable GPU support via CUDA FORTRAN
+      USE_GPU_MPI   Enable support to CUDA-aware MPI
+      USE_IPC       Enable intra-GPU communication via CUDA IPC primitives
+      NO_CURAND     Disable CURAND random-number generation for initialization (use slower CPU initialization)
 
 Libraries:
       __FFTW        FFT routines from internal FFTW library
       __FFTW3       FFT routines from external FFTW v3 library
       __LINUX_ESSL  Use blas/lapack/fft routines from IBM ESSL library
       __DFTI        FFT routines from external Intel MKL    
+      __MKL         When doing "relax" computations, enable work around for bug in MKL (multithreaded GEMM will hang on AVX2)
 
 IO / Reporting:
       __HDF5           Enable I/O using parallel HDF5

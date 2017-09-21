@@ -288,7 +288,7 @@ SUBROUTINE init_wfc ( ik )
          ! ... in this case, introduce a small randomization of wavefunctions
          ! ... to prevent possible "loss of states"
          !
-#ifdef USE_CUDA
+#if defined(USE_CUDA) && !defined(NO_CURAND)
          wfcatom_d=wfcatom
          allocate(rand_d(2*ngk(ik),npol,n_starting_atomic_wfc))
          istat=curandCreateGenerator(gen,CURAND_RNG_PSEUDO_XORWOW) 

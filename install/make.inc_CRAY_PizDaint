@@ -44,11 +44,56 @@
 #   $ module load intel pgi cudatoolkit
 #   $ module swap PrgEnv-cray PrgEnv-pgi
 #
-# And run the configure as follow:
+# For best performance currently, we suggest reverting the following commits and removing the -DCRAY flag
+# from DFLAGS before compilation:
 #
-#   $ ./configure ARCH=cray --enable-gpu=pascal
-#
-# The configure may fails. Please edit it according to the below template
+#   git revert b86a695c1d64e1de1ce7f6d5eb699ae84a8e660a
+#   git add install/make.inc_CRAY_PizDaint
+#   git revert continue
+#   git revert a3cd8fdddc0f37b7306e0fd1291e42664317ed81
+#   git revert 68ee7449a1bf326d8aaba892225cf01baf8c9ad9
+#  
+# This reenables v_of_rho computations on the GPU. This process may require some merging and is suggested only for those 
+# comfortable with git. Hopefully this will not be required once compilers are updated on this system.
+
+TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
+
+# See install/README.DFLAGS for a list of options and their meaning
+DFLAGS         = -DUSE_CUDA -D__FFTW -D__MPI -D__CRAY -D__MKL
+FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
+
+IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve -I${MKLROOT}/include
+
+MOD_FLAG      = -I
+
+MPIF90         = ftn
+MPICC          = cc
+CC             = pgcc
+F77            = pgf90
+
+GPU_ARCH=60
+
+CFLAGS         = -O3 -mp -Mpreprocess -fPIC $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O3 -mp -Mpreprocess -fPIC -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+FFLAGS         = -O3 -Mpreprocess -fPIC
+
+LD             = ftn
+LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
+LD_LIBS        = -Mcudalib=cufft,cublas $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a $(CUDATOOLKIT_HOME)/lib64/libculibos.a $(CUDATOOLKIT_HOME)/lib64/libcusolver_static.a -lstdc++
+
+MATH_LIBS      = -L${MKLROOT}/lib/intel64  -lmkl_intel_lp64 -lmkl_pgi_thread -lmkl_core -pgf90libs -mp -lpthread -lm -ldl
+
+EIGENSOLVER_VERSION     = 0.2-beta
+
+CUDADIR ?= /usr/local/cuda
+
+# Do not edit below this line
+-include install/make.check-cuda
+
+AR             = ar
+ARFLAGS        = ruv
+RANLIB         = ranlib
+WGET           = wget -O
 
 .SUFFIXES :
 .SUFFIXES : .o .c .f .f90 .F90
@@ -68,43 +113,5 @@
 .c.o:
 	$(CC) $(CFLAGS)  -c $<
 
-TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
-
-# See install/README.DFLAGS for a list of options and their meaning
-DFLAGS         = -D__PGI -DUSE_CUDA -D__FFTW -D__MPI -DCRAY
-FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
-
-IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve
-
-MOD_FLAG      = -I
-
-MPIF90         = ftn
-CC             = pgcc
-F77            = pgf90
-
-GPU_ARCH=60
-
-CFLAGS         = -O3 -mp -Mpreprocess -fPIC $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O3 -mp -Mpreprocess -fPIC -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-FFLAGS         = -O3 -Mpreprocess -fPIC
-
-LD             = ftn
-LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
-LD_LIBS        = -Mcudalib=cufft,cublas $(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a $(CUDATOOLKIT_HOME)/lib64/libculibos.a $(CUDATOOLKIT_HOME)/lib64/libcusolver_static.a -lstdc++
-
-MATH_LIBS      = -L${MKLROOT}/lib/intel64  -lmkl_intel_lp64 -lmkl_pgi_thread -lmkl_core -pgf90libs -mp -lpthread -lm -ldl
-
-EIGENSOLVER_VERSION     = 0.2
-
-SCALAPACK_LIBS =
-
-AR             = ar
-ARFLAGS        = ruv
-RANLIB         = ranlib
-
 LIBOBJS        = $(TOPDIR)/clib/clib.a $(TOPDIR)/iotk/src/libiotk.a
-LIBS           = $(SCALAPACK_LIBS) $(MATH_LIBS) $(LD_LIBS)
-
-WGET = wget -O
-
-PREFIX = /usr/local
+LIBS           = $(MATH_LIBS) $(LD_LIBS)

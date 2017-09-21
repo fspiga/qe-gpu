@@ -1,9 +1,53 @@
 # For a verbose description of these fields please refer to the original 
 # Quantum ESPRESSO make.inc file
 
-# On summitdev, load the following modules:
-# load pgi/17.4 essl 
+# On summitdev, load the following modules: pgi/17.4 essl cuda
 
+TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
+
+# See install/README.DFLAGS for a list of options and their meaning
+DFLAGS         = -DUSE_CUDA -D__FFTW -D__MPI -DUSE_IPC
+FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
+
+IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve 
+
+MOD_FLAG      = -I
+
+MPIF90         = mpif90
+MPICC          = mpicc
+CC             = pgcc
+F77            = pgf90
+
+GPU_ARCH=60
+
+CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O3 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+FFLAGS         = -O3 -Mpreprocess
+
+# If this flag is present some files are compiled differently as workaround for compiler bugs
+F90FLAGS_WORKAROUND = -O3 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+
+LD             = mpif90
+LDFLAGS        =  -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
+LD_LIBS        =  -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a
+
+#Standard ESSL
+#MATH_LIBS      = -L/sw/summitdev/essl/5.5.0-20161110/lib64 -lessl   -llapack
+# Multithreaded ESSL, it does not work with the -mp flag,
+MATH_LIBS      = -L/sw/summitdev/essl/5.5.0-20161110/lib64 -lesslsmp -L/sw/summitdev/xl/20170404/xlf/16.1.0/lib  -lxlf90_r -lxl  -lxlfmath  -L/sw/summitdev/xl/20170404/xlsmp/5.1.0/lib  -lxlsmp   -llapack
+BLAS_LIBS_SWITCH = external
+
+EIGENSOLVER_VERSION     = 0.2-beta
+
+CUDADIR ?= $(CUDA_DIR)
+
+# Do not edit below this line
+-include install/make.check-cuda
+
+AR             = ar
+ARFLAGS        = ruv
+RANLIB         = ranlib
+WGET           = wget -O
 
 .SUFFIXES :
 .SUFFIXES : .o .c .f .f90 .F90
@@ -23,50 +67,6 @@
 .c.o:
 	$(CC) $(CFLAGS)  -c $<
 
-TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
-
-# See install/README.DFLAGS for a list of options and their meaning
-DFLAGS         =  -D__OPENMP -D__PGI -DUSE_CUDA -D__FFTW -D__MPI 
-FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
-
-IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve 
-
-MOD_FLAG      = -I
-
-MPIF90         = mpif90
-CC             = pgcc
-F77            = pgf90
-
-GPU_ARCH=60
-
-CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O3 -Mpreprocess -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-FFLAGS         = -O3 -Mpreprocess -mp
-
-# If this flag is present some files are compiled differently as workaround for compiler bugs
-F90FLAGS_WORKAROUND = -O3 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-
-LD             = mpif90
-LDFLAGS        =  -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
-LD_LIBS        =  -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/Eigensolver_gpu-0.2/lib_eigsolve/lib_eigsolve.a
-
-#Standard ESSL
-MATH_LIBS      = -L/sw/summitdev/essl/5.5.0-20161110/lib64 -lessl   -llapack
-# Multithreaded ESSL, it does not work with the -mp flag,
-#MATH_LIBS      = -L/sw/summitdev/essl/5.5.0-20161110/lib64 -lesslsmp -L/sw/summitdev/xl/20170404/xlf/16.1.0/lib  -lxlf90_r -lxl  -lxlfmath  -L/sw/summitdev/xl/20170404/xlsmp/5.1.0/lib  -lxlsmp   -llapack
-BLAS_LIBS_SWITCH = external
-
-EIGENSOLVER_VERSION     = 0.2
-
-SCALAPACK_LIBS = 
-
-AR             = ar
-ARFLAGS        = ruv
-RANLIB         = ranlib
-
 LIBOBJS        = $(TOPDIR)/clib/clib.a $(TOPDIR)/iotk/src/libiotk.a
-LIBS           = $(SCALAPACK_LIBS) $(MATH_LIBS) $(LD_LIBS)
+LIBS           = $(MATH_LIBS) $(LD_LIBS)
 
-WGET = wget -O
-
-PREFIX = /usr/local
