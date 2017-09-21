@@ -36,7 +36,7 @@
   !----------------------------------------------------------------------------
 #ifdef USE_CUDA
   SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, psi_d, e, e_d, btype, &
-       precondition, ethr, maxter, reorder, notconv, avg_iter )
+       precondition, precondition_d, ethr, maxter, reorder, notconv, avg_iter )
 #else
     SUBROUTINE ccgdiagg( npwx, npw, nbnd, npol, psi, e, btype, precondition, &
          ethr, maxter, reorder, notconv, avg_iter )
@@ -78,6 +78,7 @@
 #ifdef USE_CUDA
       COMPLEX(DP), DEVICE, INTENT(INOUT) ::psi_d(npwx*npol,nbnd)
       REAL(DP), DEVICE, INTENT(INOUT) :: e_d(nbnd)
+      REAL(DP), DEVICE, INTENT(IN)  :: precondition_d(npwx * npol)
 #endif
       !
       ! ... local variables
@@ -95,7 +96,6 @@
 #ifdef USE_CUDA
       COMPLEX(DP),DEVICE, ALLOCATABLE :: hpsi_d(:), spsi_d(:), lagrange_d(:), &
            g_d(:), cg_d(:), scg_d(:), ppsi_d(:), g0_d(:)
-      REAL(DP), DEVICE, ALLOCATABLE  :: precondition_d(:)
       REAL(DP), DEVICE  :: psi_norm_d, es_d, gamma_d, cost_d, sint_d, cg0_d
 #endif
       !
@@ -156,9 +156,6 @@
       ALLOCATE(  g0_d(kdmx), STAT=ierr )
       IF( ierr /= 0 ) &
       CALL errore( ' ccgdiagg ',' cannot allocate g0_d ', ABS(ierr) )
-      ALLOCATE(  precondition_d(kdmx), STAT=ierr )
-      IF( ierr /= 0 ) &
-      CALL errore( ' ccgdiagg ',' cannot allocate precondition_d ', ABS(ierr) )
       !
       ALLOCATE(  lagrange_d(nbnd), STAT=ierr )
       IF( ierr /= 0 ) &
@@ -167,9 +164,6 @@
       avg_iter = 0.D0
       notconv  = 0
       moved    = 0
-#ifdef USE_CUDA
-      precondition_d = precondition
-#endif
       !
       ! ... every eigenfunction is calculated separately
       !
@@ -219,8 +213,7 @@
          CALL mp_sum( lagrange_d( 1:m ), intra_bgrp_comm )
          lagrange = lagrange_d
          !
-         psi_norm_d = DBLE( lagrange(m) )
-         psi_norm = psi_norm_d
+         psi_norm = DBLE( lagrange(m) )
          !
          DO j = 1, m - 1
             !
@@ -254,8 +247,8 @@
          !
          ! ... NB:  ddot(2*npw,a,1,b,1) = REAL( zdotc(npw,a,1,b,1) )
          !
-         CALL cgddot( kdim2, psi_d(1,m), hpsi_d, ddot_temp )
-         e(m) = ddot_temp
+         CALL cgddot( kdim2, psi_d(1,m), hpsi_d, e(m) )
+         ! e(m) = ddot_temp
          !
          CALL mp_sum( e(m), intra_bgrp_comm )
          !
@@ -274,10 +267,10 @@
             !
             ! ... ppsi is now S P(P^2)|y> = S P^2|psi>)
             !
-            CALL cgddot( kdim2, spsi_d(1), g_d(1), ddot_temp)
-            es(1) = ddot_temp
-            CALL cgddot( kdim2, spsi_d(1), ppsi_d(1), ddot_temp)
-            es(2) = ddot_temp
+            CALL cgddot( kdim2, spsi_d(1), g_d(1), es(1))
+            ! es(1) = ddot_temp
+            CALL cgddot( kdim2, spsi_d(1), ppsi_d(1), es(2))
+            ! es(2) = ddot_temp
             !
             CALL mp_sum( es , intra_bgrp_comm )
             !
@@ -297,7 +290,6 @@
             !
             ! CALL s_1psi( npwx, npw, g(1), scg(1) ) !original
             CALL s_psi(npwx, npw, 1, g_d(1), scg_d(1))
-            scg = scg_d
             !
             istat = cublasZgemv(cublasH, 2, kdim, (m -1) , ONE, &
                       psi_d, kdmx, scg_d, 1, ZERO, lagrange_d, 1 )
@@ -318,9 +310,7 @@
                !
                ! ... gg1 is <g(n+1)|S|g(n)> (used in Polak-Ribiere formula)
                !
-               g0_d = g0
-               CALL cgddot( kdim2, g_d(1), g0_d(1), ddot_temp )
-               gg1 = ddot_temp
+               CALL cgddot( kdim2, g_d(1), g0_d(1), gg1 )
                !
                CALL mp_sum( gg1, intra_bgrp_comm )
                !
@@ -338,8 +328,7 @@
                g0_d(i) = g0_d(i) * precondition_d(i)
             END DO
             !
-            CALL cgddot( kdim2, g_d(1), g0_d(1), ddot_temp )
-            gg = ddot_temp
+            CALL cgddot( kdim2, g_d(1), g0_d(1), gg )
             !
             CALL mp_sum( gg, intra_bgrp_comm )
             !
@@ -397,8 +386,7 @@
             CALL s_psi(npwx, npw, 1, cg_d(1), scg_d(1))
             !================================================
             !
-            CALL cgddot( kdim2, cg_d(1), scg_d(1), ddot_temp )
-            cg0 = ddot_temp
+            CALL cgddot( kdim2, cg_d(1), scg_d(1), cg0 )
             !
             CALL mp_sum(  cg0 , intra_bgrp_comm )
             !
@@ -536,7 +524,7 @@
                !
 !$cuf kernel do(1) <<<*,*>>>
                DO k = 1, kdmx
-                  psi_d(k,k) = ppsi_d(k)
+                  psi_d(k,i) = ppsi_d(k)
                END DO
                !
                ! ... this procedure should be good if only a few inversions occur,
@@ -547,9 +535,9 @@
             !
          END IF
          !
-         ! FIX : NOT Sure about this COPY's
-         psi = psi_d
+         ! FIX : Not sure about this copy
          e_d = e
+         psi = psi_d
 #else
          CALL s_1psi( npwx, npw, psi(1,m), spsi )
          !
