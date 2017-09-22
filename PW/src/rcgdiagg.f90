@@ -22,6 +22,7 @@ SUBROUTINE rcgdiagg( npwx, npw, nbnd, psi, e, btype, precondition, &
   USE gvect,     ONLY : gstart
   USE mp_bands,  ONLY : intra_bgrp_comm
   USE mp,        ONLY : mp_sum
+  USE cpu_gpu_interface, ONLY : s_1psi, h_1psi
 #if defined(__VERBOSE)
   USE io_global, only : stdout
 #endif
