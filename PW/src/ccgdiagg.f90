@@ -21,7 +21,6 @@
     !
     INTEGER, INTENT(IN) :: n
     !
-!!!!!pgi$ ignore_tkr A
     REAL(DP), DEVICE, INTENT(IN) :: A(n), B(n)
     !
     REAL(DP), INTENT(OUT) :: res
@@ -54,7 +53,7 @@
       USE kinds,            ONLY : DP
       USE mp_bands,         ONLY : intra_bgrp_comm
       USE mp,               ONLY : mp_sum
-      USE cpu_gpu_interface, ONLY : s_psi, h_psi
+      USE cpu_gpu_interface, ONLY : s_1psi, h_1psi
 #if defined(__VERBOSE)
       USE io_global, ONLY : stdout
 #endif
@@ -203,7 +202,8 @@
          !
 #ifdef USE_CUDA
         !  CALL s_1psi( npwx, npw, psi(1,m), spsi ) !Original
-         CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d)
+         CALL s_1psi( npwx, npw, psi_d(1,m), spsi_d ) !Original
+         ! CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d)
          !
          ! ... orthogonalize starting eigenfunction to those already calculated
          !
@@ -239,8 +239,9 @@
          !
          !FIX============================================
          !  CALL h_1psi( npwx, npw, psi(1,m), hpsi, spsi )
-         CALL h_psi(npwx, npw, 1, psi_d(1,m), hpsi_d)
-         CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d)
+          CALL h_1psi( npwx, npw, psi_d(1,m), hpsi_d, spsi_d )
+         ! CALL h_psi(npwx, npw, 1, psi_d(1,m), hpsi_d)
+         ! CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d)
          !===============================================
          !
          ! ... and starting eigenvalue (e = <y|PHP|y> = <psi|H|psi>)
@@ -248,7 +249,6 @@
          ! ... NB:  ddot(2*npw,a,1,b,1) = REAL( zdotc(npw,a,1,b,1) )
          !
          CALL cgddot( kdim2, psi_d(1,m), hpsi_d, e(m) )
-         ! e(m) = ddot_temp
          !
          CALL mp_sum( e(m), intra_bgrp_comm )
          !
@@ -268,9 +268,7 @@
             ! ... ppsi is now S P(P^2)|y> = S P^2|psi>)
             !
             CALL cgddot( kdim2, spsi_d(1), g_d(1), es(1))
-            ! es(1) = ddot_temp
             CALL cgddot( kdim2, spsi_d(1), ppsi_d(1), es(2))
-            ! es(2) = ddot_temp
             !
             CALL mp_sum( es , intra_bgrp_comm )
             !
@@ -289,7 +287,8 @@
             ! ... scg is used as workspace
             !
             ! CALL s_1psi( npwx, npw, g(1), scg(1) ) !original
-            CALL s_psi(npwx, npw, 1, g_d(1), scg_d(1))
+            CALL s_1psi( npwx, npw, g_d(1), scg_d(1) ) !original
+            ! CALL s_psi(npwx, npw, 1, g_d(1), scg_d(1))
             !
             istat = cublasZgemv(cublasH, 2, kdim, (m -1) , ONE, &
                       psi_d, kdmx, scg_d, 1, ZERO, lagrange_d, 1 )
@@ -381,9 +380,9 @@
             ! ... |scg> is S|cg>
             !
             !FIX==============================================
-            ! CALL h_1psi( npwx, npw, cg(1), ppsi(1), scg(1) )
-            CALL h_psi(npwx, npw, 1, cg_d(1), ppsi_d(1))
-            CALL s_psi(npwx, npw, 1, cg_d(1), scg_d(1))
+            CALL h_1psi( npwx, npw, cg_d(1), ppsi_d(1), scg_d(1) )
+            ! CALL h_psi(npwx, npw, 1, cg_d(1), ppsi_d(1))
+            ! CALL s_psi(npwx, npw, 1, cg_d(1), scg_d(1))
             !================================================
             !
             CALL cgddot( kdim2, cg_d(1), scg_d(1), cg0 )
@@ -535,9 +534,8 @@
             !
          END IF
          !
-         ! FIX : Not sure about this copy
-         e_d = e
-         psi = psi_d
+         e_d = e  ! Since e is calculate on CPU
+         psi = psi_d !Since psi_d is calculated on GPU
 #else
          CALL s_1psi( npwx, npw, psi(1,m), spsi )
          !
