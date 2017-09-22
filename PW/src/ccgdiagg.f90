@@ -201,9 +201,7 @@
          ! ... calculate S|psi>
          !
 #ifdef USE_CUDA
-        !  CALL s_1psi( npwx, npw, psi(1,m), spsi ) !Original
          CALL s_1psi( npwx, npw, psi_d(1,m), spsi_d ) !Original
-         ! CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d)
          !
          ! ... orthogonalize starting eigenfunction to those already calculated
          !
@@ -237,12 +235,7 @@
          !
          ! ... calculate starting gradient (|hpsi> = H|psi>) ...
          !
-         !FIX============================================
-         !  CALL h_1psi( npwx, npw, psi(1,m), hpsi, spsi )
           CALL h_1psi( npwx, npw, psi_d(1,m), hpsi_d, spsi_d )
-         ! CALL h_psi(npwx, npw, 1, psi_d(1,m), hpsi_d)
-         ! CALL s_psi(npwx, npw, 1, psi_d(1,m), spsi_d)
-         !===============================================
          !
          ! ... and starting eigenvalue (e = <y|PHP|y> = <psi|H|psi>)
          !
@@ -286,9 +279,7 @@
             !
             ! ... scg is used as workspace
             !
-            ! CALL s_1psi( npwx, npw, g(1), scg(1) ) !original
             CALL s_1psi( npwx, npw, g_d(1), scg_d(1) ) !original
-            ! CALL s_psi(npwx, npw, 1, g_d(1), scg_d(1))
             !
             istat = cublasZgemv(cublasH, 2, kdim, (m -1) , ONE, &
                       psi_d, kdmx, scg_d, 1, ZERO, lagrange_d, 1 )
@@ -379,11 +370,7 @@
             !
             ! ... |scg> is S|cg>
             !
-            !FIX==============================================
             CALL h_1psi( npwx, npw, cg_d(1), ppsi_d(1), scg_d(1) )
-            ! CALL h_psi(npwx, npw, 1, cg_d(1), ppsi_d(1))
-            ! CALL s_psi(npwx, npw, 1, cg_d(1), scg_d(1))
-            !================================================
             !
             CALL cgddot( kdim2, cg_d(1), scg_d(1), cg0 )
             !
