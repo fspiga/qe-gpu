@@ -68,6 +68,25 @@ MODULE cpu_gpu_interface
 #endif
    END INTERFACE
 
+ INTERFACE h_1psi
+    SUBROUTINE h_1psi_cpu( lda, n, psi, hpsi, spsi )
+       USE kinds, ONLY: DP
+       INTEGER  :: lda, n
+!pgi$ ignore_tkr(r) psi,hpsi,spsi
+       COMPLEX(DP) :: psi(*), hpsi(*), spsi(*)
+    END SUBROUTINE h_1psi_cpu
+
+#ifdef USE_CUDA
+    SUBROUTINE h_1psi_gpu( lda, n, psi, hpsi, spsi  )
+       USE kinds, ONLY: DP
+       INTEGER  :: lda, n
+!pgi$ ignore_tkr(r) psi,hpsi,spsi
+       COMPLEX(DP) :: psi(*), hpsi(*), spsi(*)
+       ATTRIBUTES( DEVICE ) :: psi, hpsi, spsi
+    END SUBROUTINE h_1psi_gpu
+#endif
+  END INTERFACE
+
   INTERFACE s_psi
      SUBROUTINE s_psi_cpu( lda, n, m, psi, spsi  )
         USE kinds, ONLY: DP
@@ -86,6 +105,25 @@ MODULE cpu_gpu_interface
      END SUBROUTINE s_psi_gpu
 #endif
    END INTERFACE
+
+ INTERFACE s_1psi
+    SUBROUTINE s_1psi_cpu( lda, n, psi, spsi  )
+       USE kinds, ONLY: DP
+       INTEGER  :: lda, n
+!pgi$ ignore_tkr(r) psi,spsi
+       COMPLEX(DP) :: psi(*), spsi(*)
+    END SUBROUTINE s_1psi_cpu
+
+#ifdef USE_CUDA
+    SUBROUTINE s_1psi_gpu( lda, n, psi, spsi  )
+       USE kinds, ONLY: DP
+       INTEGER  :: lda, n
+!pgi$ ignore_tkr(r) psi,spsi
+       COMPLEX(DP) :: psi(*), spsi(*)
+       ATTRIBUTES( DEVICE ) :: psi, spsi
+    END SUBROUTINE s_1psi_gpu
+#endif
+  END INTERFACE
 
   INTERFACE g_psi
      SUBROUTINE g_psi_cpu( lda, n, m, npol, psi, e  )
