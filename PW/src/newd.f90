@@ -441,6 +441,9 @@ SUBROUTINE newd_gpu( )
         END IF
         !
      END DO
+
+     deeq_d = deeq
+
      !
      ! ... early return
      !
