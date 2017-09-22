@@ -5,8 +5,13 @@
 ! in the root directory of the present distribution,
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
+#ifdef USE_GPU
+#define MY_ROUTINE(x)  x##_gpu
+#else
+#define MY_ROUTINE(x)  x##_cpu
+#endif
 !----------------------------------------------------------------------------
-SUBROUTINE h_1psi( lda, n, psi, hpsi, spsi )
+SUBROUTINE MY_ROUTINE(h_1psi)( lda, n, psi, hpsi, spsi )
   !----------------------------------------------------------------------------
   !
   ! ... This routine applies the Hamiltonian and the S matrix
@@ -29,6 +34,9 @@ SUBROUTINE h_1psi( lda, n, psi, hpsi, spsi )
   !
   INTEGER, INTENT(IN) :: lda, n
   COMPLEX (DP) :: psi(lda*npol,1), hpsi(n), spsi(n,1)
+  #ifdef USE_GPU
+    ATTRIBUTES( DEVICE ) :: psi, hpsi, spsi
+  #endif
   !
   !
   CALL start_clock( 'h_1psi' )
@@ -36,6 +44,7 @@ SUBROUTINE h_1psi( lda, n, psi, hpsi, spsi )
   !OBM: I know this form is somewhat inelegant but, leaving the pre-real_space part intact
   !     makes it easier to debug probable errors, please do not "beautify" 
         if (real_space) then
+#ifndef USE_GPU
            CALL h_psi( lda, n, 1, psi, hpsi )
            if (gamma_only) then
              call invfft_orbital_gamma(psi,1,1) !transform the orbital to real space
@@ -46,7 +55,10 @@ SUBROUTINE h_1psi( lda, n, psi, hpsi, spsi )
              call s_psir_k(1,1)
              call fwfft_orbital_k(spsi,1,1)
            end if
-        else   
+#else
+      print *,"REAL_SPACE NOT IMPLEMENTED!"; call flush(6); STOP
+#endif
+        else  
   CALL h_psi( lda, n, 1, psi, hpsi ) ! apply H to a single wfc (no bgrp parallelization here)
   CALL s_psi( lda, n, 1, psi, spsi ) ! apply S to a single wfc (no bgrp parallelization here)
        endif
@@ -55,4 +67,4 @@ SUBROUTINE h_1psi( lda, n, psi, hpsi, spsi )
   !
   RETURN
   !
-END SUBROUTINE h_1psi
+END SUBROUTINE MY_ROUTINE(h_1psi)

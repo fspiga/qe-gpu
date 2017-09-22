@@ -5,15 +5,25 @@
 ! in the root directory of the present distribution,
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
+#ifdef USE_GPU
+#define MY_ROUTINE(x)  x##_gpu
+#else
+#define MY_ROUTINE(x)  x##_cpu
+#endif
 !----------------------------------------------------------------------------
-SUBROUTINE s_1psi( npwx, n, psi, spsi )
+SUBROUTINE MY_ROUTINE(s_1psi)( npwx, n, psi, spsi )
   !----------------------------------------------------------------------------
   !
   ! ... spsi = S*psi for one wavefunction
   ! ... Wrapper routine - calls calbec and s_psi
   !
   USE kinds,  ONLY : DP
-  USE uspp,   ONLY : vkb, nkb
+  ! USE uspp,   ONLY : vkb, nkb
+  #ifdef USE_GPU
+    USE uspp,     ONLY : vkb=>vkb_d
+  #else
+    USE uspp,     ONLY : vkb, nkb
+  #endif
   USE becmod, ONLY : bec_type, becp, calbec
   USE control_flags,    ONLY : gamma_only 
   USE noncollin_module, ONLY : noncolin, npol 
@@ -27,11 +37,15 @@ SUBROUTINE s_1psi( npwx, n, psi, spsi )
   !
   INTEGER     :: npwx, n, ibnd
   COMPLEX(DP) :: psi(npwx*npol,1), spsi(npwx*npol,1)
+  #ifdef USE_GPU
+    ATTRIBUTES( DEVICE ) :: psi, spsi
+  #endif
   !
   !
   CALL start_clock( 's_1psi' )
   !
   IF ( real_space) then
+#ifndef USE_GPU
      IF ( gamma_only ) then
         do ibnd=1,nbnd,2
            ! transform the orbital to real space
@@ -52,6 +66,9 @@ SUBROUTINE s_1psi( npwx, n, psi, spsi )
         call s_psir_k(1,1)
         call fwfft_orbital_k(spsi,1,1)
      END IF
+#else
+    print *,"REAL_SPACE not implemented!!"; call flush(6); STOP
+#endif
   ELSE
      !
      CALL calbec( n, vkb, psi, becp )
@@ -63,4 +80,4 @@ SUBROUTINE s_1psi( npwx, n, psi, spsi )
   !
   RETURN
   !
-END SUBROUTINE s_1psi
+END SUBROUTINE MY_ROUTINE(s_1psi)
