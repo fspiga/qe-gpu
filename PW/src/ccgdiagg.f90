@@ -521,8 +521,6 @@
             !
          END IF
          !
-         e_d = e  ! Since e is calculate on CPU
-         psi = psi_d !Since psi_d is calculated on GPU
 #else
          CALL s_1psi( npwx, npw, psi(1,m), spsi )
          !
@@ -784,6 +782,10 @@
          !
 #endif
       END DO cgiter
+#ifdef USE_CUDA
+      e_d = e  ! Since e is calculate on CPU
+      psi = psi_d !Since psi_d is calculated on GPU
+#endif
       !
       avg_iter = avg_iter / DBLE( nbnd )
       !
