@@ -451,7 +451,9 @@ CONTAINS
           h_diag_d(i,j) = 1.D0 + g2kin_d(i) + SQRT( 1.D0 + ( g2kin_d(i) - 1.D0 )**2 )
         END DO
       END DO 
-      h_diag = h_diag_d
+      !
+      ! h_diag = h_diag_d
+      !
 #else
        h_diag = 1.D0
        !
@@ -473,8 +475,10 @@ CONTAINS
 #ifdef USE_CUDA
              et_d(:,ik)=et(:,ik)
              CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc_d, npol, okvan, evc_d, et_d(1,ik) )
-             evc = evc_d
-             et(:,ik) = et_d(:,ik)
+             !
+             ! evc = evc_d
+             ! et(:,ik) = et_d(:,ik)
+             !
 #else
              CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc, npol, okvan, evc, et(1,ik) )
 #endif
@@ -487,9 +491,11 @@ CONTAINS
           et_d(:,ik) = et(:,ik)
           CALL ccgdiagg( npwx, npw, nbnd, npol, evc, evc_d, et(1,ik), et_d(1,ik), btype(1,ik), &
                h_diag, h_diag_d,  ethr, max_cg_iter, .NOT. lscf, notconv, cg_iter )
-            
-          evc = evc_d 
-          et(:,ik) = et_d(:,ik) 
+          !
+          ! Following Copy is done inside the ccgdiagg function
+          !
+          ! evc = evc_d 
+          ! et(:,ik) = et_d(:,ik) 
 #else
           CALL ccgdiagg( npwx, npw, nbnd, npol, evc, et(1,ik), btype(1,ik), &
                h_diag, ethr, max_cg_iter, .NOT. lscf, notconv, cg_iter )

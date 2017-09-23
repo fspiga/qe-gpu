@@ -784,7 +784,7 @@
       END DO cgiter
 #ifdef USE_CUDA
       e_d = e  ! Since e is calculate on CPU
-      psi = psi_d !Since psi_d is calculated on GPU
+      ! psi = psi_d !Since psi_d is calculated on GPU
 #endif
       !
       avg_iter = avg_iter / DBLE( nbnd )
