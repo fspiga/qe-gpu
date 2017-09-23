@@ -83,18 +83,20 @@
       ! ... local variables
       !
       INTEGER                  :: i, j, k, m, iter, moved
-      COMPLEX(DP), ALLOCATABLE :: hpsi(:), spsi(:), lagrange(:), &
-           g(:), cg(:), scg(:), ppsi(:), g0(:)
+      COMPLEX(DP), ALLOCATABLE :: hpsi(:), spsi(:), lagrange(:), g(:), cg(:), &
+                                  scg(:), ppsi(:), g0(:)
       REAL(DP)                 :: psi_norm, a0, b0, gg0, gamma, gg, gg1, &
-           cg0, e0, es(2)
+                                  cg0, e0, es(2)
       REAL(DP)                 :: theta, cost, sint, cos2t, sin2t
       LOGICAL                  :: reorder
       INTEGER                  :: kdim, kdmx, kdim2, istat, ierr
+      COMPLEX(DP)              :: lag_tmp
       REAL(DP)                 :: empty_ethr, ethr_m, ddot_temp
       !
 #ifdef USE_CUDA
       COMPLEX(DP),DEVICE, ALLOCATABLE :: hpsi_d(:), spsi_d(:), lagrange_d(:), &
-           g_d(:), cg_d(:), scg_d(:), ppsi_d(:), g0_d(:)
+                                         g_d(:), cg_d(:), scg_d(:), ppsi_d(:), &
+                                         g0_d(:)
       REAL(DP), DEVICE  :: psi_norm_d, es_d, gamma_d, cost_d, sint_d, cg0_d
 #endif
       !
@@ -209,9 +211,9 @@
               psi_d, kdmx, spsi_d, 1, ZERO, lagrange_d, 1 )
          !
          CALL mp_sum( lagrange_d( 1:m ), intra_bgrp_comm )
-         lagrange = lagrange_d
          !
-         psi_norm = DBLE( lagrange(m) )
+         psi_norm = lagrange_d(m)
+         psi_norm = DBLE(psi_norm)
          !
          DO j = 1, m - 1
             !
@@ -220,13 +222,12 @@
                psi_d(i,m)  = psi_d(i,m) - lagrange_d(j) * psi_d(i,j)
             END DO
             !
-            psi_norm = psi_norm - &
-                 ( DBLE( lagrange(j) )**2 + AIMAG( lagrange(j) )**2 )
+            lag_tmp = lagrange_d(j)
+            psi_norm = psi_norm - ( DBLE(lag_tmp)**2 + AIMAG(lag_tmp)**2 )
             !
          END DO
          !
-         psi_norm = SQRT( psi_norm )
-         psi_norm_d = psi_norm
+         psi_norm_d = SQRT( psi_norm )
          !
 !$cuf kernel do(1) <<<*,*>>>
          DO i = 1, kdmx
@@ -356,8 +357,7 @@
                ! ... is not 0. In fact :
                ! ... <y(n+1)| S P^2 |cg(n)> = sin(theta)*<cg(n)|S|cg(n)>
                !
-               psi_norm = gamma * cg0 * sint
-               psi_norm_d = psi_norm
+               psi_norm_d = gamma * cg0 * sint
                !
 !$cuf kernel do(1) <<<*,*>>>
                DO i = 1, kdmx
