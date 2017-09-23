@@ -239,6 +239,7 @@ ccgdiagg.o : ../../Modules/io_global.o
 ccgdiagg.o : ../../Modules/kind.o
 ccgdiagg.o : ../../Modules/mp.o
 ccgdiagg.o : ../../Modules/mp_bands.o
+ccgdiagg.o : cpu_gpu_interface.o
 cdiagh.o : ../../Modules/kind.o
 cdiagh.o : ../../Modules/mp.o
 cdiagh.o : ../../Modules/mp_bands.o
