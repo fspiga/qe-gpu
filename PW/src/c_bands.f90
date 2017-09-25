@@ -445,7 +445,7 @@ CONTAINS
        ! ... h_diag is the precondition matrix
        !
 #ifdef USE_CUDA
-!$cuf kernel do(1) <<<*,*>>>
+!$cuf kernel do(2) <<<*,*>>>
       DO i = 1, npwx
         DO j = 1, npol
           h_diag_d(i,j) = 1.D0 + g2kin_d(i) + SQRT( 1.D0 + ( g2kin_d(i) - 1.D0 )**2 )
