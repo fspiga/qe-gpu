@@ -1,65 +1,19 @@
 # Machine : Piz Daint (CSCS)
-# Date    : 13/06/2017
+# Date    : 01/10/2017
 # Instructions provided by Massimiliano Fatica (NVIDIA)
 
 # Compiling QE-GPU on Piz Daint
 #
-# QE-GPU requires PGI 17.4 or newer  ( this is due to a bug in the gpu linker
-# that has been fixed in 17.4) but the latest available PGI compiler on
-# Piz Daint is 16.9. It is still possible to compile QE-GPU installing some
-# files in your home directory. We basically need to instruct the PGI compiler
-# to use a newer linker.
+# The correct environment to load is:
 #
-# From a Linux computer with the PGI 17.4 version installed ( let's assume that
-# the installation in in /opt/pgi),
-# we will tar the directory /opt/pgi/linux-64/2017/cuda/8.0/bin
-#
-#   $ cd
-#   $ cd /opt/pgi/linux86-64/2017/cuda/8.0
-#   $ tar cvfz  pgicuda.tar.gz  /bin
-#
-# Once the tar file is transferred  to your home directory on Piz Daint,
-# we will create a directory "cuda/8.0" and untar the file inside
-# this directory. We will also create symbolic links to "include/", "lib64/",
-# "libnvvp/" and "nvvm/" from the 16.9 version installed. At the end of these
-# steps, the content of your directory cuda/8.0 should look like this:
-#
-#   mfatica@daint102:~/cuda/8.0> ls -lrt
-#   total 0
-#   drwxr-xr-x 2 mfatica g33 4096 May 20 00:04 bin
-#   lrwxrwxrwx 1 mfatica g33   49 Jun  1 20:36 include -> #/opt/pgi/16.9.0/linux86-64/2016/cuda/8.0/include/
-#   lrwxrwxrwx 1 mfatica g33   47 Jun  1 20:36 lib64 -> #/opt/pgi/16.9.0/linux86-64/2016/cuda/8.0/lib64/
-#   lrwxrwxrwx 1 mfatica g33   49 Jun  1 20:36 libnvvp -> /opt/pgi/16.9.0/linux86-64/2016/cuda/8.0/libnvvp/
-#   lrwxrwxrwx 1 mfatica g33   46 Jun  1 20:36 nvvm -> /opt/pgi/16.9.0/linux86-64/2016/cuda/8.0/nvvm/
-#
-# Once we create a file called ".mypgirc" with this content, the PGI compiler
-# will use the new linker and it will be able to compile QE-GPU:
-#
-#   mfatica@daint102:~> cat  .mypgirc
-#   set CUDAROOT=$HOME/cuda/8.0;
-#   export CUDAROOT=$HOME/cuda/8.0;
-#
-# The correct environment to load use is:
-#
-#   $ module load intel pgi cudatoolkit
 #   $ module swap PrgEnv-cray PrgEnv-pgi
+#   $ module load intel cudatoolkit
 #
-# For best performance currently, we suggest reverting the following commits and removing the -DCRAY flag
-# from DFLAGS before compilation:
-#
-#   git revert b86a695c1d64e1de1ce7f6d5eb699ae84a8e660a
-#   git add install/make.inc_CRAY_PizDaint
-#   git revert continue
-#   git revert a3cd8fdddc0f37b7306e0fd1291e42664317ed81
-#   git revert 68ee7449a1bf326d8aaba892225cf01baf8c9ad9
-#  
-# This reenables v_of_rho computations on the GPU. This process may require some merging and is suggested only for those 
-# comfortable with git. Hopefully this will not be required once compilers are updated on this system.
 
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 
 # See install/README.DFLAGS for a list of options and their meaning
-DFLAGS         = -DUSE_CUDA -D__FFTW -D__MPI -D__CRAY -D__MKL
+DFLAGS         = -D__OPENMP -DUSE_CUDA -D__FFTW -D__MPI -D__MKL
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
 IFLAGS         = -I$(TOPDIR)/include -I../include/ -I$(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve -I${MKLROOT}/include
@@ -73,19 +27,19 @@ F77            = pgf90
 
 GPU_ARCH=60
 
-CFLAGS         = -O3 -mp -Mpreprocess -fPIC $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O3 -mp -Mpreprocess -fPIC -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
-FFLAGS         = -O3 -Mpreprocess -fPIC
+CFLAGS         = -O3 -mp -Mpreprocess $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O3 -mp -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+FFLAGS         = -O3 -Mpreprocess
 
 LD             = ftn
 LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
-LD_LIBS        = -Mcudalib=cufft,cublas $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a $(CUDATOOLKIT_HOME)/lib64/libculibos.a $(CUDATOOLKIT_HOME)/lib64/libcusolver_static.a -lstdc++
+LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a
 
 MATH_LIBS      = -L${MKLROOT}/lib/intel64  -lmkl_intel_lp64 -lmkl_pgi_thread -lmkl_core -pgf90libs -mp -lpthread -lm -ldl
 
 EIGENSOLVER_VERSION     = 0.2-beta
 
-CUDADIR ?= /usr/local/cuda
+CUDADIR = $(CUDATOOLKIT_HOME)
 
 # Do not edit below this line
 -include install/make.check-cuda

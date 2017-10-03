@@ -189,7 +189,6 @@ subroutine force_cc_gpu (forcecc)
   igcc = get_igcc
 
   ! If calling PBE functional configuration, use GPU path
-#if !defined(__CRAY)
   if (iexch .eq. 1 .and. icorr .eq. 4 .and. (igcx .eq. 2 .or. igcx .eq. 3) .and. (igcc .eq. 2 .or. igcc .eq. 4)) then
     !TODO Might be able to remove some of these copies
     rho_core_d = rho_core
@@ -205,12 +204,6 @@ subroutine force_cc_gpu (forcecc)
     vxc_d = vxc
     deallocate(vxc)
   endif
-#else
-  allocate ( vxc(dfftp%nnr,nspin) )
-  CALL v_xc( rho, rho_core, rhog_core, etxc, vtxc, vxc)
-  vxc_d = vxc
-  deallocate(vxc)
-#endif
   !
   psic_d=cmplx(0, 0, DP)
   if (nspin == 1 .or. nspin == 4) then

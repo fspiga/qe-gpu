@@ -16,8 +16,6 @@ zhetrd_gpu.o : zhetrd_gpu.F90
 	pgf90 -c ${FLAGS2} ${OPTFLAGS}  $*.F90 -o $*.o
 dsytrd_gpu.o : dsytrd_gpu.F90
 	pgf90 -c ${FLAGS2} ${OPTFLAGS}  $*.F90 -o $*.o
-zhetrd_gpu.o : zhetrd_gpu.F90
-	pgf90 -c ${FLAGS2} ${OPTFLAGS}  $*.F90 -o $*.o
 %.o: %.cuf
 	pgf90 -c ${FLAGS} ${OPTFLAGS} $*.cuf -o $*.o
 %.o: %.F90
