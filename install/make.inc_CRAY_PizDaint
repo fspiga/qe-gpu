@@ -37,7 +37,7 @@ LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_e
 
 MATH_LIBS      = -L${MKLROOT}/lib/intel64  -lmkl_intel_lp64 -lmkl_pgi_thread -lmkl_core -pgf90libs -mp -lpthread -lm -ldl
 
-EIGENSOLVER_VERSION     = 0.2-beta
+EIGENSOLVER_VERSION     = 0.3
 
 CUDADIR = $(CUDATOOLKIT_HOME)
 

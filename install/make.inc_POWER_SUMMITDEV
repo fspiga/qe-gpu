@@ -37,7 +37,7 @@ LD_LIBS        =  -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_
 MATH_LIBS      = -L/sw/summitdev/essl/5.5.0-20161110/lib64 -lesslsmp -L/sw/summitdev/xl/20170404/xlf/16.1.0/lib  -lxlf90_r -lxl  -lxlfmath  -L/sw/summitdev/xl/20170404/xlsmp/5.1.0/lib  -lxlsmp   -llapack
 BLAS_LIBS_SWITCH = external
 
-EIGENSOLVER_VERSION     = 0.2-beta
+EIGENSOLVER_VERSION     = 0.3
 
 CUDADIR ?= $(CUDA_DIR)
 

@@ -30,7 +30,7 @@ LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_e
 
 MATH_LIBS      = -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -pgf90libs -lmkl_core -lmkl_pgi_thread
 
-EIGENSOLVER_VERSION	= 0.2-beta
+EIGENSOLVER_VERSION	= 0.3
 
 
 # Do not edit below this line

@@ -32,7 +32,7 @@ LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_e
 
 MATH_LIBS      = -L/opt/ibm/xlf/15.1.5/lib -lessl -lxl -lxlf90_r -lxlfmath -llapack -lblas
 
-EIGENSOLVER_VERSION     = 0.2-beta
+EIGENSOLVER_VERSION     = 0.3
 
 CUDADIR ?= /usr/local/cuda
 
