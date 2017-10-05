@@ -143,8 +143,9 @@ SUBROUTINE usnldiag_gpu (npw, h_diag, h_diag_d, s_diag, s_diag_d)
   COMPLEX(DP) :: ps1(2), ps2(2), ar
 
   INTEGER :: nhnt, i_ijkb0, istat
-  COMPLEX(DP) :: ps11, ps21
-  REAL(DP) :: timer
+  COMPLEX(DP) :: ps11, ps21, cv
+  REAL(DP) :: timer, sum1, sum2
+  CALL start_clock( 'usnldiag' )
   !
   ! initialise s_diag
   !
@@ -169,18 +170,23 @@ SUBROUTINE usnldiag_gpu (npw, h_diag, h_diag_d, s_diag, s_diag_d)
            i_ijkb0 = indv_ijkb0(na)
 !$cuf kernel do(1) <<<*,*>>>
               DO ig = 1, npw
+                 sum1 = 0.d0
+                 sum2 = 0.d0
 
                  DO ih = 1, nhnt
                     ikb = i_ijkb0 + ih
+                    cv = vkb_d(ig, ikb)
                     DO jh = 1, nhnt
                        jkb = i_ijkb0 + jh
                        ps11 = deeq_d (ih, jh, na, current_spin)
                        ps21 =   qq_d (ih, jh, nt)
-                       ar   =  vkb_d (ig, ikb) *conjg( vkb_d (ig, jkb))
-                       h_diag_d (ig,1) = h_diag_d (ig,1) + ps11 * ar
-                       s_diag_d (ig,1) = s_diag_d (ig,1) + ps21 * ar
+                       ar   =  cv *conjg( vkb_d (ig, jkb))
+                       sum1 = sum1 + dble(ps11 * ar)
+                       sum2 = sum2 + dble(ps21 * ar)
                     ENDDO
                  ENDDO
+                 h_diag_d (ig,1) = h_diag_d (ig,1) + sum1
+                 s_diag_d (ig,1) = s_diag_d (ig,1) + sum2
 
               ENDDO
 
@@ -194,15 +200,20 @@ SUBROUTINE usnldiag_gpu (npw, h_diag, h_diag_d, s_diag, s_diag_d)
            i_ijkb0 = indv_ijkb0(na)
 !$cuf kernel do(1) <<<*,*>>>
               DO ig = 1, npw
+                 sum1 = 0.d0
+                 sum2 = 0.d0
 
                  DO ih = 1, nhnt
                     ikb = i_ijkb0 + ih
                     ps11 = deeq_d (ih, ih, na, current_spin)
                     ps21 =   qq_d (ih, ih, nt)
-                    ar   =  vkb_d (ig, ikb) *conjg( vkb_d (ig, ikb))
-                    h_diag_d (ig,1) = h_diag_d (ig,1) + ps11 * ar
-                    s_diag_d (ig,1) = s_diag_d (ig,1) + ps21 * ar
+                    cv = vkb_d(ig, ikb)
+                    ar = cv * conjg(cv)
+                    sum1 = sum1 + dble(ps11 * ar)
+                    sum2 = sum2 + dble(ps21 * ar)
                  ENDDO
+                 h_diag_d (ig,1) = h_diag_d (ig,1) + sum1
+                 s_diag_d (ig,1) = s_diag_d (ig,1) + sum2
 
               ENDDO
 
@@ -213,6 +224,8 @@ SUBROUTINE usnldiag_gpu (npw, h_diag, h_diag_d, s_diag, s_diag_d)
 
   h_diag = h_diag_d
   s_diag = s_diag_d
+
+  CALL stop_clock( 'usnldiag' )
 
   RETURN
 END SUBROUTINE usnldiag_gpu

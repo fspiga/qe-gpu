@@ -685,6 +685,7 @@ gloop:    DO jg=iig,ngm_
     COMPLEX(DP), allocatable :: rhog_(:,:)
     INTEGER :: is, ig, igl, np, ierr, ngm_
     !
+    call start_clock("sym_rho")
     IF ( no_rho_sym) RETURN
 #if !defined(__MPI)
     !
@@ -730,6 +731,7 @@ gloop:    DO jg=iig,ngm_
     DEALLOCATE ( rhog_ )
 #endif
     !
+    call stop_clock("sym_rho")
     RETURN
   END SUBROUTINE sym_rho
   !
@@ -762,6 +764,7 @@ gloop:    DO jg=iig,ngm_
     !
     ! convert fractional translations to cartesian, in a0 units
     !
+    call start_clock("sym_rho_serial")
     DO ns=1,nsym
        non_symmorphic(ns) = ( ft(1,ns) /= 0.0_dp .OR. &
                               ft(2,ns) /= 0.0_dp .OR. &
@@ -911,6 +914,7 @@ gloop:    DO jg=iig,ngm_
        END DO
        DEALLOCATE ( done, g0 )
     END DO
+    call stop_clock("sym_rho_serial")
     !
     RETURN
   END SUBROUTINE sym_rho_serial

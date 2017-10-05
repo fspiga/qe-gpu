@@ -273,10 +273,17 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 #ifdef USE_GPU
       if( cpu_path == 0 ) then
 
+#ifdef USE_GPU_MPI
+        call zhegvdx_gpu(n, h, ldh, s, ldh, v, ldh, 1, m, e, work_d,&
+                         lwork_d, rwork_d, lrwork_d, &
+                         work, lwork, rwork, lrwork, &
+                         iwork, liwork, v_h, size(v_h, 1), e_h, info, .TRUE.)
+#else
         call zhegvdx_gpu(n, h, ldh, s, ldh, v, ldh, 1, m, e, work_d,&
                          lwork_d, rwork_d, lrwork_d, &
                          work, lwork, rwork, lrwork, &
                          iwork, liwork, v_h, size(v_h, 1), e_h, info)
+#endif
 
         ! Note: if zhegvdx_gpu fails, info = -1
         mm = m
@@ -356,6 +363,7 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   !
 #ifdef USE_GPU
 #ifdef USE_GPU_MPI
+  istat = cudaDeviceSynchronize()
   CALL mp_bcast( e(1:n), root_bgrp, intra_bgrp_comm )
   CALL mp_bcast( v(1:ldh,1:m), root_bgrp, intra_bgrp_comm )
 #else
