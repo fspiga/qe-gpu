@@ -116,10 +116,20 @@ SUBROUTINE start_clock( label )
   CHARACTER(len=12) :: label_
   INTEGER          :: n
   REAL(DP), EXTERNAL :: scnds, cclock
+#ifdef USE_CUDA
+  INTEGER :: istat
+  INTEGER(kind=8) :: freeMem, totalMem
+#endif
   !
 #if defined (__TRACE)
   WRITE( stdout, '("mpime = ",I2,", TRACE (depth=",I2,") Start: ",A12)') mpime, trace_depth, label
   trace_depth = trace_depth + 1
+#ifdef USE_CUDA
+  istat = cudaDeviceSynchronize
+  istat = CudaMemGetInfo(freeMem, totalMem)
+  print*, "GPU Memory :", freeMem/10.d0**6, " MB free / ", totalMem/10.d0**6, " MB avail"
+  flush(6)
+#endif
 #endif
   !
   IF ( no .and. ( nclock == 1 ) ) RETURN
