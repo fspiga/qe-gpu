@@ -95,6 +95,9 @@ SUBROUTINE read_upf_v2(u, upf, grid, ierr)             !
    IF(.not. upf%tcoulombp) THEN
       ALLOCATE( upf%vloc(upf%mesh) )
       CALL iotk_scan_dat(u, 'PP_LOCAL', upf%vloc)
+#ifdef USE_CUDA
+  ALLOCATE(upf%vloc_d(upf%mesh), source=upf%vloc)
+#endif
    ENDIF
    ! Read nonlocal components: projectors, augmentation, hamiltonian elements
    CALL read_upf_nonlocal(u, upf)

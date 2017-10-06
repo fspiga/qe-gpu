@@ -367,6 +367,10 @@ subroutine read_pseudo_local (upf, iunps)
 
   read (iunps, *, err=100, end=100) (upf%vloc(ir) , ir=1,upf%mesh )
 
+#ifdef USE_CUDA
+  ALLOCATE(upf%vloc_d(upf%mesh), source=upf%vloc)
+#endif
+
   return
 
 100 call errore ('read_pseudo_local','Reading pseudo file', 1)
