@@ -622,6 +622,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
            !
            first = .FALSE.
            !
+#ifndef NO_REPEAT
            IF ( dr2 < tr2_min ) THEN
               !
               WRITE( stdout, '(/,5X,"Threshold (ethr) on eigenvalues was ", &
@@ -633,6 +634,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
               CYCLE scf_step
               !
            END IF
+#endif
            !
         END IF
         !

@@ -136,7 +136,11 @@ SUBROUTINE mix_rho( input_rhout, rhoin, alphamix, dr2, tr2_min, iter, n_iter,&
   !
   conv = ( dr2 < tr2 )
   !
+#ifndef NO_REPEAT
   IF ( conv .OR. dr2 < tr2_min ) THEN
+#else
+  IF ( conv) THEN
+#endif
      !
      ! ... if convergence is achieved or if the self-consistency error (dr2) is
      ! ... smaller than the estimated error due to diagonalization (tr2_min),
