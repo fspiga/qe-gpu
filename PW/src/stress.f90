@@ -64,7 +64,11 @@ subroutine stress ( sigma )
   !
   !  hartree contribution
   !
+#ifdef USE_CUDA
+  call stres_har_gpu (sigmahar)
+#else
   call stres_har (sigmahar)
+#endif
   !
   !  xc contribution (diagonal)
   !
@@ -81,7 +85,11 @@ subroutine stress ( sigma )
   !
   ! core correction contribution
   !
+#ifdef USE_CUDA
+  call stres_cc_gpu (sigmaxcc)
+#else
   call stres_cc (sigmaxcc)
+#endif
   !
   !  ewald contribution
   !
