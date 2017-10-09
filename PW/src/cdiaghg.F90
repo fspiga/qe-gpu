@@ -177,11 +177,11 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
   IF( .not. ALLOCATED( work   ) ) ALLOCATE( work( max_lwork )   )
   IF( .not. ALLOCATED( rwork  ) ) ALLOCATE( rwork( max_lrwork )  )
   IF( .not. ALLOCATED( iwork  ) ) ALLOCATE( iwork( max_liwork )  )
-  IF( .not. ALLOCATED( ifail  ) ) ALLOCATE( ifail( 2*ldh )  )
-  IF( .not. ALLOCATED( hdiag  ) ) ALLOCATE( hdiag( 2*ldh )  )
-  IF( .not. ALLOCATED( sdiag  ) ) ALLOCATE( sdiag( 2*ldh )  )
-  IF( .not. ALLOCATED( h_temp ) ) ALLOCATE( h_temp(ldh,2*ldh) )
-  IF( .not. ALLOCATED( s_temp ) ) ALLOCATE( s_temp(ldh,2*ldh) )
+  IF( .not. ALLOCATED( ifail  ) ) ALLOCATE( ifail( ldh )  )
+  IF( .not. ALLOCATED( hdiag  ) ) ALLOCATE( hdiag( ldh )  )
+  IF( .not. ALLOCATED( sdiag  ) ) ALLOCATE( sdiag( ldh )  )
+  IF( .not. ALLOCATED( h_temp ) ) ALLOCATE( h_temp(ldh,ldh) )
+  IF( .not. ALLOCATED( s_temp ) ) ALLOCATE( s_temp(ldh,ldh) )
 
 #ifdef USE_GPU
   IF( cpu_path==0 ) THEN
@@ -192,8 +192,8 @@ SUBROUTINE MY_ROUTINE( cdiaghg )( n, m, h, s, ldh, e, v )
 
      IF( .not. ALLOCATED( work_d   ) ) ALLOCATE( work_d( max_lwork_d )   )
      IF( .not. ALLOCATED( rwork_d  ) ) ALLOCATE( rwork_d( max_lrwork_d ) )
-     IF( .not. ALLOCATED( hdiag_d  ) ) ALLOCATE( hdiag_d( 2*ldh )        )
-     IF( .not. ALLOCATED( sdiag_d  ) ) ALLOCATE( sdiag_d( 2*ldh )        )
+     IF( .not. ALLOCATED( hdiag_d  ) ) ALLOCATE( hdiag_d( ldh )        )
+     IF( .not. ALLOCATED( sdiag_d  ) ) ALLOCATE( sdiag_d( ldh )        )
   ENDIF
 #endif
 
