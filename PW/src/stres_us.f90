@@ -22,6 +22,9 @@ SUBROUTINE stres_us( ik, gk, sigmanlc )
   USE control_flags,        ONLY : gamma_only
   USE uspp_param,           ONLY : upf, lmaxkb, nh, newpseudo, nhm
   USE uspp,                 ONLY : nkb, vkb, qq, deeq, deeq_nc, qq_so
+#ifdef USE_CUDA
+  USE uspp,                 ONLY : vkb_d
+#endif
   USE wavefunctions_module, ONLY : evc
   USE spin_orb,             ONLY : lspinorb
   USE lsda_mod,             ONLY : nspin
@@ -47,6 +50,11 @@ SUBROUTINE stres_us( ik, gk, sigmanlc )
   !
   IF ( lsda ) current_spin = isk(ik)
   npw = ngk(ik)
+
+#ifdef USE_CUDA
+  vkb = vkb_d
+#endif
+
   IF ( nks > 1 ) CALL init_us_2( npw, igk_k(1,ik), xk(1,ik), vkb )
   !
   CALL allocate_bec_type ( nkb, nbnd, becp, intra_bgrp_comm ) 

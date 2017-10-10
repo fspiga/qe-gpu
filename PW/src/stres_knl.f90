@@ -23,6 +23,9 @@ subroutine stres_knl (sigmanlc, sigmakin)
   USE control_flags,        ONLY: gamma_only
   USE noncollin_module,     ONLY: noncolin, npol
   USE wavefunctions_module, ONLY: evc
+#ifdef USE_CUDA
+  USE wavefunctions_module, ONLY: evc_d
+#endif
   USE mp_pools,             ONLY: inter_pool_comm
   USE mp_bands,             ONLY: intra_bgrp_comm
   USE mp,                   ONLY: mp_sum
@@ -40,6 +43,10 @@ subroutine stres_knl (sigmanlc, sigmakin)
   twobysqrtpi = 2.d0 / sqrt (pi)
 
   kfac(:) = 1.d0
+
+#ifdef USE_CUDA
+  evc = evc_d
+#endif
 
   do ik = 1, nks
      if (nks > 1) &

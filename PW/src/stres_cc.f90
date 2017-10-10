@@ -193,6 +193,7 @@ subroutine stres_cc_gpu (sigmaxcc)
   endif
   deallocate (vxc_d)
 
+
   CALL fwfft ('Dense', psic, dfftp)
   !
   ! psic contains now Vxc(G)
@@ -248,15 +249,15 @@ subroutine stres_cc_gpu (sigmaxcc)
            s33 = s33 + tmpf* g(3,ng) * g(3,ng)
         enddo
 
-        sigmaxcc(1,1) = s11
-        sigmaxcc(1,2) = s12
-        sigmaxcc(1,3) = s13
-        sigmaxcc(2,1) = s21
-        sigmaxcc(2,2) = s22
-        sigmaxcc(2,3) = s23
-        sigmaxcc(3,1) = s31
-        sigmaxcc(3,2) = s32
-        sigmaxcc(3,3) = s33
+        sigmaxcc(1,1) = sigmaxcc(1,1) + s11
+        sigmaxcc(1,2) = sigmaxcc(1,2) + s12
+        sigmaxcc(1,3) = sigmaxcc(1,3) + s13
+        sigmaxcc(2,1) = sigmaxcc(2,1) + s21
+        sigmaxcc(2,2) = sigmaxcc(2,2) + s22
+        sigmaxcc(2,3) = sigmaxcc(2,3) + s23
+        sigmaxcc(3,1) = sigmaxcc(3,1) + s31
+        sigmaxcc(3,2) = sigmaxcc(3,2) + s32
+        sigmaxcc(3,3) = sigmaxcc(3,3) + s33
      endif
   enddo
 
