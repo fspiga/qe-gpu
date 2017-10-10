@@ -97,6 +97,7 @@ addusstress.o : ../../Modules/ions_base.o
 addusstress.o : ../../Modules/kind.o
 addusstress.o : ../../Modules/recvec.o
 addusstress.o : ../../Modules/uspp.o
+addusstress.o : addusdens.o
 addusstress.o : pwcom.o
 addusstress.o : scf_mod.o
 allocate_fft.o : ../../Modules/control_flags.o
