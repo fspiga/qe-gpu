@@ -366,6 +366,7 @@ data_structure_custom.o : ../../Modules/mp.o
 data_structure_custom.o : ../../Modules/mp_bands.o
 data_structure_custom.o : ../../Modules/recvec.o
 data_structure_custom.o : pwcom.o
+deriv_drhoc.o : drhoc.o
 deriv_drhoc.o : ../../Modules/constants.o
 deriv_drhoc.o : ../../Modules/kind.o
 divide.o : ../../Modules/mp.o
