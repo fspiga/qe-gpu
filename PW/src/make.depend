@@ -668,6 +668,7 @@ gen_us_dj.o : ../../Modules/recvec.o
 gen_us_dj.o : ../../Modules/splinelib.o
 gen_us_dj.o : ../../Modules/uspp.o
 gen_us_dj.o : pwcom.o
+gen_us_dj.o : addusdens.o
 gen_us_dy.o : ../../Modules/cell_base.o
 gen_us_dy.o : ../../Modules/constants.o
 gen_us_dy.o : ../../Modules/io_global.o
@@ -677,6 +678,7 @@ gen_us_dy.o : ../../Modules/recvec.o
 gen_us_dy.o : ../../Modules/splinelib.o
 gen_us_dy.o : ../../Modules/uspp.o
 gen_us_dy.o : pwcom.o
+gen_us_dy.o : addusdens.o
 generate_rVV10_kernel_table.o : ../../Modules/constants.o
 generate_rVV10_kernel_table.o : ../../Modules/io_global.o
 generate_rVV10_kernel_table.o : ../../Modules/kind.o

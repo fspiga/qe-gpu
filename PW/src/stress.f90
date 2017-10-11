@@ -118,7 +118,11 @@ subroutine stress ( sigma )
   !
   !  kinetic + nonlocal contribuition
   !
+#ifdef USE_CUDA
+  call stres_knl_gpu (sigmanlc, sigmakin)
+#else
   call stres_knl (sigmanlc, sigmakin)
+#endif
   !
   do l = 1, 3
      do m = 1, 3

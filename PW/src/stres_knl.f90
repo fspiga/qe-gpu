@@ -142,6 +142,8 @@ subroutine stres_knl_gpu (sigmanlc, sigmakin)
   USE wavefunctions_module, ONLY: evc
 #ifdef USE_CUDA
   USE wavefunctions_module, ONLY: evc_d
+  USE becmod,               ONLY : allocate_bec_type, deallocate_bec_type, &
+                                   bec_type, becp
 #endif
   USE mp_pools,             ONLY: inter_pool_comm
   USE mp_bands,             ONLY: intra_bgrp_comm
@@ -162,10 +164,6 @@ subroutine stres_knl_gpu (sigmanlc, sigmakin)
   twobysqrtpi = 2.d0 / sqrt (pi)
 
   kfac(:) = 1.d0
-
-#ifdef USE_CUDA
-  evc = evc_d
-#endif
 
   do ik = 1, nks
      if (nks > 1) then
@@ -226,9 +224,10 @@ subroutine stres_knl_gpu (sigmanlc, sigmakin)
      !
      !  contribution from the  nonlocal part
      !
-     !call stres_us (ik, gk, sigmanlc)
+     call stres_us_gpu (ik, gk, sigmanlc)
 
   enddo
+  CALL deallocate_bec_type ( becp )
   !
   ! add the US term from augmentation charge derivatives
   !
