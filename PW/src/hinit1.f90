@@ -29,7 +29,11 @@ SUBROUTINE hinit1()
   USE paw_variables, ONLY : okpaw, ddd_paw
   USE paw_onecenter, ONLY : paw_potential
   USE paw_symmetry,  ONLY : paw_symmetrize_ddd
+#ifdef USE_CUDA
+  USE dfunct,        ONLY : newd_gpu
+#else
   USE dfunct,        ONLY : newd
+#endif
   !
   IMPLICIT NONE
   !
@@ -62,7 +66,11 @@ SUBROUTINE hinit1()
      CALL PAW_symmetrize_ddd(ddd_paw)
   ENDIF
   ! 
+#ifdef USE_CUDA
+  CALL newd_gpu()
+#else
   CALL newd()
+#endif
   !
   ! ... and recalculate the products of the S with the atomic wfcs used 
   ! ... in LDA+U calculations

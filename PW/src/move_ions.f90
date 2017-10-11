@@ -55,6 +55,9 @@ SUBROUTINE move_ions ( idone )
                                      fcp_relax_crit
   USE klist,                  ONLY : nelec
   USE dfunct,                 only : newd
+#ifdef USE_CUDA
+  USE dfunct,                 only : newd_gpu
+#endif
   !
   IMPLICIT NONE
   !
@@ -362,7 +365,11 @@ SUBROUTINE move_ions ( idone )
      ! ... re-initialize the potential (no need to re-initialize wavefunctions)
      !
      CALL potinit()
+#ifdef USE_CUDA
+     CALL newd_gpu()
+#else
      CALL newd()
+#endif
      !!! CALL wfcinit()
      !
   END IF

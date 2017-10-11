@@ -613,6 +613,11 @@ SUBROUTINE extrapolate_charge( rho_extr )
      rho%of_g = rho%of_g / charge*nelec
      !
   END IF
+
+#ifdef USE_CUDA
+    rho%of_r_d = rho%of_r
+    rho%of_g_d = rho%of_g
+#endif
   !
   RETURN
   !
@@ -668,6 +673,7 @@ SUBROUTINE extrapolate_wfcs( wfc_extr )
     ! real version of sp_m
   LOGICAL :: exst
   !
+  print*, "in extrapolate wfcs!"
   CALL mp_barrier( intra_image_comm ) ! debug
   !
   IF ( wfc_extr == 1 ) THEN
@@ -846,6 +852,7 @@ SUBROUTINE extrapolate_wfcs( wfc_extr )
   !
   CALL mp_barrier( intra_image_comm ) ! debug
   !
+  print*, "exiting extrapolate_wfcs"
   RETURN
   !
 END SUBROUTINE extrapolate_wfcs

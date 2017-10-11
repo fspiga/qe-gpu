@@ -362,17 +362,6 @@ CONTAINS
     IF( ALLOCATED( indv_ijkb0 ) ) DEALLOCATE( indv_ijkb0 )
     IF( ALLOCATED( ijtoh ) )      DEALLOCATE( ijtoh )
     IF( ALLOCATED( vkb ) )        DEALLOCATE( vkb )
-#ifdef USE_CUDA
-    IF( ALLOCATED( indv_ijkb0_d ) ) DEALLOCATE( indv_ijkb0_d )
-    IF( ALLOCATED( nhtol_d ) )      DEALLOCATE( nhtol_d )
-    IF( ALLOCATED( indv_d ) )       DEALLOCATE( indv_d )
-    IF( ALLOCATED( nhtolm_d ) )     DEALLOCATE( nhtolm_d )
-
-    IF( ALLOCATED( vkb_d ) )      DEALLOCATE( vkb_d )
-    IF( ALLOCATED( deeq_d ) )     DEALLOCATE( deeq_d )
-    IF( ALLOCATED( qq_d ) )         DEALLOCATE( qq_d )
-    IF( ALLOCATED( becsum_d ) )     DEALLOCATE( becsum_d )
-#endif
     IF( ALLOCATED( becsum ) )     DEALLOCATE( becsum )
     IF( ALLOCATED( qq ) )         DEALLOCATE( qq )
     IF( ALLOCATED( dvan ) )       DEALLOCATE( dvan )
@@ -382,6 +371,18 @@ CONTAINS
     IF( ALLOCATED( deeq_nc ) )    DEALLOCATE( deeq_nc )
     IF( ALLOCATED( beta ) )       DEALLOCATE( beta )
     IF( ALLOCATED( dbeta ) )      DEALLOCATE( dbeta )
+
+#ifdef USE_CUDA
+    IF( ALLOCATED( nhtol_d ) )      DEALLOCATE( nhtol_d )
+    IF( ALLOCATED( indv_d ) )       DEALLOCATE( indv_d )
+    IF( ALLOCATED( nhtolm_d ) )     DEALLOCATE( nhtolm_d )
+    IF( ALLOCATED( indv_ijkb0_d ) ) DEALLOCATE( indv_ijkb0_d )
+
+    IF( ALLOCATED( vkb_d ) )      DEALLOCATE( vkb_d )
+    IF( ALLOCATED( deeq_d ) )     DEALLOCATE( deeq_d )
+    IF( ALLOCATED( qq_d ) )         DEALLOCATE( qq_d )
+    IF( ALLOCATED( becsum_d ) )     DEALLOCATE( becsum_d )
+#endif
     !
   END SUBROUTINE deallocate_uspp
   !

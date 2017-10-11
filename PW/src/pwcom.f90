@@ -91,7 +91,8 @@ CONTAINS
   IF ( ALLOCATED( ngk ) )        DEALLOCATE( ngk )
   IF ( ALLOCATED( igk_k ) )      DEALLOCATE( igk_k )
 #ifdef USE_CUDA
-  IF (ALLOCATED(igk_k_d)) DEALLOCATE ( igk_k_d)
+  IF ( ALLOCATED( ngk_d ) )      DEALLOCATE( ngk_d )
+  IF ( ALLOCATED(igk_k_d))       DEALLOCATE ( igk_k_d)
 #endif
   END SUBROUTINE deallocate_igk
 

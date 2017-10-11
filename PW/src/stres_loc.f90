@@ -175,7 +175,7 @@ subroutine stres_loc (sigmaloc)
     psic(l) = psic(l) + rho_of_r_d (l, is)
    enddo
   enddo
- 
+
 #else
 
   psic(:)=(0.d0,0.d0)
@@ -200,7 +200,7 @@ subroutine stres_loc (sigmaloc)
 #endif
      do ng = gstart, ngm
         if (ng==2 .and. gstart==2) evloc = evloc + &
-                 psic (nl (1) ) * strf (1, nt) * vloc (igtongl (1), nt)
+                 DBLE( psic (nl (1) ) * strf (1, nt) ) * vloc (igtongl (1), nt)
         evloc = evloc +  DBLE (CONJG(psic (nl (ng) ) ) * strf (ng, nt) ) &
              * vloc (igtongl (ng), nt) * fact
      enddo
@@ -236,6 +236,7 @@ subroutine stres_loc (sigmaloc)
         ! normal case: dvloc contains dV_loc(G)/dG
         !
 #ifdef USE_CUDA
+
         threads = dim3(32, 8, 1)
         blocks = ceiling(real(ngl)/8)  ! The loop goes from 1 to ngl,
         call dvloc_of_g_gpu <<<blocks, threads>>>  (rgrid(nt)%mesh, msh (nt), rgrid(nt)%rab_d, rgrid(nt)%r_d,&

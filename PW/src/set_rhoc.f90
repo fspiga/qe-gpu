@@ -24,6 +24,9 @@ subroutine set_rhoc
   USE fft_interfaces,ONLY : invfft
   USE gvect,     ONLY : ngm, nl, nlm, ngl, gl, igtongl
   USE scf,       ONLY : rho_core, rhog_core, scf_type
+#ifdef USE_CUDA
+  USE scf,       ONLY : rho_core_d, rhog_core_d
+#endif
   USE lsda_mod,  ONLY : nspin
   USE vlocal,    ONLY : strf
   USE control_flags, ONLY : gamma_only
@@ -141,6 +144,11 @@ subroutine set_rhoc
   !
   deallocate (rhocg)
   deallocate (aux)
+
+#ifdef USE_CUDA
+  rho_core_d = rho_core
+  rhog_core_d = rhog_core
+#endif
   !
   return
 

@@ -63,7 +63,12 @@ subroutine init_vloc()
   enddo
 
 #ifdef USE_CUDA
-  ALLOCATE(vloc_d, source=vloc)
+ if(.not. allocated(vloc_d)) then
+   ALLOCATE(vloc_d, source=vloc)
+ else
+   vloc_d = vloc
+ endif
+
 #endif
   call stop_clock ('init_vloc')
   return

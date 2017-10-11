@@ -27,6 +27,10 @@ subroutine scale_h
   USE funct,      ONLY : dft_is_hybrid
   USE mp,         ONLY : mp_max
   USE mp_bands,   ONLY : intra_bgrp_comm
+#ifdef USE_CUDA
+  USE gvect,      ONLY : g_d, gg_d
+  USE us,         ONLY : qrad_d, tab_d
+#endif
   !
   implicit none
   !
@@ -90,6 +94,13 @@ subroutine scale_h
   !
   IF ( dft_is_hybrid() ) CALL exx_grid_reinit()
   !
+#ifdef USE_CUDA
+  g_d = g
+  gg_d = gg
+  tab_d = tab
+  qrad_d = qrad
+#endif
+
   return
 end subroutine scale_h
 

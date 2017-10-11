@@ -38,7 +38,7 @@ SUBROUTINE clean_pw( lflag )
                                    vrs, kedtau, destroy_scf_type, vnew
   USE symm_base,            ONLY : irt
   USE symme,                ONLY : sym_rho_deallocate
-  USE wavefunctions_module, ONLY : evc, psic, psic_nc
+  USE wavefunctions_module, ONLY : evc, psic, psic_batch, psic_nc
   USE us,                   ONLY : qrad, tab, tab_at, tab_d2y, spline_ps
   USE uspp,                 ONLY : deallocate_uspp
   USE uspp_param,           ONLY : upf
@@ -69,12 +69,16 @@ SUBROUTINE clean_pw( lflag )
   !
 #ifdef USE_CUDA
   USE vlocal,               ONLY : strf_d,vloc_d
-  USE wavefunctions_module, ONLY : evc_d, psic_d
+  USE wavefunctions_module, ONLY : evc_d, psic_d, psic_batch_d
   USE gvect,                ONLY : g_d, gg_d, nl_d, mill_d, &
-                                   eigts1_d, eigts2_d, eigts3_d
+                                   eigts1_d, eigts2_d, eigts3_d, igtongl_d, gl_d
   USE gvecs,                ONLY : nls_d
   USE wvfct,                ONLY : g2kin_d, et_d, wg_d
   USE us,                   ONLY : qrad_d, tab_d, tab_d2y_d
+  USE fft_parallel,         ONLY : f_h, aux_h, aux_d, aux2_h, aux2_d
+  USE scf,                  ONLY : vltot_d, vrs_d, rho_core_d, rhog_core_d
+  USE wvfct,                ONLY : psi_d, hpsi_d, spsi_d, comm_h_c, comm_s_c
+  USE wvfct,                ONLY : hc_d, sc_d, vc_d, vc_temp_d, ew_d, conv_d, conv_idx_d
 #endif
   IMPLICIT NONE
   !
@@ -121,6 +125,9 @@ SUBROUTINE clean_pw( lflag )
   IF ( ALLOCATED( ig_l2g ) )     DEALLOCATE( ig_l2g )
   IF ( .NOT. lmovecell ) THEN
      IF ( ASSOCIATED( gl ) )     DEALLOCATE ( gl )
+#ifdef USE_CUDA
+     IF ( ASSOCIATED( gl_d ) )   DEALLOCATE ( gl_d )
+#endif
   END IF
   !
   CALL sym_rho_deallocate ( )
@@ -137,6 +144,7 @@ SUBROUTINE clean_pw( lflag )
   IF ( ALLOCATED( g_d ) )          DEALLOCATE( g_d )
   IF ( ALLOCATED( gg_d ) )         DEALLOCATE( gg_d )
   IF ( ALLOCATED( nl_d ) )         DEALLOCATE( nl_d )
+  IF ( ALLOCATED( igtongl_d ) )    DEALLOCATE( igtongl_d )  
   IF ( ALLOCATED( mill_d ) )       DEALLOCATE( mill_d )
 #endif
   call destroy_scf_type(rho)
@@ -147,6 +155,7 @@ SUBROUTINE clean_pw( lflag )
   IF ( ALLOCATED( rho_core ) )   DEALLOCATE( rho_core )
   IF ( ALLOCATED( rhog_core ) )  DEALLOCATE( rhog_core )
   IF ( ALLOCATED( psic ) )       DEALLOCATE( psic )
+  IF ( ALLOCATED (psic_batch ) ) DEALLOCATE( psic_batch )
   IF ( ALLOCATED( psic_nc ) )    DEALLOCATE( psic_nc )
   IF ( ALLOCATED( vrs ) )        DEALLOCATE( vrs )
   if (spline_ps) then
@@ -159,8 +168,18 @@ SUBROUTINE clean_pw( lflag )
   IF ( ALLOCATED( nlsm ) )   DEALLOCATE( nlsm )
 
 #ifdef USE_CUDA
-  IF ( ALLOCATED( psic_d ) )       DEALLOCATE( psic_d )
-  IF ( ALLOCATED( nls_d ) )     DEALLOCATE( nls_d )
+  IF ( ALLOCATED( psic_d ) )        DEALLOCATE( psic_d )
+  IF ( ALLOCATED( nls_d ) )         DEALLOCATE( nls_d )
+  IF ( ALLOCATED( psic_batch_d ) )  DEALLOCATE( psic_batch_d )
+  IF ( ALLOCATED( f_h ) )           DEALLOCATE( f_h )
+  IF ( ALLOCATED( aux_h ) )         DEALLOCATE( aux_h )
+  IF ( ALLOCATED( aux_d ) )         DEALLOCATE( aux_d )
+  IF ( ALLOCATED( aux2_h ) )        DEALLOCATE( aux2_h )
+  IF ( ALLOCATED( aux2_d ) )        DEALLOCATE( aux2_d )
+  IF ( ALLOCATED( vltot_d ) )       DEALLOCATE( vltot_d )
+  IF ( ALLOCATED( rho_core_d ) )    DEALLOCATE( rho_core_d )
+  IF ( ALLOCATED( rhog_core_d ) )   DEALLOCATE( rhog_core_d )
+  IF ( ALLOCATED( vrs_d ) )         DEALLOCATE( vrs_d )
 #endif
   !
   ! ... arrays allocated in allocate_locpot.f90 ( and never deallocated )
@@ -184,9 +203,6 @@ SUBROUTINE clean_pw( lflag )
   IF ( ALLOCATED( qrad ) )       DEALLOCATE( qrad )
   IF ( ALLOCATED( tab ) )        DEALLOCATE( tab )
   IF ( ALLOCATED( tab_at ) )     DEALLOCATE( tab_at )
-#ifdef USE_CUDA
-  IF ( ALLOCATED( tab_d ) )        DEALLOCATE( tab_d )
-#endif
   IF ( lspinorb ) THEN
      IF ( ALLOCATED( fcoef ) )   DEALLOCATE( fcoef )
   END IF
@@ -194,6 +210,7 @@ SUBROUTINE clean_pw( lflag )
 #ifdef USE_CUDA
   IF ( ALLOCATED( g2kin_d ) )      DEALLOCATE( g2kin_d )
   IF ( ALLOCATED( qrad_d ) )       DEALLOCATE( qrad_d )
+  IF ( ALLOCATED( tab_d ) )        DEALLOCATE( tab_d )
 #endif
   CALL deallocate_igk ( )
   CALL deallocate_uspp() 
@@ -217,7 +234,20 @@ SUBROUTINE clean_pw( lflag )
   IF ( ALLOCATED( evc ) )        DEALLOCATE( evc )
   IF ( ALLOCATED( swfcatom ) )   DEALLOCATE( swfcatom )
 #ifdef USE_CUDA
-  IF ( ALLOCATED( evc_d ) )        DEALLOCATE( evc_d )
+  IF ( ALLOCATED( evc_d ) )      DEALLOCATE( evc_d )
+  IF ( ALLOCATED( psi_d ) )      DEALLOCATE( psi_d )
+  IF ( ALLOCATED( hpsi_d ) )     DEALLOCATE( hpsi_d )
+  IF ( ALLOCATED( spsi_d ) )     DEALLOCATE( spsi_d )
+  IF ( ALLOCATED( comm_h_c ) )   DEALLOCATE( comm_h_c )
+  IF ( ALLOCATED( comm_s_c ) )   DEALLOCATE( comm_s_c )
+  IF ( ALLOCATED( hc_d ) )       DEALLOCATE( hc_d )
+  IF ( ALLOCATED( sc_d ) )       DEALLOCATE( sc_d )
+  IF ( ALLOCATED( vc_d ) )       DEALLOCATE( vc_d )
+  IF ( ALLOCATED( vc_temp_d ) )  DEALLOCATE( vc_temp_d )
+  IF ( ALLOCATED( ew_d ) )       DEALLOCATE( ew_d ) 
+  IF ( ALLOCATED( conv_d ) )     DEALLOCATE( conv_d )
+  IF ( ALLOCATED( conv_idx_d ) ) DEALLOCATE( conv_idx_d )
+
 #endif
   !
   ! ... fft structures allocated in data_structure.f90  

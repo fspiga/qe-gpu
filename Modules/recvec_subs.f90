@@ -371,7 +371,7 @@ SUBROUTINE gshells ( vc )
    USE kinds,              ONLY : DP
    USE gvect,              ONLY : gg, ngm, gl, ngl, igtongl
 #ifdef USE_CUDA
-   USE gvect,              ONLY : gl_d, igtongl_d
+   USE gvect,              ONLY : gl_d, gg_d, igtongl_d
 #endif
    USE constants,          ONLY : eps8
    !
@@ -387,6 +387,9 @@ SUBROUTINE gshells ( vc )
       !
       ngl = ngm
       gl => gg
+#ifdef USE_CUDA
+      gl_d => gg_d
+#endif
       DO ng = 1, ngm
          igtongl (ng) = ng
       ENDDO
@@ -415,11 +418,13 @@ SUBROUTINE gshells ( vc )
 
       IF (igl /= ngl) CALL errore ('gshells', 'igl <> ngl', ngl)
 
-   ENDIF
-
 #ifdef USE_CUDA
-  igtongl_d = igtongl
-  allocate(gl_d, source=gl)
+      allocate(gl_d, source = gl)
 #endif
+   ENDIF
+#ifdef USE_CUDA
+   igtongl_d = igtongl
+#endif
+
 
    END SUBROUTINE gshells
