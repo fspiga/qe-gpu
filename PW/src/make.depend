@@ -545,6 +545,7 @@ force_corr.o : ../../Modules/mp_bands.o
 force_corr.o : ../../Modules/recvec.o
 force_corr.o : ../../Modules/uspp.o
 force_corr.o : ../../Modules/wavefunctions.o
+force_corr.o : atomic_rho.o
 force_corr.o : pwcom.o
 force_corr.o : scf_mod.o
 force_ew.o : ../../Modules/constants.o

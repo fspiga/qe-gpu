@@ -412,6 +412,9 @@ SUBROUTINE extrapolate_charge( rho_extr )
   INTEGER, INTENT(IN) :: rho_extr
   !
   REAL(DP), ALLOCATABLE :: work(:,:), work1(:,:)
+#ifdef USE_CUDA
+  REAL(DP), ALLOCATABLE, DEVICE :: work_d(:,:)
+#endif
     ! work  is the difference between rho and atomic rho at time t
     ! work1 is the same thing at time t-dt
   REAL(DP) :: charge
@@ -450,6 +453,9 @@ SUBROUTINE extrapolate_charge( rho_extr )
   ELSE
      ! 
      ALLOCATE( work( dfftp%nnr, 1 ) )
+#ifdef USE_CUDA
+     ALLOCATE( work_d( dfftp%nnr, 1 ) )
+#endif
      !
      work = 0.D0
      !
@@ -480,7 +486,12 @@ SUBROUTINE extrapolate_charge( rho_extr )
      !
      ! ... subtract the old atomic charge density
      !
+#ifdef USE_CUDA
+     CALL atomic_rho_gpu( work_d, 1 )
+     work = work_d
+#else
      CALL atomic_rho( work, 1 )
+#endif
      !
      rho%of_r(:,1) = rho%of_r(:,1) - work(:,1)
      !
@@ -560,7 +571,12 @@ SUBROUTINE extrapolate_charge( rho_extr )
      !
      ! ... add atomic charges in the new positions
      !
+#ifdef USE_CUDA
+     CALL atomic_rho_gpu( work_d, 1 )
+     work = work_d
+#else
      CALL atomic_rho( work, 1 )
+#endif
      !
      rho%of_r(:,1) = rho%of_r(:,1) + work(:,1)
      !
@@ -587,6 +603,9 @@ SUBROUTINE extrapolate_charge( rho_extr )
      END IF
      !
      DEALLOCATE( work )
+#ifdef USE_CUDA
+     DEALLOCATE( work_d )
+#endif
      !
   END IF
   !

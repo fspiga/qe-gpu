@@ -6,68 +6,6 @@
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
 !
-#ifdef USE_CUDA
-module compute_rhocgnt_gpu_m
-contains
-  attributes(global) subroutine  compute_rhocgnt_gpu(n, mesh, tpiba, gl, r, rho_at, rab, rhocgnt)
-  use cudafor
-  use kinds, ONLY: DP
-  implicit none
- 
-  integer, value :: n, mesh
-  real(DP), value :: tpiba
-  real(DP), device, intent(in) :: gl(n), r(mesh), rho_at(mesh), rab(mesh)
-  real(DP), device, intent(out) :: rhocgnt(n)
- 
-  integer :: tx, ty, igl, ir
-  real(DP):: mysum, val, gx, x
- 
-  tx = threadIdx%x
-  ty = threadIdx%y
- 
-  igl = (blockIdx%x - 1) * blockDim%y + ty
- 
-  if (igl > n) return
- 
-  gx = sqrt(gl(igl)) * tpiba
-  mysum = 0.d0
- 
-  do ir = tx, mesh, blockDim%x 
-    val = rho_at(ir) * rab(ir)
-
-    if (r(ir)  .ge. 1.0d-8) then
-      val = val * sin (gx*r(ir)) / (gx *r(ir)) 
-    end if
-
-    if (ir == 1 .or. ir == mesh) then
-      mysum = mysum + val
-    else if (mod(ir,2)) then
-      mysum = mysum + 2.d0*val
-    else
-      mysum = mysum + 4.d0*val
-    endif
-  end do 
- 
- ! Reduce by warp
-       val = __shfl_down(mysum,1)
-       mysum = mysum + val
-       val = __shfl_down(mysum,2)
-       mysum = mysum + val
-       val = __shfl_down(mysum,4)
-       mysum = mysum + val
-       val = __shfl_down(mysum,8)
-       mysum = mysum + val
-       val = __shfl_down(mysum,16)
-       mysum = mysum + val
- 
-       if (tx == 1) then
-         rhocgnt(igl) =  mysum / 3.d0 
-       endif 
- 
-  end subroutine compute_rhocgnt_gpu
-end module compute_rhocgnt_gpu_m
-
-#endif
 !-----------------------------------------------------------------------
 subroutine force_corr (forcescc)
   !-----------------------------------------------------------------------

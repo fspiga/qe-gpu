@@ -126,7 +126,12 @@ SUBROUTINE potinit()
      WRITE( UNIT = stdout, &
             FMT = '(/5X,"Initial potential from superposition of free atoms")' )
      !
+#ifdef USE_CUDA
+     CALL atomic_rho_gpu( rho%of_r_d, nspin )
+     rho%of_r = rho%of_r_d
+#else
      CALL atomic_rho( rho%of_r, nspin )
+#endif
 
      ! ... in the lda+U case set the initial value of ns
      IF (lda_plus_u) THEN
