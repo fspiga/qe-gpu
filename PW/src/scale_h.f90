@@ -42,6 +42,8 @@ subroutine scale_h
   !
   ! scale the k points
   !
+  CALL start_clock( 'scale_h' )
+
   call cryst_to_cart (nkstot, xk, at_old, - 1)
   call cryst_to_cart (nkstot, xk, bg, + 1)
   IF(nks_start>0)THEN
@@ -100,6 +102,8 @@ subroutine scale_h
   tab_d = tab
   qrad_d = qrad
 #endif
+
+  CALL stop_clock( 'scale_h' )
 
   return
 end subroutine scale_h

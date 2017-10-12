@@ -62,6 +62,7 @@ subroutine atomic_rho (rhoa, nspina)
   !
   ! allocate work space (psic must already be allocated)
   !
+  CALL start_clock( 'atomic_rho' )
   allocate (rhocg(  ngm, nspina))    
   ndm = MAXVAL ( msh(1:ntyp) )
   allocate (aux(ndm))    
@@ -191,6 +192,7 @@ subroutine atomic_rho (rhoa, nspina)
   enddo
 
   deallocate (rhocg)
+  CALL stop_clock( 'atomic_rho' )
   return
 end subroutine atomic_rho
 

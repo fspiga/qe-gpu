@@ -418,6 +418,9 @@ SUBROUTINE extrapolate_charge( rho_extr )
   !
   INTEGER :: is
   !
+
+  CALL start_clock( 'ext_charge' )
+
   IF ( rho_extr < 1 ) THEN
      !
      ! ... calculate structure factors for the new positions
@@ -618,6 +621,7 @@ SUBROUTINE extrapolate_charge( rho_extr )
     rho%of_r_d = rho%of_r
     rho%of_g_d = rho%of_g
 #endif
+  CALL stop_clock( 'ext_charge' )
   !
   RETURN
   !
@@ -673,7 +677,8 @@ SUBROUTINE extrapolate_wfcs( wfc_extr )
     ! real version of sp_m
   LOGICAL :: exst
   !
-  print*, "in extrapolate wfcs!"
+  CALL start_clock( 'ext_wfc' )
+
   CALL mp_barrier( intra_image_comm ) ! debug
   !
   IF ( wfc_extr == 1 ) THEN
@@ -852,7 +857,7 @@ SUBROUTINE extrapolate_wfcs( wfc_extr )
   !
   CALL mp_barrier( intra_image_comm ) ! debug
   !
-  print*, "exiting extrapolate_wfcs"
+  CALL stop_clock( 'ext_wfc' )
   RETURN
   !
 END SUBROUTINE extrapolate_wfcs

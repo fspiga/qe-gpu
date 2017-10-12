@@ -22,13 +22,17 @@ subroutine set_rhoc
   USE ener,      ONLY : etxcc
   USE fft_base,  ONLY : dfftp
   USE fft_interfaces,ONLY : invfft
+#ifdef USE_CUDA
+  USE gvect,     ONLY : ngm, nl=>nl_d, nlm, ngl, gl=>gl_d, igtongl=>igtongl_d
+  USE scf,       ONLY : rho_core_h => rho_core, rhog_core_h => rhog_core, &
+                        rho_core=>rho_core_d, rhog_core=>rhog_core_d, scf_type
+  USE vlocal,    ONLY : strf=>strf_d
+#else
   USE gvect,     ONLY : ngm, nl, nlm, ngl, gl, igtongl
   USE scf,       ONLY : rho_core, rhog_core, scf_type
-#ifdef USE_CUDA
-  USE scf,       ONLY : rho_core_d, rhog_core_d
+  USE vlocal,    ONLY : strf
 #endif
   USE lsda_mod,  ONLY : nspin
-  USE vlocal,    ONLY : strf
   USE control_flags, ONLY : gamma_only
   USE mp_bands,  ONLY : intra_bgrp_comm
   USE mp,        ONLY : mp_sum
@@ -41,6 +45,9 @@ subroutine set_rhoc
   ! used for the fft of the core charge
 
   real(DP) , allocatable ::  rhocg(:)
+#ifdef USE_CUDA
+  attributes(device) :: aux, rhocg
+#endif
   ! the radial fourier trasform
   real(DP) ::  rhoima, rhoneg, rhorea
   ! used to check the core charge
@@ -52,6 +59,7 @@ subroutine set_rhoc
   ! counter on mesh points
   ! counter on atomic types
   ! counter on g vectors
+  CALL start_clock( 'set_rhoc' )
 
   etxcc = 0.0_DP
   if ( ANY( upf(1:ntyp)%nlcc ) ) goto 10
@@ -59,6 +67,7 @@ subroutine set_rhoc
   rhog_core(:) = 0.0_DP
   rho_core(:)  = 0.0_DP
 
+  CALL stop_clock( 'set_rhoc' )
   return
 
 10 continue
@@ -73,23 +82,40 @@ subroutine set_rhoc
         !
         !     drhoc compute the radial fourier transform for each shell of g vec
         !
+#ifdef USE_CUDA
+        call drhoc_gpu (ngl, gl, omega, tpiba2, msh(nt), rgrid(nt)%r_d, rgrid(nt)%rab_d, upf(nt)%rho_atc_d, rhocg)
+#else
         call drhoc (ngl, gl, omega, tpiba2, msh (nt), rgrid(nt)%r, &
              rgrid(nt)%rab, upf(nt)%rho_atc, rhocg)
+#endif
         !
         !     multiply by the structure factor and sum
         !
+#ifdef USE_CUDA
+        !$cuf kernel do (1) <<<*, *>>>
+#endif
         do ng = 1, ngm
            aux(nl(ng)) = aux(nl(ng)) + strf(ng,nt) * rhocg(igtongl(ng))
         enddo
      endif
   enddo
   if (gamma_only) then
+#ifdef USE_CUDA
+     print*, "set_rhoc: GAMMA ONLY NOT IMPLEMENTED!"
+     flush(6); stop
+#else
      do ng = 1, ngm
         aux(nlm(ng)) = CONJG(aux(nl (ng)))
      end do
+#endif
   end if
   !
-  rhog_core(:) = aux(nl(:))
+#ifdef USE_CUDA
+  !$cuf kernel do (1) <<<*, *>>>
+#endif
+  do ng = lbound(rhog_core, 1), ubound(rhog_core, 1)
+    rhog_core(ng) = aux(nl(ng))
+  end do
   !
   !   the core charge in real space
   !
@@ -99,6 +125,9 @@ subroutine set_rhoc
   !
   rhoneg = 0.d0
   rhoima = 0.d0
+#ifdef USE_CUDA
+  !$cuf kernel do (1) <<<*, *>>>
+#endif
   do ir = 1, dfftp%nnr
      rhoneg = rhoneg + min (0.d0,  DBLE (aux (ir) ) )
      rhoima = rhoima + abs (AIMAG (aux (ir) ) )
@@ -146,10 +175,11 @@ subroutine set_rhoc
   deallocate (aux)
 
 #ifdef USE_CUDA
-  rho_core_d = rho_core
-  rhog_core_d = rhog_core
+  rho_core_h = rho_core
+  rhog_core_h = rhog_core
 #endif
   !
+  CALL stop_clock( 'set_rhoc' )
   return
 
   ! 9000 format (5x,'core-only xc energy         = ',f15.8,' Ry')

@@ -64,6 +64,8 @@ subroutine struc_fact (nat, tau, ntyp, ityp, ngm, g, bg, nr1, nr2, &
   ! the argument of the exponent
   ! scalar product of bg and tau
 
+  CALL start_clock( 'struct_fact' )
+
   strf(:,:) = (0.d0,0.d0)
   do nt = 1, ntyp
      do na = 1, nat
@@ -104,6 +106,7 @@ subroutine struc_fact (nat, tau, ntyp, ityp, ngm, g, bg, nr1, nr2, &
   eigts3_d = eigts3
 #endif
 
+  CALL stop_clock( 'struct_fact' )
   return
 end subroutine struc_fact
 
