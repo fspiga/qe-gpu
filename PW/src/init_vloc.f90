@@ -22,6 +22,7 @@ subroutine init_vloc()
   USE vlocal,     ONLY : vloc
 #ifdef USE_CUDA
   USE vlocal,     ONLY : vloc_d
+  USE gvect,      ONLY : gl_d
 #endif
   USE gvect,      ONLY : ngl, gl
   !
@@ -31,7 +32,14 @@ subroutine init_vloc()
   ! counter on atomic types
   !
   call start_clock ('init_vloc')
-  vloc(:,:) = 0._dp
+#ifdef USE_CUDA
+ if(.not. allocated(vloc_d)) then
+   ALLOCATE(vloc_d, mold=vloc)
+ endif
+ vloc_d(:,:) = 0._dp
+#endif
+
+ vloc(:,:) = 0._dp
   do nt = 1, ntyp
      !
      ! compute V_loc(G) for a given type of atom
@@ -56,20 +64,21 @@ subroutine init_vloc()
         !
         ! normal case
         !
+#ifdef USE_CUDA
+        call vloc_of_g_gpu (rgrid(nt)%mesh, msh (nt), rgrid(nt)%rab_d, rgrid(nt)%r_d, &
+            upf(nt)%vloc_d(1), upf(nt)%zp, tpiba2, ngl, gl_d, omega, vloc_d (1, nt) )
+#else
         call vloc_of_g (rgrid(nt)%mesh, msh (nt), rgrid(nt)%rab, rgrid(nt)%r, &
             upf(nt)%vloc(1), upf(nt)%zp, tpiba2, ngl, gl, omega, vloc (1, nt) )
+#endif
         !
      END IF
   enddo
 
 #ifdef USE_CUDA
- if(.not. allocated(vloc_d)) then
-   ALLOCATE(vloc_d, source=vloc)
- else
-   vloc_d = vloc
- endif
-
+  vloc = vloc_d
 #endif
+
   call stop_clock ('init_vloc')
   return
 end subroutine init_vloc

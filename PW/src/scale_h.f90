@@ -87,6 +87,13 @@ subroutine scale_h
   tab(:,:,:) = tab(:,:,:) * sqrt (omega_old/omega)
   qrad(:,:,:,:) = qrad(:,:,:,:) * omega_old/omega
   tab_at(:,:,:) = tab_at(:,:,:) * sqrt (omega_old/omega)
+
+#ifdef USE_CUDA
+  g_d = g
+  gg_d = gg
+  tab_d = tab
+  qrad_d = qrad
+#endif
   !
   ! recalculate the local part of the pseudopotential
   !
@@ -96,12 +103,6 @@ subroutine scale_h
   !
   IF ( dft_is_hybrid() ) CALL exx_grid_reinit()
   !
-#ifdef USE_CUDA
-  g_d = g
-  gg_d = gg
-  tab_d = tab
-  qrad_d = qrad
-#endif
 
   CALL stop_clock( 'scale_h' )
 
