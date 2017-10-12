@@ -1465,6 +1465,10 @@ SUBROUTINE sum_band_gpu()
         !
      END DO
   END IF
+
+#ifdef USE_CUDA
+  rho%of_g_d = rho%of_g
+#endif
   !
   CALL stop_clock( 'sum_band' )
   !

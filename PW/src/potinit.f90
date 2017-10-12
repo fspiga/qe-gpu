@@ -227,6 +227,13 @@ SUBROUTINE potinit()
   !
   CALL plugin_scf_potential(rho,.FALSE.,-1.d0)
   !
+
+#ifdef USE_CUDA
+    rho%of_r_d = rho%of_r
+    rho%of_g_d = rho%of_g
+#endif
+
+
   ! ... compute the potential and store it in v
   !
   CALL v_of_rho( rho, rho_core, rhog_core, &

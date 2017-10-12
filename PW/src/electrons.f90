@@ -643,18 +643,6 @@ SUBROUTINE electrons_scf ( printout, exxen )
            ! ... no convergence yet: calculate new potential from mixed
            ! ... charge density (i.e. the new estimate)
            !
-!#ifdef USE_CUDA
-#if 0
-!TODO: remove these copys
-           rho_core_d = rho_core
-           rhog_core_d = rhog_core
-           v%of_r_d = v%of_r
-           rhoin%of_r_d = rhoin%of_r
-           CALL v_of_rho_gpu( rhoin, rho_core, rho_core_d, rhog_core, rhog_core_d, &
-                          ehart, etxc, vtxc, eth, etotefield, charge, v)
-           !CALL v_of_rho( rhoin, rho_core, rhog_core, &
-           !               ehart, etxc, vtxc, eth, etotefield, charge, v)
-#else
 #ifdef USE_CUDA
            iexch = get_iexch
            icorr = get_icorr
@@ -663,11 +651,6 @@ SUBROUTINE electrons_scf ( printout, exxen )
 
            ! If calling PBE functional configuration, use GPU path
            if (iexch .eq. 1 .and. icorr .eq. 4 .and. (igcx .eq. 2 .or. igcx .eq. 3) .and. (igcc .eq. 2 .or. igcc .eq. 4)) then
-             rho_core_d = rho_core
-             rhog_core_d = rhog_core
-             v%of_r_d = v%of_r
-             rhoin%of_r_d = rhoin%of_r
-             rhoin%of_g_d = rhoin%of_g
              CALL v_of_rho_gpu( rhoin, rho_core, rho_core_d, rhog_core, rhog_core_d,&
                             ehart, etxc, vtxc, eth, etotefield, charge, v)
 
@@ -679,7 +662,6 @@ SUBROUTINE electrons_scf ( printout, exxen )
 #else
            CALL v_of_rho( rhoin, rho_core, rhog_core, &
                           ehart, etxc, vtxc, eth, etotefield, charge, v)
-#endif
 #endif
            IF (okpaw) THEN
               CALL PAW_potential(rhoin%bec, ddd_paw, epaw,etot_cmp_paw)
