@@ -100,14 +100,13 @@ attributes(device) subroutine xc_dev (iexch, icorr, rho, ex, ec, vx, vc)
      vx = 0.0_DP
   endif
   !!..correlation
-  !if (icorr == 1) then
-  !   call pz_dev (rs, 1, ec, vc)
+  if (icorr == 1) then
+     call pz_dev (rs, 1, ec, vc)
   !elseif (icorr == 2) then
   !   call vwn (rs, ec, vc)
   !elseif (icorr == 3) then
   !   call lyp (rs, ec, vc)
-  if (icorr == 4) then
-  !elseif (icorr == 4) then
+  elseif (icorr == 4) then
      call pw_dev (rs, 1, ec, vc)
   !elseif (icorr == 5) then
   !   call wigner (rs, ec, vc)
@@ -386,8 +385,8 @@ attributes(device) subroutine xc_spin_dev (iexch, icorr, rho, zeta, ex, ec, vxup
      ec = 0.0_DP
      vcup = 0.0_DP
      vcdw = 0.0_DP
-  !elseif (icorr == 1) then
-  !   call pz_spin (rs, zeta, ec, vcup, vcdw)
+  elseif (icorr == 1) then
+     call pz_spin_dev (rs, zeta, ec, vcup, vcdw)
   !elseif (icorr == 2) then
   !   call vwn_spin (rs, zeta, ec, vcup, vcdw)
   !elseif (icorr == 3) then
@@ -841,6 +840,45 @@ attributes(device) subroutine pw_dev (rs, iflag, ec, vc)
   return
 end subroutine pw_dev
 
+attributes(device) subroutine pz_dev (rs, iflag, ec, vc)
+  !-----------------------------------------------------------------------
+  !     LDA parameterization from Monte Carlo data
+  !     iflag=1: J.P. Perdew and A. Zunger, PRB 23, 5048 (1981)
+  !     iflag=2: G. Ortiz and P. Ballone, PRB 50, 1391 (1994)
+  !
+  USE kinds, ONLY : DP
+  implicit none
+  real(dp), value :: rs
+  real(dp), device, intent(out):: ec, vc
+  integer, value  :: iflag
+  real(DP) :: a (2), b (2), c (2), d (2), gc (2), b1 (2), b2 (2)
+  real(DP) :: lnrs, rs12, ox, dox
+  !
+  data a / 0.0311d0, 0.031091d0 /, b / -0.048d0, -0.046644d0 /, &
+       c / 0.0020d0, 0.00419d0 /, d / -0.0116d0, -0.00983d0 /
+  data gc / -0.1423d0, -0.103756d0 /, b1 / 1.0529d0, 0.56371d0 /, &
+       b2 / 0.3334d0, 0.27358d0 /
+  !
+  if (rs.lt.1.0d0) then
+     ! high density formula
+     lnrs = log (rs)
+     ec = a (iflag) * lnrs + b (iflag) + c (iflag) * rs * lnrs + d ( &
+          iflag) * rs
+     vc = a (iflag) * lnrs + (b (iflag) - a (iflag) / 3.d0) + 2.d0 / &
+          3.d0 * c (iflag) * rs * lnrs + (2.d0 * d (iflag) - c (iflag) ) &
+          / 3.d0 * rs
+  else
+     ! interpolation formula
+     rs12 = sqrt (rs)
+     ox = 1.d0 + b1 (iflag) * rs12 + b2 (iflag) * rs
+     dox = 1.d0 + 7.d0 / 6.d0 * b1 (iflag) * rs12 + 4.d0 / 3.d0 * &
+          b2 (iflag) * rs
+     ec = gc (iflag) / ox
+     vc = ec * dox / ox
+  endif
+  !
+  return
+end subroutine pz_dev
 
 attributes(device) subroutine pbex_dev (rho, grho, iflag, sx, v1x, v2x)
   !---------------------------------------------------------------
@@ -1238,6 +1276,78 @@ attributes(device) subroutine pw_spin_dev (rs, zeta, ec, vcup, vcdw)
   return
 end subroutine pw_spin_dev
 
+attributes(device) subroutine pz_polarized_dev (rs, ec, vc)
+  !-----------------------------------------------------------------------
+  !     J.P. Perdew and A. Zunger, PRB 23, 5048 (1981)
+  !     spin-polarized energy and potential
+  !
+  USE kinds, ONLY : DP
+  implicit none
+  real(DP), value :: rs
+  real(DP), device, intent(out) :: ec, vc
+  real(DP) :: a, b, c, d, gc, b1, b2
+  parameter (a = 0.01555d0, b = - 0.0269d0, c = 0.0007d0, d = &
+       - 0.0048d0, gc = - 0.0843d0, b1 = 1.3981d0, b2 = 0.2611d0)
+  real(DP) :: lnrs, rs12, ox, dox
+  REAL(DP), PARAMETER :: xcprefact = 0.022575584d0, pi34 = 0.6203504908994d0 
+  ! REAL(DP) :: betha, etha, csi, prefact
+  !
+  if (rs.lt.1.0d0) then
+     ! high density formula
+     lnrs = log (rs)
+     ec = a * lnrs + b + c * rs * lnrs + d * rs
+     vc = a * lnrs + (b - a / 3.d0) + 2.d0 / 3.d0 * c * rs * lnrs + &
+          (2.d0 * d-c) / 3.d0 * rs
+  else
+     ! interpolation formula
+     rs12 = sqrt (rs)
+     ox = 1.d0 + b1 * rs12 + b2 * rs
+     dox = 1.d0 + 7.d0 / 6.d0 * b1 * rs12 + 4.d0 / 3.d0 * b2 * rs
+     ec = gc / ox
+     vc = ec * dox / ox
+  endif
+  !
+!  IF ( lxc_rel ) THEN
+!     betha = prefact * pi34 / rs
+!     etha = DSQRT( 1 + betha**2 )
+!     csi = betha + etha
+!     prefact = 1.0D0 - (3.0D0/2.0D0) * ( (betha*etha - log(csi))/betha**2 )**2
+!     ec = ec * prefact
+!     vc = vc * prefact
+!  ENDIF
+  return
+end subroutine pz_polarized_dev
+
+attributes(device) subroutine pz_spin_dev (rs, zeta, ec, vcup, vcdw)
+  !-----------------------------------------------------------------------
+  !     J.P. Perdew and Y. Wang, PRB 45, 13244 (1992)
+  !
+  USE kinds, ONLY : DP
+  implicit none
+  real(DP), value :: rs, zeta
+  real(DP), device, intent(out) ::  ec, vcup, vcdw
+  !
+  real(DP) :: ecu, vcu, ecp, vcp, fz, dfz
+  real(DP) :: p43, third
+  parameter (p43 = 4.0d0 / 3.d0, third = 1.d0 / 3.d0)
+  !
+  ! unpolarized part (Perdew-Zunger formula)
+  call pz_dev (rs, 1, ecu, vcu)
+  ! polarization contribution
+  call pz_polarized_dev (rs, ecp, vcp)
+  !
+  fz = ( (1.0d0 + zeta) **p43 + (1.d0 - zeta) **p43 - 2.d0) / &
+       (2.d0**p43 - 2.d0)
+  dfz = p43 * ( (1.0d0 + zeta) **third- (1.d0 - zeta) **third) &
+       / (2.d0**p43 - 2.d0)
+  !
+  ec = ecu + fz * (ecp - ecu)
+  vcup = vcu + fz * (vcp - vcu) + (ecp - ecu) * dfz * (1.d0 - zeta)
+  vcdw = vcu + fz * (vcp - vcu) + (ecp - ecu) * dfz * ( - 1.d0 - &
+       zeta)
+  !
+  return
+end subroutine pz_spin_dev
 
 attributes(device) subroutine pbec_spin_dev (rho, zeta, grho, iflag, sc, v1cup, v1cdw, v2c)
   !---------------------------------------------------------------

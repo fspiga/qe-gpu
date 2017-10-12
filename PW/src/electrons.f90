@@ -649,8 +649,9 @@ SUBROUTINE electrons_scf ( printout, exxen )
            igcx = get_igcx
            igcc = get_igcc
 
-           ! If calling PBE functional configuration, use GPU path
-           if (iexch .eq. 1 .and. icorr .eq. 4 .and. (igcx .eq. 2 .or. igcx .eq. 3) .and. (igcc .eq. 2 .or. igcc .eq. 4)) then
+           ! If calling supported functional configuration, use GPU path
+           if (iexch .eq. 1 .and. (icorr .eq. 1 .or. icorr .eq. 4) .and. &
+             (igcx .eq. 0 .or. igcx .eq. 2 .or. igcx .eq. 3) .and. (igcc .eq. 0 .or. igcc .eq. 2 .or. igcc .eq. 4)) then
              CALL v_of_rho_gpu( rhoin, rho_core, rho_core_d, rhog_core, rhog_core_d,&
                             ehart, etxc, vtxc, eth, etotefield, charge, v)
 
