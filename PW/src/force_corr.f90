@@ -42,9 +42,9 @@ contains
     if (ir == 1 .or. ir == mesh) then
       mysum = mysum + val
     else if (mod(ir,2)) then
-      mysum = mysum + 4.d0*val
-    else
       mysum = mysum + 2.d0*val
+    else
+      mysum = mysum + 4.d0*val
     endif
   end do 
  
