@@ -406,6 +406,11 @@ SUBROUTINE extrapolate_charge( rho_extr )
   USE io_rho_xml,           ONLY : write_rho, read_rho
   USE paw_variables,        ONLY : okpaw, ddd_paw
   USE paw_onecenter,        ONLY : PAW_potential
+#ifdef USE_CUDA
+  USE ions_base,            ONLY : tau_d
+  USE gvect,                ONLY : g_d, eigts1_d, eigts2_d, eigts3_d
+  USE vlocal,               ONLY : strf_d
+#endif
   !
   IMPLICIT NONE
   !
@@ -564,8 +569,17 @@ SUBROUTINE extrapolate_charge( rho_extr )
      !
      IF ( lmovecell ) CALL scale_h()
      !
+#ifdef USE_CUDA
+     CALL struc_fact_gpu( nat, tau_d, nsp, ityp, ngm, g_d, bg, &
+                      dfftp%nr1, dfftp%nr2, dfftp%nr3, strf_d, eigts1_d, eigts2_d, eigts3_d )
+     eigts1 = eigts1_d
+     eigts2 = eigts2_d
+     eigts3 = eigts3_d
+     strf = strf_d
+#else
      CALL struc_fact( nat, tau, nsp, ityp, ngm, g, bg, &
                       dfftp%nr1, dfftp%nr2, dfftp%nr3, strf, eigts1, eigts2, eigts3 )
+#endif
      !
      CALL set_rhoc()
      !

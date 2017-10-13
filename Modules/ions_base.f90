@@ -43,6 +43,9 @@
 
       INTEGER,  ALLOCATABLE :: ityp(:)
       REAL(DP), ALLOCATABLE :: tau(:,:)     !  initial positions read from stdin (in bohr)
+#ifdef USE_CUDA
+      REAL(DP), ALLOCATABLE, DEVICE :: tau_d(:,:)     !  initial positions read from stdin (in bohr)
+#endif
       REAL(DP), ALLOCATABLE :: vel(:,:)     !  initial velocities read from stdin (in bohr)
       REAL(DP), ALLOCATABLE :: tau_srt(:,:) !  tau sorted by specie in bohr
       REAL(DP), ALLOCATABLE :: vel_srt(:,:) !  vel sorted by specie in bohr
@@ -348,6 +351,9 @@
       !
       tions_base_init = .TRUE.
       !
+#ifdef USE_CUDA
+      allocate(tau_d, source = tau)   
+#endif
       RETURN
       !
     END SUBROUTINE ions_base_init
@@ -360,6 +366,9 @@
       !
       IF ( ALLOCATED( ityp ) )    DEALLOCATE( ityp )
       IF ( ALLOCATED( tau ) )     DEALLOCATE( tau )
+#ifdef USE_CUDA
+      IF ( ALLOCATED( tau_d ) )   DEALLOCATE( tau_d )
+#endif
       IF ( ALLOCATED( vel ) )     DEALLOCATE( vel )
       IF ( ALLOCATED( tau_srt ) ) DEALLOCATE( tau_srt )
       IF ( ALLOCATED( vel_srt ) ) DEALLOCATE( vel_srt )
