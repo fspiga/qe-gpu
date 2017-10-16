@@ -43,10 +43,15 @@ SUBROUTINE init_run()
 #ifdef USE_CUDA
   USE cudafor
   USE wvfct,              ONLY : et_d, wg_d
+  USE funct,              ONLY : get_iexch, get_icorr, get_igcx, get_igcc
+  USE scf,                ONLY : funct_on_gpu
 #endif
 
   !
   IMPLICIT NONE
+#ifdef USE_CUDA
+  integer  :: iexch, icorr, igcx, igcc
+#endif
   !
   !
   CALL start_clock( 'init_run' )
@@ -121,6 +126,19 @@ SUBROUTINE init_run()
   !
   CALL hinit0()
   !
+#ifdef USE_CUDA
+  ! Check is functional configuration is supported on GPU and set flag
+  iexch = get_iexch
+  icorr = get_icorr
+  igcx = get_igcx
+  igcc = get_igcc
+  funct_on_gpu = (iexch .eq. 1 .and. & 
+                 (icorr .eq. 1 .or. icorr .eq. 4) .and. &
+                 (igcx .eq. 0 .or. igcx .eq. 2 .or. igcx .eq. 3) .and. &
+                 (igcc .eq. 0 .or. igcc .eq. 2 .or. igcc .eq. 4))
+
+#endif
+
   CALL potinit()
   !
 #ifdef USE_CUDA

@@ -86,6 +86,8 @@ MODULE scf
   COMPLEX(DP), DEVICE, ALLOCATABLE :: &
        rhog_core_d(:)     ! the core charge in reciprocal space
 
+  LOGICAL :: funct_on_gpu ! flag for functional support (v_of_rho, v_xc) on GPU.
+
 #endif
 
   COMPLEX(DP), ALLOCATABLE :: &

@@ -129,13 +129,12 @@ subroutine force_cc_gpu (forcecc)
   USE gvect,                ONLY : ngm, gstart, nl_d, g_d, ngl, gl_d, igtongl_d
   USE ener,                 ONLY : etxc, vtxc
   USE lsda_mod,             ONLY : nspin
-  USE scf,                  ONLY : rho, rho_core, rhog_core, rho_core_d, rhog_core_d
+  USE scf,                  ONLY : rho, rho_core, rhog_core, rho_core_d, rhog_core_d, funct_on_gpu
   USE control_flags,        ONLY : gamma_only
   USE noncollin_module,     ONLY : noncolin
   USE wavefunctions_module, ONLY : psic, psic_d
   USE mp_bands,             ONLY : intra_bgrp_comm
   USE mp,                   ONLY : mp_sum
-  USE funct,                ONLY : get_iexch, get_icorr, get_igcx, get_igcc
   USE cudafor
   !
   implicit none
@@ -183,15 +182,9 @@ subroutine force_cc_gpu (forcecc)
   !
   allocate ( vxc_d(dfftp%nnr,nspin) )
   !
-  iexch = get_iexch
-  icorr = get_icorr
-  igcx = get_igcx
-  igcc = get_igcc
 
   ! If calling supported functional configuration, use GPU path
-  if (iexch .eq. 1 .and. (icorr .eq. 1 .or. icorr .eq. 4) .and. &
-    (igcx .eq. 0 .or. igcx .eq. 2 .or. igcx .eq. 3) .and. (igcc .eq. 0 .or. igcc .eq. 2 .or. igcc .eq. 4)) then
-
+  if (funct_on_gpu) then
     CALL v_xc_gpu( rho, rho_core_d, rhog_core_d, etxc, vtxc, vxc_d)
 
   ! Otherwise fall back to CPU path

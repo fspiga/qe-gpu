@@ -37,6 +37,10 @@ SUBROUTINE potinit()
   USE control_flags,        ONLY : lscf
   USE scf,                  ONLY : rho, rho_core, rhog_core, &
                                    vltot, v, vrs, kedtau
+#ifdef USE_CUDA
+  USE scf,                  ONLY : rho_core_d, rhog_core_d, funct_on_gpu
+#endif
+                                   
   USE funct,                ONLY : dft_is_meta
   USE wavefunctions_module, ONLY : psic
   USE ener,                 ONLY : ehart, etxc, vtxc, epaw
@@ -241,8 +245,21 @@ SUBROUTINE potinit()
 
   ! ... compute the potential and store it in v
   !
+#ifdef USE_CUDA
+ ! If calling supported functional configuration, use GPU path
+ if (funct_on_gpu) then
+   CALL v_of_rho_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d,&
+                  ehart, etxc, vtxc, eth, etotefield, charge, v)
+
+ ! Otherwise, fallback to CPU path
+ else
+   CALL v_of_rho( rho, rho_core, rhog_core, &
+                  ehart, etxc, vtxc, eth, etotefield, charge, v)
+ endif
+#else
   CALL v_of_rho( rho, rho_core, rhog_core, &
                  ehart, etxc, vtxc, eth, etotefield, charge, v )
+#endif
   IF (okpaw) CALL PAW_potential(rho%bec, ddd_PAW, epaw)
   !
   ! ... define the total local potential (external+scf)

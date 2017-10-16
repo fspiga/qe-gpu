@@ -372,10 +372,9 @@ SUBROUTINE electrons_scf ( printout, exxen )
   USE plugin_variables,     ONLY : plugin_etot
   !
 #ifdef USE_CUDA
-  USE funct,                ONLY : get_iexch, get_icorr, get_igcx, get_igcc
   USE dfunct,               ONLY : newd_gpu
   USE cudafor
-  USE scf,                  ONLY : rho_core_d, rhog_core_d, vltot_d, vrs_d
+  USE scf,                  ONLY : rho_core_d, rhog_core_d, vltot_d, vrs_d, funct_on_gpu
   USE wvfct,                ONLY : psi_d, hpsi_d, spsi_d, comm_h_c, comm_s_c
   USE wvfct,  ONLY : hc_d, sc_d, vc_d, vc_temp_d, ew_d, conv_d, conv_idx_d
 #endif
@@ -644,14 +643,8 @@ SUBROUTINE electrons_scf ( printout, exxen )
            ! ... charge density (i.e. the new estimate)
            !
 #ifdef USE_CUDA
-           iexch = get_iexch
-           icorr = get_icorr
-           igcx = get_igcx
-           igcc = get_igcc
-
            ! If calling supported functional configuration, use GPU path
-           if (iexch .eq. 1 .and. (icorr .eq. 1 .or. icorr .eq. 4) .and. &
-             (igcx .eq. 0 .or. igcx .eq. 2 .or. igcx .eq. 3) .and. (igcc .eq. 0 .or. igcc .eq. 2 .or. igcc .eq. 4)) then
+           if (funct_on_gpu) then
              CALL v_of_rho_gpu( rhoin, rho_core, rho_core_d, rhog_core, rhog_core_d,&
                             ehart, etxc, vtxc, eth, etotefield, charge, v)
 
