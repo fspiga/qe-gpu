@@ -1,4 +1,3 @@
-!
 ! Copyright (C) 2001-2015 Quantum ESPRESSO group
 ! This file is distributed under the terms of the
 ! GNU General Public License. See the file `License'
@@ -143,6 +142,28 @@ SUBROUTINE addusstres (sigmanlc)
 END SUBROUTINE addusstres
 
 #ifdef USE_CUDA
+
+#if 0
+SUBROUTINE my_dgemv( m, n, A, X, Y )
+  !
+  use kinds, ONLY : DP
+  use cudafor
+  use cublas
+  !
+  IMPLICIT NONE
+  !
+  INTEGER, INTENT(IN) :: m,n
+  !
+!!!!!pgi$ ignore_tkr A, B
+  REAL(DP), DEVICE, INTENT(INOUT) :: A(:,:), X(:), Y(:)
+  !
+  CALL dgemv( 'N', m, n, 1.0_dp, A, m, X, 1, 0.0_dp, Y, 1 )
+  !
+  return
+  !
+END SUBROUTINE my_dgemv
+#endif
+
 !----------------------------------------------------------------------
 SUBROUTINE addusstres_gpu (sigmanlc)
   !----------------------------------------------------------------------
@@ -176,8 +197,9 @@ SUBROUTINE addusstres_gpu (sigmanlc)
   COMPLEX(DP), ALLOCATABLE, device :: aux(:), aux1(:,:), aux2(:,:), vg(:,:), qgm(:,:)
   ! work space (complex)
   COMPLEX(DP)              :: cfac
-  REAL(dp)                 :: fac(3,nspin), sus(3,3)
+  REAL(dp)                 :: fac(3,nspin), sus(3,3), fac1,fac2,fac3
   REAL(dp),device          :: fac_d(3,nspin)
+  COMPLEX(DP) :: temp
   ! auxiliary variables
   REAL(DP) , ALLOCATABLE, device :: qmod(:), ylmk0(:,:), dylmk0(:,:), tbecsum(:,:)
   REAL(DP), POINTER, device :: v_of_r_d(:,:)
@@ -251,9 +273,26 @@ SUBROUTINE addusstres_gpu (sigmanlc)
                   end do
                  end do
 
+              if( nspin .gt. 1 ) then
                  !
                  CALL dgemm( 'N', 'N', 2*ngm, nspin, nij, 1.0_dp, &
                       qgm, 2*ngm, tbecsum, nij, 0.0_dp, aux2, 2*ngm )
+
+              else
+#if 0
+                 CALL my_dgemv( 2*ngm, nij, qgm, tbecsum, aux2 )
+                                !( 'N', 2*ngm, nij, 1.0_dp, qgm, 2*ngm, tbecsum, 1, 0.0_dp, aux2, 1 )
+#else
+                 !$cuf kernel do(1) <<<*, *>>>
+                 do j=1,ngm
+                   temp = (0.d0, 0.d0)        
+                   do i=1,nij
+                     temp = temp + qgm(j,i)*tbecsum(i,1)
+                   end do
+                   aux2(j,1) = temp
+                 end do
+#endif
+               end if
                  !
                  DO is = 1, nspin
                  !$cuf kernel do(1) <<<*, *>>>
@@ -270,9 +309,35 @@ SUBROUTINE addusstres_gpu (sigmanlc)
                      aux1 (ig,2) = cfac * g (2, ig)
                      aux1 (ig,3) = cfac * g (3, ig)
                 ENDDO
+
+              if( nspin .gt. 1 ) then
+
                 CALL DGEMM('T','N', 3, nspin, 2*ngm, 1.0_dp, aux1, 2*ngm, &
                            aux2, 2*ngm, 0.0_dp, fac_d, 3 )    
                 fac=fac_d
+
+              else
+                
+                !CALL myDdotAB( 2*ngm, aux1(:,1), aux2, fac(1,1) )
+                !CALL myDdotAB( 2*ngm, aux1(:,2), aux2, fac(2,1) )
+                !CALL myDdotAB( 2*ngm, aux1(:,3), aux2, fac(3,1) )
+                fac1=0.d0
+                fac2=0.d0
+                fac3=0.d0
+
+                 !$cuf kernel do(1) <<<*, *>>>
+                 do j=1,ngm
+                  fac1 = fac1 + aux1(j,1)%re*aux2(j,1)%re + aux1(j,1)%im*aux2(j,1)%im
+                  fac2 = fac2 + aux1(j,2)%re*aux2(j,1)%re + aux1(j,2)%im*aux2(j,1)%im
+                  fac3 = fac3 + aux1(j,3)%re*aux2(j,1)%re + aux1(j,3)%im*aux2(j,1)%im
+                 end do
+                
+                fac(1,1) = fac1
+                fac(2,1) = fac2
+                fac(3,1) = fac3
+
+               end if
+
                 DO is = 1, nspin
                    DO jpol = 1, ipol
                       sus (ipol, jpol) = sus (ipol, jpol) - omega * &

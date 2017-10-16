@@ -985,6 +985,7 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
        COMPLEX(DP), DEVICE, ALLOCATABLE :: work1_d(:), work2_d(:,:), dvkb_d(:,:,:)
        REAL(DP), DEVICE, ALLOCATABLE :: deff_d(:,:,:)
        REAL(DP) :: workdot
+       COMPLEX(DP) :: work_sum, wsum1,wsum2,wsum3
        COMPLEX(DP), DEVICE, POINTER :: becp_k(:,:)
        !
        becp_k => becp%k_d
@@ -1148,7 +1149,9 @@ print *,"NOT upf or newpseudo"
 
 !$cuf kernel do(1) <<<*,*>>>
                       DO i = 1, npw
+                   work_sum = (0.D0,0.D0)
                    DO ih = 1, nh(np)
+
                       ikb = ijkb0 + ih
                          ps = (0.D0,0.D0)
                          !ps_nc = (0.D0,0.D0)
@@ -1174,13 +1177,15 @@ print *,"NOT upf or newpseudo"
 !                         END DO
 !                      ELSE
 
+                         work_sum      = work_sum     + ps*dvkb_d(i,ikb,1)
                          !DO i = 1, npw
-                           work2_d(i,1) = work2_d(i,1) + ps*dvkb_d(i,ikb,1)
+                          !work2_d(i,1) = work2_d(i,1) + ps*dvkb_d(i,ikb,1)
                          !END DO
                          !CALL zaxpy( npw, ps, dvkb(1,ikb), 1, work2, 1 )
 
 !                      END IF
                    END DO
+                   work2_d(i,1) = work2_d(i,1) + work_sum
                       END DO
 
                       END IF
@@ -1435,6 +1440,11 @@ print *,"NOT upf or newpseudo"
 
 !$cuf kernel do(1) <<<*,*>>>
                          DO i = 1, npw
+
+                      wsum1 = (0.D0,0.D0)
+                      wsum2 = (0.D0,0.D0)
+                      wsum3 = (0.D0,0.D0)
+
                       DO ih = 1, nh(np)
                          ikb = ijkb0 + ih
                             !
@@ -1465,16 +1475,23 @@ print *,"NOT upf or newpseudo"
 !                                          work2_nc(1,is),1)
 !                            END DO
 !                         ELSE
+                           wsum1 = wsum1 + ps*dvkb_d(i,ikb,1)
+                           wsum2 = wsum2 + ps*dvkb_d(i,ikb,2)
+                           wsum3 = wsum3 + ps*dvkb_d(i,ikb,3)
+
 
                          !DO i = 1, npw
-                           work2_d(i,1) = work2_d(i,1) + ps*dvkb_d(i,ikb,1)
-                           work2_d(i,2) = work2_d(i,2) + ps*dvkb_d(i,ikb,2)
-                           work2_d(i,3) = work2_d(i,3) + ps*dvkb_d(i,ikb,3)
+                         !  work2_d(i,1) = work2_d(i,1) + ps*dvkb_d(i,ikb,1)
+                         !  work2_d(i,2) = work2_d(i,2) + ps*dvkb_d(i,ikb,2)
+                         !  work2_d(i,3) = work2_d(i,3) + ps*dvkb_d(i,ikb,3)
                          !END DO
                             !CALL zaxpy( npw, ps, dvkb(1,ikb), 1, work2, 1 )
 
 !                         END IF
                       END DO
+                           work2_d(i,1) = work2_d(i,1) + wsum1
+                           work2_d(i,2) = work2_d(i,2) + wsum2
+                           work2_d(i,3) = work2_d(i,3) + wsum3
                          END DO
 
                          END IF
