@@ -41,7 +41,7 @@ fft_stick.o : fft_stick.c fftw.c fftw.h konst.h
 
 # 
 ipca2a.o : ipca2a.c
-	$(MPICC) $(DFLAGS) -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI= -c ipca2a.c -o ipca2a.o -I${CUDADIR}/include
+	$(MPICC) $(CFLAGS) -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI= -c ipca2a.c -o ipca2a.o -I${CUDADIR}/include
 
 TEST : test.o libqefft.a
 	$(LD) $(LDFLAGS) -o fft_test.x test.o libqefft.a $(LIBS)
