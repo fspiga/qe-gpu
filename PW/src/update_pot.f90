@@ -392,11 +392,10 @@ SUBROUTINE extrapolate_charge( rho_extr )
   USE ions_base,            ONLY : nat, tau, nsp, ityp
   USE fft_base,             ONLY : dfftp, dffts
   USE fft_interfaces,       ONLY : fwfft, invfft
-  USE gvect,                ONLY : ngm, g, gg, gstart, nl, eigts1, eigts2, eigts3
+  USE gvect,                ONLY : ngm, g, gg, gstart, eigts1, eigts2, eigts3
   USE lsda_mod,             ONLY : lsda, nspin
   USE scf,                  ONLY : rho, rho_core, rhog_core, v
   USE ldaU,                 ONLY : eth
-  USE wavefunctions_module, ONLY : psic
   USE ener,                 ONLY : ehart, etxc, vtxc, epaw
   USE extfield,             ONLY : etotefield
   USE cellmd,               ONLY : lmovecell, omega_old
@@ -409,7 +408,13 @@ SUBROUTINE extrapolate_charge( rho_extr )
 #ifdef USE_CUDA
   USE ions_base,            ONLY : tau_d
   USE gvect,                ONLY : g_d, eigts1_d, eigts2_d, eigts3_d
+  USE scf,                  ONLY : rho_core_d, rhog_core_d, funct_on_gpu
   USE vlocal,               ONLY : strf_d
+  USE wavefunctions_module, ONLY : psic => psic_d
+  USE gvect,                ONLY : nl => nl_d
+#else
+  USE wavefunctions_module, ONLY : psic
+  USE gvect,                ONLY : nl
 #endif
   !
   IMPLICIT NONE
@@ -419,13 +424,19 @@ SUBROUTINE extrapolate_charge( rho_extr )
   REAL(DP), ALLOCATABLE :: work(:,:), work1(:,:)
 #ifdef USE_CUDA
   REAL(DP), ALLOCATABLE, DEVICE :: work_d(:,:)
+  REAL(DP), POINTER, DEVICE :: rho_of_r_d(:,:)
+  COMPLEX(DP), POINTER, DEVICE :: rho_of_g_d(:,:)
 #endif
     ! work  is the difference between rho and atomic rho at time t
     ! work1 is the same thing at time t-dt
   REAL(DP) :: charge
   !
-  INTEGER :: is
+  INTEGER :: i, is
   !
+#ifdef USE_CUDA
+  rho_of_r_d => rho%of_r_d
+  rho_of_g_d => rho%of_g_d
+#endif
 
   CALL start_clock( 'ext_charge' )
 
@@ -622,21 +633,55 @@ SUBROUTINE extrapolate_charge( rho_extr )
 #endif
      !
   END IF
+
+#ifdef USE_CUDA
+  rho%of_r_d = rho%of_r
+#endif
+
   !
   ! ... bring extrapolated rho to G-space
   !
   DO is = 1, nspin
      !
+#ifdef USE_CUDA
+     !$cuf kernel do (1) <<<*, *>>>
+     DO i = lbound(psic, 1), ubound(psic, 1)
+       psic(i) = rho_of_r_d(i,is)
+     END DO
+#else
      psic(:) = rho%of_r(:,is)
+#endif
      !
      CALL fwfft ('Dense', psic, dfftp)
      !
+#ifdef USE_CUDA
+     !$cuf kernel do (1) <<<*, *>>>
+     DO i = lbound(nl, 1), ubound(nl, 1)
+       rho_of_g_d(i,is) = psic(nl(i))
+     END DO
+#else
      rho%of_g(:,is) = psic(nl(:))
+#endif
      !
   END DO
   !
+#ifdef USE_CUDA
+  ! If calling supported functional configuration, use GPU path
+  if (funct_on_gpu) then
+    CALL v_of_rho_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d,&
+                  ehart, etxc, vtxc, eth, etotefield, charge, v)
+
+  ! Otherwise, fallback to CPU path
+  else
+    rho%of_r = rho_of_r_d
+    rho%of_g = rho_of_g_d
+    CALL v_of_rho( rho, rho_core, rhog_core, &
+                  ehart, etxc, vtxc, eth, etotefield, charge, v)
+  endif
+#else
   CALL v_of_rho( rho, rho_core, rhog_core, &
                  ehart, etxc, vtxc, eth, etotefield, charge, v )
+#endif
   IF (okpaw) CALL PAW_potential(rho%bec, ddd_PAW, epaw)
   !
   IF ( ABS( charge - nelec ) / charge > 1.D-7 ) THEN
@@ -645,14 +690,24 @@ SUBROUTINE extrapolate_charge( rho_extr )
             '(5X,"extrapolated charge ",F10.5,", renormalised to ",F10.5)') &
          charge, nelec
      !
-     rho%of_r  = rho%of_r  / charge*nelec
+#ifdef USE_CUDA
+     !$cuf kernel do (2) <<<*, *>>>
+     do is = 1, nspin
+       do i = lbound(rho_of_r_d, 1), ubound(rho_of_r_d, 1)
+         rho_of_r_d(i, is) = rho_of_r_d(i, is) / charge*nelec
+         rho_of_g_d(i, is) = rho_of_g_d(i, is) / charge*nelec
+       end do
+     end do
+#else
+     rho%of_r  = rho%of_r / charge*nelec
      rho%of_g = rho%of_g / charge*nelec
+#endif
      !
   END IF
 
 #ifdef USE_CUDA
-    rho%of_r_d = rho%of_r
-    rho%of_g_d = rho%of_g
+    rho%of_r = rho_of_r_d
+    rho%of_g = rho_of_g_d
 #endif
   CALL stop_clock( 'ext_charge' )
   !
