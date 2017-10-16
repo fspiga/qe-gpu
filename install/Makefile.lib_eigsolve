@@ -1,8 +1,8 @@
 include ../../make.inc
 
-FLAGS = -O3 -mp -pgf90libs -Mcuda=cc$(GPU_ARCH),cuda8.0,ptxinfo -Mlarge_arrays
-FLAGS2 = -O3 -mp -pgf90libs -Mcuda=cc$(GPU_ARCH),cuda8.0,ptxinfo,nollvm -Mlarge_arrays
-FLAGS3 = -O3 -mp -pgf90libs -Mcuda=cc$(GPU_ARCH),cuda8.0,ptxinfo,maxregcount:64,nollvm -Mlarge_arrays
+FLAGS = -O3 -mp -pgf90libs -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME),ptxinfo -Mlarge_arrays
+FLAGS2 = -O3 -mp -pgf90libs -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME),ptxinfo,nollvm -Mlarge_arrays
+FLAGS3 = -O3 -mp -pgf90libs -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME),ptxinfo,maxregcount:64,nollvm -Mlarge_arrays
 
 # Uncomment to enable NVTX markers
 #OPTFLAGS = -DUSE_NVTX

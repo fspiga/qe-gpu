@@ -26,13 +26,14 @@ CC             = pgcc
 F77            = pgf90
 
 GPU_ARCH=60
+CUDA_RUNTIME=8.0
 
 CFLAGS         = -O3 -mp -Mpreprocess $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O3 -mp -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+F90FLAGS       = -O3 -mp -Mpreprocess -Mcuda=cc60,cuda$(CUDA_RUNTIME) -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 FFLAGS         = -O3 -Mpreprocess
 
 LD             = ftn
-LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
+LDFLAGS        = -mp -Mcuda=cc60,cuda$(CUDA_RUNTIME) -Mlarge_arrays
 LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a
 
 MATH_LIBS      = -L${MKLROOT}/lib/intel64  -lmkl_intel_lp64 -lmkl_pgi_thread -lmkl_core -pgf90libs -mp -lpthread -lm -ldl

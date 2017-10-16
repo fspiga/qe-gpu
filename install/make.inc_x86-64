@@ -16,16 +16,19 @@ MPICC          = mpicc
 CC             = pgcc
 F77            = pgf77
 
-# Kepler = 35, Pascal = 60 (suggested)
+# GPU architecture (Kepler: 35, Pascal: 60, Volta: 70 )
 GPU_ARCH=60
 
+# CUDA runtime (Pascal: 8.0, Volta: 9.0)
+CUDA_RUNTIME=8.0
+
 CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O3 -Mpreprocess -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+F90FLAGS       = -O3 -Mpreprocess -mp -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME) -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 FFLAGS         = -O3 -Mpreprocess -mp
 
 
 LD             = mpif90
-LDFLAGS        = -pgf90libs  -mp -Mcuda=cc$(GPU_ARCH),cuda8.0 -Mlarge_arrays
+LDFLAGS        = -pgf90libs  -mp -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME) -Mlarge_arrays
 LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a
 
 MATH_LIBS      = -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -pgf90libs -lmkl_core -lmkl_pgi_thread

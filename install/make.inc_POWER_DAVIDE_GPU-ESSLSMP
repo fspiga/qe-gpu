@@ -18,16 +18,17 @@ CC             = pgcc
 F77            = pgf90
 
 GPU_ARCH=60
+UDA_RUNTIME=8.0
 
 CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
-F90FLAGS       = -O3 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+F90FLAGS       = -O3 -Mpreprocess -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME) -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 FFLAGS         = -O3 -Mpreprocess  
 
 # If this flag is present some files are compiled differently as workaround for compiler bugs
-F90FLAGS_WORKAROUND = -O3 -Mpreprocess -Mcuda=cc60,cuda8.0 -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+F90FLAGS_WORKAROUND = -O3 -Mpreprocess -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME) -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 
 LD             = mpif90
-LDFLAGS        = -mp -Mcuda=cc60,cuda8.0 -Mlarge_arrays
+LDFLAGS        = -mp -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME) -Mlarge_arrays
 LD_LIBS        = -Mcudalib=cufft,cublas,cusolver $(TOPDIR)/EIGENSOLVER_GPU/lib_eigsolve/lib_eigsolve.a
 
 MATH_LIBS 	= -L/opt/ibm/xlf/15.1.5/lib -lesslsmp -lessl -lxl -lxlf90_r -lxlfmath -L/opt/ibm/xlsmp/4.1.5/lib -lxlsmp -lxlfmath -llapack -lblas
