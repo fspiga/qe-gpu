@@ -44,7 +44,7 @@ SUBROUTINE compute_deff_gpu(deff, et)
 !  This routine is for the collinear case.
 !
 USE kinds, ONLY : DP
-USE ions_base, ONLY : nsp, nat, ityp
+USE ions_base, ONLY : nsp, nat, ityp, ityp_d
 USE uspp, ONLY : deeq_d, qq_d, okvan
 USE uspp_param, ONLY : nhm
 USE lsda_mod, ONLY : current_spin
@@ -65,18 +65,14 @@ DO k=1,nat
 END DO
 
 IF (okvan) THEN
-   DO nt = 1, nsp
-      DO na = 1, nat
-         IF ( ityp(na) == nt ) THEN
-!$cuf kernel do(2) <<<*,*>>>
-            DO j=1,nhm
-              DO i=1,nhm
-                deff(i,j,na) = deff(i,j,na) - et*qq_d(i,j,nt)
-              END DO
-            END DO
-         END IF
+  !$cuf kernel do(3) <<<*,*>>>
+  DO na = 1, nat
+    DO j=1,nhm
+      DO i=1,nhm
+         deff(i,j,na) = deff(i,j,na) - et*qq_d(i,j,ityp_d(na))
       END DO
-   END DO
+    END DO
+  END DO
 ENDIF
 RETURN
 END SUBROUTINE compute_deff_gpu

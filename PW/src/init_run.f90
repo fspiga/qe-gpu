@@ -183,6 +183,9 @@ SUBROUTINE pre_init()
   !
   USE ions_base,        ONLY : nat, nsp, ityp
   USE uspp_param,       ONLY : upf, lmaxkb, nh, nhm, nbetam
+#ifdef USE_CUDA
+  USE uspp_param,       ONLY : nh_d
+#endif
   USE uspp,             ONLY : nkb, nkbus
   IMPLICIT NONE
   INTEGER :: na, nt, nb
@@ -203,6 +206,10 @@ SUBROUTINE pre_init()
      ENDDO
      !
   ENDDO
+#ifdef USE_CUDA
+  if (allocated(nh_d)) deallocate(nh_d)
+  allocate(nh_d, source = nh)
+#endif
   !
   ! calculate the maximum number of beta functions
   !

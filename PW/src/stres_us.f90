@@ -648,14 +648,14 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
   ! NOTICE: sum of partial results over procs is performed in calling routine
   !
   USE kinds,                ONLY : DP
-  USE ions_base,            ONLY : nat, ntyp => nsp, ityp
+  USE ions_base,            ONLY : nat, ntyp => nsp, ityp, ityp_d
   USE constants,            ONLY : eps8
   USE klist,                ONLY : nks, xk, ngk, igk_k
   USE lsda_mod,             ONLY : current_spin, lsda, isk
-  USE wvfct,                ONLY : npwx, nbnd, wg, et
+  USE wvfct,                ONLY : npwx, nbnd, wg, wg_d, et, et_d
   USE control_flags,        ONLY : gamma_only
-  USE uspp_param,           ONLY : upf, lmaxkb, nh, newpseudo, nhm
-  USE uspp,                 ONLY : nkb, vkb, qq, deeq, deeq_nc, qq_so
+  USE uspp_param,           ONLY : upf, lmaxkb, nh, nh_d, newpseudo, nhm
+  USE uspp,                 ONLY : nkb, vkb, qq, deeq, qq_d, deeq_d, deeq_nc, qq_so
   USE wavefunctions_module, ONLY : evc
   USE spin_orb,             ONLY : lspinorb
   USE lsda_mod,             ONLY : nspin
@@ -978,15 +978,20 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
        COMPLEX(DP), ALLOCATABLE :: deff_nc(:,:,:,:)
        REAL(DP), ALLOCATABLE :: deff(:,:,:)
        ! dvkb contains the derivatives of the kb potential
-       COMPLEX(DP)              :: ps, ps_nc(2)
+       COMPLEX(DP)              :: ps, ps_nc(2), cv, cv2
        ! xyz are the three unit vectors in the x,y,z directions
        DATA xyz / 1.0d0, 0.0d0, 0.0d0, 0.0d0, 1.0d0, 0.0d0, 0.0d0, 0.0d0, 1.0d0 /
        !
-       COMPLEX(DP), DEVICE, ALLOCATABLE :: work1_d(:), work2_d(:,:), dvkb_d(:,:,:)
+       COMPLEX(DP), DEVICE, ALLOCATABLE :: dvkb_d(:,:,:), ps_d(:,:)
        REAL(DP), DEVICE, ALLOCATABLE :: deff_d(:,:,:)
-       REAL(DP) :: workdot
+       REAL(DP) :: workdot, dot11, dot21, dot22, dot31, dot32, dot33
+       REAL(DP) :: gk1, gk2, gk3, wgi, temp
        COMPLEX(DP) :: work_sum, wsum1,wsum2,wsum3
+       COMPLEX(DP) :: evci, qm1i
        COMPLEX(DP), DEVICE, POINTER :: becp_k(:,:)
+       integer, allocatable :: shift(:)
+       integer, allocatable, device :: shift_d(:)
+       integer :: nhnp, nhmax
        !
        becp_k => becp%k_d
 
@@ -1001,7 +1006,6 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
        endif
        !
        ALLOCATE( work1(npwx), work2(npwx) )
-       ALLOCATE( work1_d(npwx), work2_d(npwx,3) )
        !
        evps = 0.D0
        ! ... diagonal contribution
@@ -1080,453 +1084,198 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
        !
        ! ... non diagonal contribution - derivative of the bessel function
        !
-!sigmanlc_d(:,:) = sigmanlc(:,:)
-!#if 0
-       !ALLOCATE( dvkb( npwx, nkb ) )
-       ALLOCATE( dvkb_d( npwx, nkb, 3 ) )
+       ALLOCATE( dvkb_d( npwx, nkb, 4 ) )
        !
-       !CALL gen_us_dj( ik, dvkb )
-       CALL gen_us_dj_gpu( ik, dvkb_d(:,:,1) )
-       !CALL compare( dvkb, dvkb_d, "gen_us_dj")
+       CALL gen_us_dj_gpu( ik, dvkb_d(:,:,4) )
        !
+       IF ( lmaxkb .ne. 0 ) THEN
+         DO ipol = 1, 3
+            CALL gen_us_dy_gpu( ik, xyz(1,ipol), dvkb_d(:,:,ipol) )
+         END DO
+       ENDIF
+   
+       ! Precompute ijkb0 shifts (can be avoided if atoms are sorted by type)
+       ALLOCATE(shift(nat))
+       ijkb0 = 0
+       DO np = 1, ntyp
+         DO na = 1, nat
+           IF ( ityp(na) == np ) THEN
+             shift(na) = ijkb0
+             ijkb0 = ijkb0 + nh(np)
+           ENDIF
+         END DO
+       END DO
+       ALLOCATE(shift_d, source = shift)
+
+       nhmax = 0
+       do np = 1, ntyp
+         nhmax = max(nhmax, nh(np))
+       end do
+
+       ALLOCATE(ps_d(nhmax*nat, ntyp))
+
        DO ibnd = 1, nbnd
-!          IF (noncolin) THEN
-!             work2_nc = (0.D0,0.D0)
-!             CALL compute_deff_nc(deff_nc,et(ibnd,ik))
-!          ELSE
-             !work2 = (0.D0,0.D0)
-             work2_d(:,1) = (0.D0,0.D0)
-             !CALL compute_deff(deff,et(ibnd,ik))
-             CALL compute_deff_gpu(deff_d,et(ibnd,ik))
+         !IF (noncolin) THEN
+           !CALL compute_deff_nc(deff_nc,et(ibnd,ik))
+         !ELSE
+           CALL compute_deff_gpu(deff_d,et(ibnd,ik))
+         !ENDIF
 
-             !DO na = 1, nat
-             !   print *,"band:",ibnd,"na:",na
-             !   CALL compare( deff(:,:,na), deff_d(:,:,na),"deff")
-             !END DO
+         ! Compute PS
+         ps_d = 0.d0
+         !$cuf kernel do (1) <<<*,*>>>
+         DO na = 1, nat
+           np = ityp_d(na)
+           ijkb0 = shift_d(na)
+           nhnp = nh_d(np)
 
-!          ENDIF
-          ijkb0 = 0
-          DO np = 1, ntyp
-             DO na = 1, nat
-                IF ( ityp(na) == np ) THEN
-                      IF ( .NOT. ( upf(np)%tvanp .OR. newpseudo(np) ) ) THEN
-print *,"NOT upf or newpseudo"
-!$cuf kernel do(1) <<<*,*>>>
-                      DO i = 1, npw
-                   DO ih = 1, nh(np)
-                      ikb = ijkb0 + ih
-!                         IF (noncolin) THEN
-!                            if (lspinorb) call errore('stres_us','wrong case',1)
-!                            ijs=0
-!                            ps_nc=(0.D0, 0.D0)
-!                            DO is=1,npol
-!                               DO js=1,npol
-!                                  ijs=ijs+1
-!                                  ps_nc(is)=ps_nc(is)+becp%nc(ikb,js,ibnd)* &
-!                                         deff_nc(ih,ih,na,ijs)
-!                               END DO
-!                            END DO
-!                         ELSE
-                            ps = becp_k(ikb, ibnd) * deeq_d(ih,ih,na,current_spin)
-!                         ENDIF
-!                      IF (noncolin) THEN
-!                         DO is=1,npol
-!                            CALL zaxpy(npw,ps_nc(is),dvkb(1,ikb),1,&
-!                                                      work2_nc(1,is),1)
-!                         END DO
-!                      ELSE
+           DO ih = 1, nhnp
+             ikb = ijkb0 + ih
+             ! TODO: Alternative case not currently supported. Needs to be updated.
+             !IF ( .NOT. ( upf(np)%tvanp .OR. newpseudo(np) ) ) THEN
+             !  IF (noncolin) THEN
+             !    if (lspinorb) call errore('stres_us','wrong case',1)
+             !    ijs=0
+             !    ps_nc=(0.D0, 0.D0)
+             !    DO is=1,npol
+             !      DO js=1,npol
+             !         ijs=ijs+1
+             !         ps_nc_d(is,ikb,np)=ps_nc_d(is,ikb,np)+becp%nc(ikb,js,ibnd)* &
+             !         deff_nc(ih,ih,na,ijs)
+             !      END DO
+             !    END DO
+             !  ELSE
+             !    ps_d(ikb, np) = becp%k(ikb, ibnd) * deeq(ih,ih,na,current_spin)
+             !  ENDIF
+             !ELSE
+               DO jh = 1, nhnp
+                 jkb = ijkb0 + jh
+                 ps_d(ikb, np) = ps_d(ikb, np) + becp_k(jkb,ibnd) * deff_d(ih,jh,na)
+               END DO
+             !ENDIF
+           END DO
 
-                         !DO i = 1, npw
-                           work2_d(i,1) = work2_d(i,1) + ps*dvkb_d(i,ikb,1)
-                         !END DO
-                         !CALL zaxpy( npw, ps, dvkb(1,ikb), 1, work2, 1 )
+         END DO
 
-!                      END IF
-                   END DO
-                      END DO
+         dot11 = 0.d0 
+         dot21 = 0.d0 
+         dot22 = 0.d0 
+         dot31 = 0.d0 
+         dot32 = 0.d0 
+         dot33 = 0.d0 
 
-                      ELSE
+         !$cuf kernel do(2) <<<*,*>>>
+         DO na = 1, nat
+           DO i = 1, npw
+             work_sum = (0.D0,0.D0)
 
-!$cuf kernel do(1) <<<*,*>>>
-                      DO i = 1, npw
-                   work_sum = (0.D0,0.D0)
-                   DO ih = 1, nh(np)
+             np = ityp_d(na)
+             ijkb0 = shift_d(na)
+             nhnp = nh_d(np)
 
-                      ikb = ijkb0 + ih
-                         ps = (0.D0,0.D0)
-                         !ps_nc = (0.D0,0.D0)
-                         DO jh = 1, nh(np)
-                            jkb = ijkb0 + jh
-!                            IF (noncolin) THEN
-!                               ijs=0
-!                               DO is=1,npol
-!                                  DO js=1,npol
-!                                     ijs=ijs+1
-!                                     ps_nc(is)=ps_nc(is)+becp%nc(jkb,js,ibnd)* &
-!                                           deff_nc(ih,jh,na,ijs)
-!                                  END DO
-!                               END DO
-!                            ELSE
-                               ps = ps + becp_k(jkb,ibnd) * deff_d(ih,jh,na)
-!                            END IF
-                         END DO
-!                      IF (noncolin) THEN
-!                         DO is=1,npol
-!                            CALL zaxpy(npw,ps_nc(is),dvkb(1,ikb),1,&
-!                                                      work2_nc(1,is),1)
-!                         END DO
-!                      ELSE
-
-                         work_sum      = work_sum     + ps*dvkb_d(i,ikb,1)
-                         !DO i = 1, npw
-                          !work2_d(i,1) = work2_d(i,1) + ps*dvkb_d(i,ikb,1)
-                         !END DO
-                         !CALL zaxpy( npw, ps, dvkb(1,ikb), 1, work2, 1 )
-
-!                      END IF
-                   END DO
-                   work2_d(i,1) = work2_d(i,1) + work_sum
-                      END DO
-
-                      END IF
-
-                   ijkb0 = ijkb0 + nh(np)
-                END IF
-             END DO
-          END DO
-
-          DO ipol = 1, 3
-             DO jpol = 1, ipol
-!                IF (noncolin) THEN
-!                   DO i = 1, npw
-!                      work1(i) = evc(i     ,ibnd)*gk(ipol,i)* &
-!                                                  gk(jpol,i)*qm1(i)
-!                      work2(i) = evc(i+npwx,ibnd)*gk(ipol,i)* &
-!                                                  gk(jpol,i)*qm1(i)
-!                   END DO
-!                   sigmanlc(ipol,jpol) = sigmanlc(ipol,jpol) - &
-!                                   2.D0 * wg(ibnd,ik) * &
-!                                 ( ddot(2*npw,work1,1,work2_nc(1,1), 1) + &
-!                                   ddot(2*npw,work2,1,work2_nc(1,2), 1) )
-!                ELSE
-
-!$cuf kernel do(1) <<<*,*>>>
-                   DO i = 1, npw
-                      work1_d(i) = evc_d(i,ibnd)*gk_d(ipol,i)*gk_d(jpol,i)*qm1_d(i)
-                   END DO
-
-                   call myDdotAB( 2*npw, work1_d, work2_d(:,1), workdot )
-
-                   sigmanlc(ipol,jpol) = sigmanlc(ipol,jpol) - &
-                                      2.D0 * wg(ibnd,ik) * &
-                                      workdot !ddot( 2 * npw, work1, 1, work2, 1 )
-!                END IF
-             END DO
-          END DO
-       END DO
-#if 0
-!#else
-       !ALLOCATE( dvkb( npwx, nkb ) )
-       !ALLOCATE( dvkb_d( npwx, nkb ) )
-       !
-       CALL gen_us_dj( ik, dvkb )
-       !CALL gen_us_dj_gpu( ik, dvkb_d )
-       !CALL compare( dvkb, dvkb_d, "gen_us_dj")
-       !
-       DO ibnd = 1, nbnd
-!          IF (noncolin) THEN
-!             work2_nc = (0.D0,0.D0)
-!             CALL compute_deff_nc(deff_nc,et(ibnd,ik))
-!          ELSE
-             work2 = (0.D0,0.D0)
-             !work2_d = (0.D0,0.D0)
-             CALL compute_deff(deff,et(ibnd,ik))
-             !CALL compute_deff_gpu(deff_d,et(ibnd,ik))
-
-!          ENDIF
-          ijkb0 = 0
-          DO np = 1, ntyp
-             DO na = 1, nat
-                IF ( ityp(na) == np ) THEN
-                      IF ( .NOT. ( upf(np)%tvanp .OR. newpseudo(np) ) ) THEN
-
-                      DO i = 1, npw
-                   DO ih = 1, nh(np)
-                      ikb = ijkb0 + ih
-!                         IF (noncolin) THEN
-!                            if (lspinorb) call errore('stres_us','wrong case',1)
-!                            ijs=0
-!                            ps_nc=(0.D0, 0.D0)
-!                            DO is=1,npol
-!                               DO js=1,npol
-!                                  ijs=ijs+1
-!                                  ps_nc(is)=ps_nc(is)+becp%nc(ikb,js,ibnd)* &
-!                                         deff_nc(ih,ih,na,ijs)
-!                               END DO
-!                            END DO
-!                         ELSE
-                            ps = becp%k(ikb, ibnd) * deeq(ih,ih,na,current_spin)
-!                         ENDIF
-!                      IF (noncolin) THEN
-!                         DO is=1,npol
-!                            CALL zaxpy(npw,ps_nc(is),dvkb(1,ikb),1,&
-!                                                      work2_nc(1,is),1)
-!                         END DO
-!                      ELSE
-
-                         !DO i = 1, npw
-                           work2(i) = work2(i) + ps*dvkb(i,ikb)
-                         !END DO
-                         !CALL zaxpy( npw, ps, dvkb(1,ikb), 1, work2, 1 )
-
-!                      END IF
-                   END DO
-                      END DO
-
-                      ELSE
-
-                      DO i = 1, npw
-                   DO ih = 1, nh(np)
-                      ikb = ijkb0 + ih
-                         ps = (0.D0,0.D0)
-                         !ps_nc = (0.D0,0.D0)
-                         DO jh = 1, nh(np)
-                            jkb = ijkb0 + jh
-!                            IF (noncolin) THEN
-!                               ijs=0
-!                               DO is=1,npol
-!                                  DO js=1,npol
-!                                     ijs=ijs+1
-!                                     ps_nc(is)=ps_nc(is)+becp%nc(jkb,js,ibnd)* &
-!                                           deff_nc(ih,jh,na,ijs)
-!                                  END DO
-!                               END DO
-!                            ELSE
-                               ps = ps + becp%k(jkb,ibnd) * deff(ih,jh,na)
-!                            END IF
-                         END DO
-!                      IF (noncolin) THEN
-!                         DO is=1,npol
-!                            CALL zaxpy(npw,ps_nc(is),dvkb(1,ikb),1,&
-!                                                      work2_nc(1,is),1)
-!                         END DO
-!                      ELSE
-
-                         !DO i = 1, npw
-                           work2(i) = work2(i) + ps*dvkb(i,ikb)
-                         !END DO
-                         !CALL zaxpy( npw, ps, dvkb(1,ikb), 1, work2, 1 )
-
-!                      END IF
-                   END DO
-                      END DO
-
-                      END IF
-
-                   ijkb0 = ijkb0 + nh(np)
-                END IF
-             END DO
-          END DO
-
-          DO ipol = 1, 3
-             DO jpol = 1, ipol
-!                IF (noncolin) THEN
-!                   DO i = 1, npw
-!                      work1(i) = evc(i     ,ibnd)*gk(ipol,i)* &
-!                                                  gk(jpol,i)*qm1(i)
-!                      work2(i) = evc(i+npwx,ibnd)*gk(ipol,i)* &
-!                                                  gk(jpol,i)*qm1(i)
-!                   END DO
-!                   sigmanlc(ipol,jpol) = sigmanlc(ipol,jpol) - &
-!                                   2.D0 * wg(ibnd,ik) * &
-!                                 ( ddot(2*npw,work1,1,work2_nc(1,1), 1) + &
-!                                   ddot(2*npw,work2,1,work2_nc(1,2), 1) )
-!                ELSE
-
-                   DO i = 1, npw
-                      work1(i) = evc(i,ibnd)*gk(ipol,i)*gk(jpol,i)*qm1(i)
-                   END DO
-
-                   !call myDdotAB( 2*npw, work1_d, work2_d, workdot )
-
-                   sigmanlc(ipol,jpol) = sigmanlc(ipol,jpol) - &
-                                      2.D0 * wg(ibnd,ik) * &
-                                      ddot( 2 * npw, work1, 1, work2, 1 )
-!                END IF
-             END DO
-          END DO
-       END DO
-!#endif
-       print *,"GPU: "
-       print *,sigmanlc_d(:,1)
-       print *,sigmanlc_d(:,2)
-       print *,sigmanlc_d(:,3)
-
-       print *,"CPU: "
-       print *,sigmanlc(:,1)
-       print *,sigmanlc(:,2)
-       print *,sigmanlc(:,3)
-
-       !call compare( work1, work1_d, "work1")
-       !call compare( work2, work2_d, "work2")
-       !call compare( gk, gk_d, "gk" )
-#endif
-       !
-       ! ... non diagonal contribution - derivative of the spherical harmonics
-       ! ... (no contribution from l=0)
-       !
-       IF ( lmaxkb == 0 ) GO TO 10
-       !
-       DO ipol = 1, 3
-          !CALL gen_us_dy( ik, xyz(1,ipol), dvkb )
-          CALL gen_us_dy_gpu( ik, xyz(1,ipol), dvkb_d(:,:,ipol) )
-       END DO
-
-          DO ibnd = 1, nbnd
-!             IF (noncolin) THEN
-!                work2_nc = (0.D0,0.D0)
-!                CALL compute_deff_nc(deff_nc,et(ibnd,ik))
-!             ELSE
-                !work2 = (0.D0,0.D0)
-                work2_d = (0.D0,0.D0)
-                !CALL compute_deff(deff,et(ibnd,ik))
-                CALL compute_deff_gpu(deff_d,et(ibnd,ik))
-!             ENDIF
-
-             ijkb0 = 0
-             DO np = 1, ntyp
-                DO na = 1, nat
-                   IF ( ityp(na) == np ) THEN
-
-                         IF ( .NOT. ( upf(np)%tvanp .OR. newpseudo(np) ) ) THEN
-
-!$cuf kernel do(1) <<<*,*>>>
-                         DO i = 1, npw
-                      DO ih = 1, nh(np)
-                         ikb = ijkb0 + ih
-!                            IF (noncolin) THEN
-!                               ijs=0
-!                               ps_nc = (0.D0,0.D0)
-!                               DO is=1,npol
-!                                  DO js=1,npol
-!                                     ijs=ijs+1
-!                                     ps_nc(is)=ps_nc(is)+becp%nc(ikb,js,ibnd)* &
-!                                         deff_nc(ih,ih,na,ijs)
-!                                  END DO
-!                               END DO
-!                            ELSE
-                               ps = becp_k(ikb,ibnd) * deeq_d(ih,ih,na,current_spin)
-!                            END IF
-!                         IF (noncolin) THEN
-!                            DO is=1,npol
-!                               CALL zaxpy(npw,ps_nc(is),dvkb(1,ikb),1, &
-!                                          work2_nc(1,is),1)
-!                            END DO
-!                         ELSE
-
-                         !DO i = 1, npw
-                           work2_d(i,1) = work2_d(i,1) + ps*dvkb_d(i,ikb,1)
-                           work2_d(i,2) = work2_d(i,2) + ps*dvkb_d(i,ikb,2)
-                           work2_d(i,3) = work2_d(i,3) + ps*dvkb_d(i,ikb,3)
-                         !END DO
-                          !CALL zaxpy( npw, ps, dvkb(1,ikb), 1, work2, 1 )
-
-!                         END IF
-
-                      END DO
-                         END DO
-
-                         ELSE
-
-!$cuf kernel do(1) <<<*,*>>>
-                         DO i = 1, npw
-
-                      wsum1 = (0.D0,0.D0)
-                      wsum2 = (0.D0,0.D0)
-                      wsum3 = (0.D0,0.D0)
-
-                      DO ih = 1, nh(np)
-                         ikb = ijkb0 + ih
-                            !
-                            ! ... in the US case there is a contribution 
-                            ! ... also for jh<>ih
-                            !
-                            ps = (0.D0,0.D0)
-                            !ps_nc = (0.D0,0.D0)
-                            DO jh = 1, nh(np)
-                               jkb = ijkb0 + jh
-!                               IF (noncolin) THEN
-!                                  ijs=0
-!                                  DO is=1,npol
-!                                     DO js=1,npol
-!                                        ijs=ijs+1
-!                                        ps_nc(is)=ps_nc(is)+ &
-!                                               becp%nc(jkb,js,ibnd)* &
-!                                               deff_nc(ih,jh,na,ijs)
-!                                     END DO
-!                                  END DO
-!                               ELSE
-                                  ps = ps + becp_k(jkb,ibnd) * deff_d(ih,jh,na)
-!                               END IF
-                            END DO
-!                         IF (noncolin) THEN
-!                            DO is=1,npol
-!                               CALL zaxpy(npw,ps_nc(is),dvkb(1,ikb),1, &
-!                                          work2_nc(1,is),1)
-!                            END DO
-!                         ELSE
-                           wsum1 = wsum1 + ps*dvkb_d(i,ikb,1)
-                           wsum2 = wsum2 + ps*dvkb_d(i,ikb,2)
-                           wsum3 = wsum3 + ps*dvkb_d(i,ikb,3)
-
-
-                         !DO i = 1, npw
-                         !  work2_d(i,1) = work2_d(i,1) + ps*dvkb_d(i,ikb,1)
-                         !  work2_d(i,2) = work2_d(i,2) + ps*dvkb_d(i,ikb,2)
-                         !  work2_d(i,3) = work2_d(i,3) + ps*dvkb_d(i,ikb,3)
-                         !END DO
-                            !CALL zaxpy( npw, ps, dvkb(1,ikb), 1, work2, 1 )
-
-!                         END IF
-                      END DO
-                           work2_d(i,1) = work2_d(i,1) + wsum1
-                           work2_d(i,2) = work2_d(i,2) + wsum2
-                           work2_d(i,3) = work2_d(i,3) + wsum3
-                         END DO
-
-                         END IF
-
-                      ijkb0 = ijkb0 + nh(np)
-                   END IF
-                END DO
+             DO ih = 1, nhnp
+               ikb = ijkb0 + ih
+               work_sum = work_sum + ps_d(ikb, np)*dvkb_d(i,ikb,4)
              END DO
 
-       DO ipol = 1, 3
-             DO jpol = 1, ipol
-!                IF (noncolin) THEN
-!                   DO i = 1, npw
-!                      work1(i) = evc(i     ,ibnd) * gk(jpol,i)
-!                      work2(i) = evc(i+npwx,ibnd) * gk(jpol,i)
-!                   END DO
-!                   sigmanlc(ipol,jpol) = sigmanlc(ipol,jpol) - &
-!                              2.D0 * wg(ibnd,ik) * & 
-!                            ( ddot( 2 * npw, work1, 1, work2_nc(1,1), 1 ) + &
-!                              ddot( 2 * npw, work2, 1, work2_nc(1,2), 1 ) )
-!                ELSE
+             evci = evc_d(i, ibnd)
+             qm1i = qm1_d(i)
+             gk1 = gk_d(1, i)
+             gk2 = gk_d(2, i)
+             gk3 = gk_d(3, i)
 
-!$cuf kernel do(1) <<<*,*>>>
-                   DO i = 1, npw
-                      work1_d(i) = evc_d(i,ibnd) * gk_d(jpol,i)
-                   END DO
 
-                   call myDdotAB( 2*npw, work1_d, work2_d(:,ipol), workdot )
+             !TODO: add updated logic for noncolinear case here
+             cv = evci * gk1 * gk1 * qm1i
+             dot11 = dot11 + work_sum%re * cv%re + work_sum%im * cv%im
 
-                   sigmanlc(ipol,jpol) = sigmanlc(ipol,jpol) - &
-                                      2.D0 * wg(ibnd,ik) * & 
-                                      workdot !ddot( 2 * npw, work1, 1, work2, 1 )
-!                END IF
+             cv = evci * gk2 * gk1 * qm1i
+             dot21 = dot21 + work_sum%re * cv%re + work_sum%im * cv%im
+
+             cv = evci * gk3 * gk1 * qm1i
+             dot31 = dot31 + work_sum%re * cv%re + work_sum%im * cv%im
+
+             cv = evci * gk2 * gk2 * qm1i
+             dot22 = dot22 + work_sum%re * cv%re + work_sum%im * cv%im
+
+             dot32 = dot32 + work_sum%re * cv%re + work_sum%im * cv%im
+
+             cv = evci * gk3 * gk3 * qm1i
+             dot33 = dot33 + work_sum%re * cv%re + work_sum%im * cv%im
+           END DO
+         END DO
+
+         !TODO: add updated logic for noncolinear case here
+         sigmanlc(1,1) = sigmanlc(1,1) - 2.D0 * wg(ibnd,ik) * dot11
+         sigmanlc(2,1) = sigmanlc(2,1) - 2.D0 * wg(ibnd,ik) * dot21
+         sigmanlc(2,2) = sigmanlc(2,2) - 2.D0 * wg(ibnd,ik) * dot22
+         sigmanlc(3,1) = sigmanlc(3,1) - 2.D0 * wg(ibnd,ik) * dot31
+         sigmanlc(3,2) = sigmanlc(3,2) - 2.D0 * wg(ibnd,ik) * dot32
+         sigmanlc(3,3) = sigmanlc(3,3) - 2.D0 * wg(ibnd,ik) * dot33
+
+         !
+         ! ... non diagonal contribution - derivative of the spherical harmonics
+         ! ... (no contribution from l=0)
+         !
+         IF ( lmaxkb == 0 ) CYCLE
+         !
+       
+         dot11 = 0.d0 
+         dot21 = 0.d0 
+         dot22 = 0.d0 
+         dot31 = 0.d0 
+         dot32 = 0.d0 
+         dot33 = 0.d0 
+
+         !$cuf kernel do(2) <<<*,*>>>
+         DO na = 1, nat
+           DO i = 1, npw
+             np = ityp_d(na)
+             ijkb0 = shift_d(na)
+             nhnp = nh_d(np)
+
+             wsum1 = (0.D0,0.D0)
+             wsum2 = (0.D0,0.D0)
+             wsum3 = (0.D0,0.D0)
+
+             DO ih = 1, nhnp
+               ikb = ijkb0 + ih
+               gk1 = ps_d(ikb, np)
+
+               wsum1 = wsum1 + gk1*dvkb_d(i,ikb,1)
+               wsum2 = wsum2 + gk1*dvkb_d(i,ikb,2)
+               wsum3 = wsum3 + gk1*dvkb_d(i,ikb,3)
              END DO
-          END DO
+             
+             evci = evc_d(i, ibnd)
+             gk1 = gk_d(1, i)
+             gk2 = gk_d(2, i)
+             gk3 = gk_d(3, i)
+
+             !TODO: add updated logic for noncolinear case here
+             cv = evci * gk1
+             dot11 = dot11 + wsum1%re * cv%re + wsum1%im * cv%im
+             dot21 = dot21 + wsum2%re * cv%re + wsum2%im * cv%im
+             dot31 = dot31 + wsum3%re * cv%re + wsum3%im * cv%im
+
+             cv = evci * gk2
+             dot22 = dot22 + wsum2%re * cv%re + wsum2%im * cv%im
+             dot32 = dot32 + wsum3%re * cv%re + wsum3%im * cv%im
+
+             cv = evci * gk3
+             dot33 = dot33 + wsum3%re * cv%re + wsum3%im * cv%im
+
+           END DO
+         END DO
+
+         !TODO: add updated logic for noncolinear case here
+         sigmanlc(1,1) = sigmanlc(1,1) - 2.D0 * wg(ibnd,ik) * dot11
+         sigmanlc(2,1) = sigmanlc(2,1) - 2.D0 * wg(ibnd,ik) * dot21
+         sigmanlc(2,2) = sigmanlc(2,2) - 2.D0 * wg(ibnd,ik) * dot22
+         sigmanlc(3,1) = sigmanlc(3,1) - 2.D0 * wg(ibnd,ik) * dot31
+         sigmanlc(3,2) = sigmanlc(3,2) - 2.D0 * wg(ibnd,ik) * dot32
+         sigmanlc(3,3) = sigmanlc(3,3) - 2.D0 * wg(ibnd,ik) * dot33
+
        END DO
        !
 10     CONTINUE
@@ -1537,14 +1286,15 @@ print *,"NOT upf or newpseudo"
        ELSE
            DEALLOCATE( work2 )
            DEALLOCATE( deff )
-           DEALLOCATE( work2_d )
            DEALLOCATE( deff_d )
        ENDIF
        !DEALLOCATE( dvkb )
        DEALLOCATE( work1 )
        DEALLOCATE( dvkb_d )
-       DEALLOCATE( work1_d )
        !
+       DEALLOCATE(shift)
+       DEALLOCATE(shift_d)
+       DEALLOCATE(ps_d)
        RETURN
        !
      END SUBROUTINE stres_us_k_gpu

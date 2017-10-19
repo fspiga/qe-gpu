@@ -44,6 +44,7 @@
       INTEGER,  ALLOCATABLE :: ityp(:)
       REAL(DP), ALLOCATABLE :: tau(:,:)     !  initial positions read from stdin (in bohr)
 #ifdef USE_CUDA
+      INTEGER,  ALLOCATABLE, DEVICE :: ityp_d(:)
       REAL(DP), ALLOCATABLE, DEVICE :: tau_d(:,:)     !  initial positions read from stdin (in bohr)
 #endif
       REAL(DP), ALLOCATABLE :: vel(:,:)     !  initial velocities read from stdin (in bohr)
@@ -367,6 +368,7 @@
       IF ( ALLOCATED( ityp ) )    DEALLOCATE( ityp )
       IF ( ALLOCATED( tau ) )     DEALLOCATE( tau )
 #ifdef USE_CUDA
+      IF ( ALLOCATED( ityp_d ) )    DEALLOCATE( ityp_d )
       IF ( ALLOCATED( tau_d ) )   DEALLOCATE( tau_d )
 #endif
       IF ( ALLOCATED( vel ) )     DEALLOCATE( vel )

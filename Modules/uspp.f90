@@ -34,6 +34,9 @@ MODULE uspp_param
        nvb,                  &! number of species with Vanderbilt PPs (CPV)
        ish(npsx)              ! for each specie the index of the first beta 
                               ! function: ish(1)=1, ish(i)=1+SUM(nh(1:i-1))
+#ifdef USE_CUDA
+   INTEGER, ALLOCATABLE, DEVICE ::    nh_d(:)
+#endif
 CONTAINS
   !
   !----------------------------------------------------------------------------

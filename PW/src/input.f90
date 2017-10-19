@@ -50,7 +50,7 @@ SUBROUTINE iosys()
                             nat_  => nat, &
                             amass, tau_format
 #ifdef USE_CUDA
-  USE ions_base,     ONLY : tau_d
+  USE ions_base,     ONLY : tau_d, ityp_d
 #endif
   !
   USE basis,         ONLY : startingconfig, starting_wfc, starting_pot
@@ -1463,6 +1463,7 @@ SUBROUTINE iosys()
   IF ( ierr /= 0 ) CALL convert_tau ( tau_format, nat_, tau)
 
 #ifdef USE_CUDA
+  ALLOCATE(ityp_d, source = ityp)
   ALLOCATE(tau_d, source = tau)
 #endif
   !
