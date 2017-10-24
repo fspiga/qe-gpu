@@ -736,7 +736,7 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
      !
   ELSE
      !
-     CALL stres_us_k_gpu()
+     CALL stres_us_k_gpu(gk_d)
      !
   END IF
   !
@@ -961,13 +961,14 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
      !
      !
      !----------------------------------------------------------------------
-     SUBROUTINE stres_us_k_gpu()
+     SUBROUTINE stres_us_k_gpu(gk_d_)
        !----------------------------------------------------------------------  
        !
        ! ... k-points version
        !
        IMPLICIT NONE
        !
+       REAL(DP), DEVICE, INTENT(IN)   :: gk_d_(3,npwx) ! workaround for PGI bug
        ! ... local variables
        !
        INTEGER                       :: na, np, ibnd, ipol, jpol, l, i, &
@@ -1180,9 +1181,9 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
 
              evci = evc_d(i, ibnd)
              qm1i = qm1_d(i)
-             gk1 = gk_d(1, i)
-             gk2 = gk_d(2, i)
-             gk3 = gk_d(3, i)
+             gk1 = gk_d_(1, i)
+             gk2 = gk_d_(2, i)
+             gk3 = gk_d_(3, i)
 
 
              !TODO: add updated logic for noncolinear case here
@@ -1248,9 +1249,9 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
              END DO
              
              evci = evc_d(i, ibnd)
-             gk1 = gk_d(1, i)
-             gk2 = gk_d(2, i)
-             gk3 = gk_d(3, i)
+             gk1 = gk_d_(1, i)
+             gk2 = gk_d_(2, i)
+             gk3 = gk_d_(3, i)
 
              !TODO: add updated logic for noncolinear case here
              cv = evci * gk1

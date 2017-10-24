@@ -431,7 +431,7 @@ SUBROUTINE extrapolate_charge( rho_extr )
     ! work1 is the same thing at time t-dt
   REAL(DP) :: charge
   !
-  INTEGER :: i, is
+  INTEGER :: i, is, lb, ub
   !
 #ifdef USE_CUDA
   rho_of_r_d => rho%of_r_d
@@ -691,9 +691,11 @@ SUBROUTINE extrapolate_charge( rho_extr )
          charge, nelec
      !
 #ifdef USE_CUDA
+     lb = lbound(rho_of_r_d, 1)
+     ub = ubound(rho_of_r_d, 1)
      !$cuf kernel do (2) <<<*, *>>>
      do is = 1, nspin
-       do i = lbound(rho_of_r_d, 1), ubound(rho_of_r_d, 1)
+       do i = lb, ub
          rho_of_r_d(i, is) = rho_of_r_d(i, is) / charge*nelec
          rho_of_g_d(i, is) = rho_of_g_d(i, is) / charge*nelec
        end do
@@ -706,8 +708,8 @@ SUBROUTINE extrapolate_charge( rho_extr )
   END IF
 
 #ifdef USE_CUDA
-    rho%of_r = rho_of_r_d
-    rho%of_g = rho_of_g_d
+    rho%of_r = rho%of_r_d
+    rho%of_g = rho%of_g_d
 #endif
   CALL stop_clock( 'ext_charge' )
   !
