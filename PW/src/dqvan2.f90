@@ -286,7 +286,7 @@ subroutine dqvan2_gpu (ngy, ih, jh, np, qmod, dqg, ylmk0, dylmk0, ipol)
         !
         ! calculate quantites depending on the module of G only when needed
         !
-        IF ( ABS( qmod(ig) - qm1 ) > 1.0D-6 ) THEN
+     !   IF ( ABS( qmod(ig) - qm1 ) > 1.0D-6 ) THEN
            qm = qmod (ig) * dqi
            px = qm - int (qm)
            ux = 1.d0 - px
@@ -312,7 +312,7 @@ subroutine dqvan2_gpu (ngy, ih, jh, np, qmod, dqg, ylmk0, dylmk0, ipol)
            work1 = work1 * dqi
 
            qm1 = qmod(ig)
-        END IF
+     !   END IF
 
         dqg (ig) = dqg (ig) + sig * dylmk0 (ig, lp) * work
         if (qmod (ig) > 1.d-9) dqg (ig) = dqg (ig) + &
