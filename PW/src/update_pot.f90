@@ -697,6 +697,14 @@ SUBROUTINE extrapolate_charge( rho_extr )
      do is = 1, nspin
        do i = lb, ub
          rho_of_r_d(i, is) = rho_of_r_d(i, is) / charge*nelec
+       end do
+     end do
+
+     lb = lbound(rho_of_g_d, 1)
+     ub = ubound(rho_of_g_d, 1)
+     !$cuf kernel do (2) <<<*, *>>>
+     do is = 1, nspin
+       do i = lb, ub
          rho_of_g_d(i, is) = rho_of_g_d(i, is) / charge*nelec
        end do
      end do
