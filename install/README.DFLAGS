@@ -3,7 +3,6 @@
 
 Parallel execution:
       __MPI         MPI parallelization
-      __OPENMP      OpenMP parallelization
 
 GPU execution:
       USE_CUDA      Enable GPU support via CUDA FORTRAN

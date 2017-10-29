@@ -193,7 +193,7 @@ CONTAINS
   !==-----------------------------------------------------------------------==!
   SUBROUTINE parallel_info ( )
     !
-#if defined(__OPENMP)
+#if defined(_OPENMP)
     INTEGER, EXTERNAL :: omp_get_max_threads
     !
     WRITE( stdout, '(/5X,"Parallel version (MPI & OpenMP), running on ",&
@@ -205,7 +205,7 @@ CONTAINS
          omp_get_max_threads()
 #else
     WRITE( stdout, '(/5X,"Parallel version (MPI), running on ",&
-         &I5," processors")' ) nproc 
+         & I5," processors")' ) nproc 
 #endif
     !
 #if defined(USE_CUDA)
@@ -234,11 +234,11 @@ CONTAINS
   !==-----------------------------------------------------------------------==!
   SUBROUTINE serial_info ( )
     !
-#if defined(__OPENMP)
+#if defined(_OPENMP)
     INTEGER, EXTERNAL :: omp_get_max_threads
 #endif
     !
-#if defined(__OPENMP)
+#if defined(_OPENMP)
     WRITE( stdout, '(/5X,"Serial multi-threaded version, running on ",&
          &I4," processor cores")' ) omp_get_max_threads()
     !

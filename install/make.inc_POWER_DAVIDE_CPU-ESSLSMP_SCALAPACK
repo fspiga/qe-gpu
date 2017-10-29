@@ -4,7 +4,7 @@
 TOPDIR = $(dir $(abspath $(filter %make.inc,$(MAKEFILE_LIST))))
 
 # See include/defs.h.README for a list of options and their meaning
-DFLAGS         = -D__MPI -D__OPENMP -D__LINUX_ESSL -D__SCALAPACK
+DFLAGS         = -D__MPI -D__LINUX_ESSL -D__SCALAPACK
 FDFLAGS        = $(DFLAGS)
 
 IFLAGS         = -I$(TOPDIR)/include -I../include/ 

@@ -1482,7 +1482,7 @@ SUBROUTINE esm_ewaldr_pbc ( alpha_g, ewr )
   !
   real(DP)            :: tmp, fac, ss, ew, rmax0, rr
   !
-#if defined __OPENMP
+#if defined _OPENMP
   integer, external   :: OMP_GET_THREAD_NUM
 #endif
   !
@@ -1497,7 +1497,7 @@ SUBROUTINE esm_ewaldr_pbc ( alpha_g, ewr )
 !$omp parallel private( na, nb, dtau, fac, r, r2, nrm, nr, &
 !$omp                   ss, ew, ith )
   ith = 0
-#if defined __OPENMP
+#if defined _OPENMP
   ith = OMP_GET_THREAD_NUM()
 #endif
 
@@ -1571,7 +1571,7 @@ SUBROUTINE esm_ewaldr_bc4 ( alpha_g, ewr )
   ! znrm: threashold value for normal RSUM and Smooth-ESM's RSUM
   real(DP), parameter :: eps=1.d-11, epsneib=1.d-6
   !
-#if defined __OPENMP
+#if defined _OPENMP
   integer, external   :: OMP_GET_THREAD_NUM
 #endif
   !
@@ -1631,7 +1631,7 @@ SUBROUTINE esm_ewaldr_bc4 ( alpha_g, ewr )
 !$omp parallel private( na, z, nb, zp, dtau, fac, r, r2, nrm, nr, rxy, &
 !$omp                   rxyz, ss, ew, ith )
   ith = 0
-#if defined __OPENMP
+#if defined _OPENMP
   ith = OMP_GET_THREAD_NUM()
 #endif
 
@@ -3013,7 +3013,7 @@ SUBROUTINE esm_force_ewr_pbc ( alpha_g, forceion )
   real(DP)              :: tmp, fac, rmax0, rr
   ! rmax0: the maximum radius to consider real space sum
   real(DP), allocatable :: force(:,:)
-#if defined __OPENMP
+#if defined _OPENMP
   integer, external   :: OMP_GET_THREAD_NUM
 #endif
 
@@ -3025,7 +3025,7 @@ SUBROUTINE esm_force_ewr_pbc ( alpha_g, forceion )
 
 !$omp parallel private( force, na, nb, dtau, fac, r, r2, nrm, ith )
   ith = 0
-#if defined __OPENMP
+#if defined _OPENMP
   ith = OMP_GET_THREAD_NUM()
 #endif
 
@@ -3098,7 +3098,7 @@ SUBROUTINE esm_force_ewr_bc4 ( alpha_g, forceion )
   ! znrm: threashold value for normal RSUM and Smooth-ESM's RSUM
   real(DP), parameter :: eps=1.d-11, epsneib=1.d-6
   real(DP), allocatable :: force(:,:)
-#if defined __OPENMP
+#if defined _OPENMP
   integer, external   :: OMP_GET_THREAD_NUM
 #endif
 
@@ -3157,7 +3157,7 @@ SUBROUTINE esm_force_ewr_bc4 ( alpha_g, forceion )
 !$omp parallel private( force, na, z, nb, zp, dtau, fac, r, r2, nrm, rxy, &
 !$omp                   rxyz, ss, ith )
   ith = 0
-#if defined __OPENMP
+#if defined _OPENMP
   ith = OMP_GET_THREAD_NUM()
 #endif
 

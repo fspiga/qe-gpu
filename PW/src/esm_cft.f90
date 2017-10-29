@@ -90,7 +90,7 @@ SUBROUTINE esm_cft_1z_init(nsl, nz, ldz)
 #if defined __FFTW3 || defined __LINUX_ESSL
   COMPLEX(DP), ALLOCATABLE :: c(:), cout(:)
 #endif
-#if defined __OPENMP
+#if defined _OPENMP
   INTEGER, EXTERNAL   :: OMP_GET_MAX_THREADS
 #endif
 
@@ -105,7 +105,7 @@ SUBROUTINE esm_cft_1z_init(nsl, nz, ldz)
   !   initialize a new one
 
   nth = 1
-#if defined(__OPENMP)
+#if defined(_OPENMP)
   nth = OMP_GET_MAX_THREADS()
 #endif
 
@@ -191,7 +191,7 @@ SUBROUTINE esm_cft_1z(c, nsl, nz, ldz, isign, cout)
   REAL (DP)  :: tscale
   INTEGER    :: i, idir, ith
 
-#if defined __OPENMP
+#if defined _OPENMP
   INTEGER, EXTERNAL :: OMP_GET_THREAD_NUM
 #endif
 
@@ -204,7 +204,7 @@ SUBROUTINE esm_cft_1z(c, nsl, nz, ldz, isign, cout)
   END IF
   
   ith = 0
-#if defined __OPENMP
+#if defined _OPENMP
   ith = OMP_GET_THREAD_NUM()
 #endif
 
