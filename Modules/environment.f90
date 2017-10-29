@@ -211,10 +211,15 @@ CONTAINS
 #if defined(USE_CUDA)
     WRITE( stdout, '(/5X,"GPU accelerated version")')
 #if defined(USE_GPU_MPI)
-    WRITE( stdout, '(5x,"with CUDA aware MPI enabled",/5x)')
-#else
-    WRITE( stdout, '(/5X)')
-#endif 
+    WRITE( stdout, '(5x,"with CUDA-aware MPI enabled")')
+#endif
+#if defined(USE_IPC)
+    WRITE( stdout, '(5x,"with CUDA IPC enabled")')
+#endif
+#if defined(NO_CURAND)
+    WRITE( stdout, '(5x,"with CURAND number generation disabled")')
+#endif
+    WRITE( stdout, '(5x)')
 #endif 
     !
     IF ( nimage > 1 ) WRITE( stdout, &
