@@ -4,7 +4,7 @@
 - [Project License](License)
 
 
-## GPU-accelerated Quantum ESPRESSO (QE-GPU)
+## GPU-accelerated Quantum ESPRESSO (QE-GPU) v1.0
 
 This is an open-source custom version of Quantum ESPRESSO with embedded GPU
 support based on CUDA FORTRAN. This product has been made possible thanks to
@@ -61,7 +61,7 @@ If you use the code for science or any form of scientific and technical dissemin
 
 ### Benchmarks
 
-Benchmarks will be collected in a separate [reporitory](https://github.com/fspiga/qe-gpu_benchmarks) 
+Benchmarks will be collected in a separate [repository](https://github.com/fspiga/qe-gpu_benchmarks) 
 
 ### License
 
