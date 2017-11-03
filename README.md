@@ -1,5 +1,3 @@
-[![DOI](https://zenodo.org/badge/80047177.svg)](https://zenodo.org/badge/latestdoi/80047177)
-
 - [Report new Bug Issue](https://github.com/RSE-Cambridge/qe-gpu/issues/new)
 - [Guidelines for Contributing](CONTRIBUTING.md)
 - [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md)
@@ -57,7 +55,7 @@ Quantum ESPRESSO suite or visit the official web site
 ### Citation
 
 If you use the code for science or any form of scientific and technical dissemination activity, we kindly ask to cite the code using the two following references:
-* Romero, J., Phillips, E. Fatica, M., Spiga, F.: GPU-accelerated Quantum ESPRESSO, Version 1.0 (November 2017), http://doi.org/10.5281/zenodo.836889 
+* Romero, J., Phillips, E. Fatica, M., Spiga, F.: GPU-accelerated Quantum ESPRESSO, Version 1.0 (November 2017), http://doi.org/10.5281/zenodo.823200 
 * Romero, J., Phillips, E. Fatica, M., Spiga, F., Giannozzi, P.: _A performance study of Quantum ESPRESSO's PWscf code on multi-core and GPU systems_, 8th IEEE International Workshop on Performance Modeling, Benchmarking and Simulation of High Performance Computer Systems (PMBS17), Lecture Notes in Computer Science, Springer, Denver (2017)
 
 
