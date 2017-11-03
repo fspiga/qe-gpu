@@ -18,10 +18,10 @@ please refer to the guidelines in [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ### Requirements
 
-The [PGI](http://www.pgroup.com/products/community.htm) compiler version 17.10
-or above is required to use QE-GPU. It containes CUDA SDK and pre-built 
-Open MPI for parallel execution (check the
-[PGI Instalation Guide](http://www.pgroup.com/doc/pgiinstall174.pdf) how to 
+The [PGI](http://www.pgroup.com/products) compiler version 17.4 or above is required to use QE-GPU. 
+We suggest the latest community edition 17.10 (freely available from [PGI](http://www.pgroup.com/products/community.htm).
+It containes CUDA SDK and pre-built Open MPI for parallel execution (check the
+[PGI Installation Guide](http://www.pgroup.com/doc/pgiinstall174.pdf) how to 
 install it). **No other compilers are supported**
 
 You need NVIDIA TESLA Kepler (K20, K40, K80) or Pascal (P100) or Volta (V100). 
