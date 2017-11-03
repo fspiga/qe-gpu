@@ -32,16 +32,35 @@ PROGRAM pwscf
   USE read_input,        ONLY : read_input_file
   USE command_line_options, ONLY: input_file_, command_line
   !
+#ifdef USE_CUDA
+!  USE mpiDeviceUtil, ONLY : assignDevice
+  USE mpiDeviceUtil, ONLY : assignDevice
+  USE gpu_routines, ONLY : setupCublasHandle
+  USE eigsolve_vars, ONLY: init_eigsolve_gpu
+#endif
+  !
   IMPLICIT NONE
   CHARACTER(len=256) :: srvaddress
   !! Get the address of the server 
   CHARACTER(len=256) :: get_server_address
   !! Get the address of the server 
+  INTEGER :: dev
   INTEGER :: exit_status
   !! Status at exit
   !
   !
   CALL mp_startup ( diag_in_band_group = .true. )
+
+#ifdef USE_CUDA
+  ! This routine assigns a different GPU to each MPI rank in the same server
+  CALL assignDevice( dev )
+  CALL setupCublasHandle()
+  CALL init_eigsolve_gpu()
+#if defined(__GPU_DEBUG)
+  print *,"Running on GPU dev = ",dev
+#endif
+#endif
+  !
   CALL environment_start ( 'PWSCF' )
   !
   CALL read_input_file ('PW', input_file_ )
@@ -59,7 +78,7 @@ PROGRAM pwscf
   END IF
   !
   CALL stop_run( exit_status )
-  CALL do_stop( exit_status )
+  !CALL do_stop( exit_status )
   !
   STOP
   !

@@ -37,6 +37,12 @@ SUBROUTINE allocate_nlpot
                                becsum, qq_so,dvan_so, deeq_nc
   USE uspp_param,       ONLY : upf, lmaxq, lmaxkb, nh, nhm, nbetam
   USE spin_orb,         ONLY : lspinorb, fcoef
+
+#ifdef USE_CUDA
+  USE wvfct,            ONLY : g2kin_d
+  USE uspp,             ONLY : indv_d, nhtolm_d, vkb_d, deeq_d, qq_d, becsum_d, indv_ijkb0_d
+  USE us,               ONLY : qrad_d, tab_d, tab_d2y_d
+#endif
   !
   IMPLICIT NONE
   !
@@ -50,6 +56,9 @@ SUBROUTINE allocate_nlpot
   !   g2kin contains the kinetic energy \hbar^2(k+G)^2/2m
   !
   ALLOCATE (g2kin ( npwx ) )
+#ifdef USE_CUDA
+  ALLOCATE (g2kin_d(npwx))
+#endif
   !
   ! Note: computation of the number of beta functions for
   ! each atomic type and the maximum number of beta functions
@@ -66,7 +75,20 @@ SUBROUTINE allocate_nlpot
   IF (noncolin) THEN
      ALLOCATE (deeq_nc( nhm, nhm, nat, nspin))
   ENDIF
+
+#ifdef USE_CUDA
+  ALLOCATE (indv_d( nhm, nsp))
+  !allocate (nhtol_d(nhm, nsp))
+  ALLOCATE (nhtolm_d(nhm, nsp))
+  ALLOCATE (indv_ijkb0_d(nat))
+  ALLOCATE(deeq_d, source=deeq)
+#endif
+
   ALLOCATE (qq(   nhm, nhm, nsp))
+#ifdef USE_CUDA
+  allocate(qq_d, source=qq)
+#endif
+
   IF (lspinorb) THEN
     ALLOCATE (qq_so(nhm, nhm, 4, nsp))
     ALLOCATE (dvan_so( nhm, nhm, nspin, nsp))
@@ -86,7 +108,16 @@ SUBROUTINE allocate_nlpot
   !
   IF (lmaxq > 0) ALLOCATE (qrad( nqxq, nbetam*(nbetam+1)/2, lmaxq, nsp))
   ALLOCATE (vkb( npwx,  nkb))
+#ifdef USE_CUDA
+  if (lmaxq > 0) ALLOCATE (qrad_d( nqxq, nbetam*(nbetam+1)/2, lmaxq, nsp))
+  allocate (vkb_d, source=vkb)
+#endif
+
   ALLOCATE (becsum( nhm * (nhm + 1)/2, nat, nspin))
+#ifdef USE_CUDA
+  ALLOCATE (becsum_d, source=becsum)
+#endif
+
   !
   ! Calculate dimensions for array tab (including a possible factor
   ! coming from cell contraction during variable cell relaxation/MD)
@@ -94,9 +125,15 @@ SUBROUTINE allocate_nlpot
   nqx = int( (sqrt (ecutwfc) / dq + 4) * cell_factor )
 
   ALLOCATE (tab( nqx , nbetam , nsp))
+#ifdef USE_CUDA
+  ALLOCATE(tab_d, source=tab)
+#endif
 
   ! d2y is for the cubic splines
   IF (spline_ps) ALLOCATE (tab_d2y( nqx , nbetam , nsp))
+#ifdef USE_CUDA
+  IF (spline_ps) ALLOCATE(tab_d2y_d, source=tab_d2y)
+#endif
 
   nwfcm = maxval ( upf(1:nsp)%nwfc )
   ALLOCATE (tab_at( nqx , nwfcm , nsp))

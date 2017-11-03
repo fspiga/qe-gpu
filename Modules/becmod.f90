@@ -23,8 +23,17 @@ MODULE becmod
   !
   TYPE bec_type
      REAL(DP),   ALLOCATABLE :: r(:,:)    ! appropriate for gammaonly
+#ifdef USE_CUDA
+     COMPLEX(DP),ALLOCATABLE, PINNED :: k(:,:)    ! appropriate for generic k
+#else
      COMPLEX(DP),ALLOCATABLE :: k(:,:)    ! appropriate for generic k
+#endif
      COMPLEX(DP),ALLOCATABLE :: nc(:,:,:)   ! appropriate for noncolin
+#ifdef USE_CUDA
+     REAL(DP),    DEVICE, ALLOCATABLE :: r_d(:,:)    ! appropriate for gammaonly
+     COMPLEX(DP), DEVICE, ALLOCATABLE :: k_d(:,:)    ! appropriate for generic k
+     COMPLEX(DP), DEVICE, ALLOCATABLE :: nc_d(:,:,:)   ! appropriate for noncolin
+#endif
      INTEGER :: comm
      INTEGER :: nbnd
      INTEGER :: nproc
@@ -33,13 +42,22 @@ MODULE becmod
      INTEGER :: ibnd_begin
   END TYPE bec_type
   !
-  TYPE (bec_type) :: becp  ! <beta|psi>
+  TYPE (bec_type), TARGET :: becp  ! <beta|psi>
 
   PRIVATE
+
+  REAL(DP), ALLOCATABLE :: &
+       becp_r(:,:)       !   <beta|psi> for real (at Gamma) wavefunctions
+  COMPLEX(DP), ALLOCATABLE ::  &
+       becp_k (:,:), &    !  as above for complex wavefunctions
+       becp_nc(:,:,:)   !  as above for spinors
   !
   INTERFACE calbec
      !
      MODULE PROCEDURE calbec_k, calbec_gamma, calbec_gamma_nocomm, calbec_nc, calbec_bec_type
+#ifdef USE_CUDA
+     MODULE PROCEDURE calbec_k_gpu, calbec_bec_type_gpu
+#endif
      !
   END INTERFACE
 
@@ -68,8 +86,8 @@ CONTAINS
     INTEGER, OPTIONAL :: nbnd
     !
     INTEGER :: local_nbnd
-    INTEGER, EXTERNAL :: ldim_block, gind_block
-    INTEGER :: m_loc, m_begin, ip
+    INTEGER, EXTERNAL :: ldim_block,  gind_block
+    INTEGER ::  m_loc, m_begin,ip
     REAL(DP), ALLOCATABLE :: dtmp(:,:)
     !
     IF ( present (nbnd) ) THEN
@@ -118,6 +136,81 @@ CONTAINS
     !
   END SUBROUTINE calbec_bec_type
   !-----------------------------------------------------------------------
+#ifdef USE_CUDA
+
+  SUBROUTINE calbec_bec_type_gpu ( npw, beta, psi, betapsi, nbnd )
+    !-----------------------------------------------------------------------
+    !_
+    USE mp_bands, ONLY: intra_bgrp_comm
+    USE mp,       ONLY: mp_get_comm_null
+    !
+    IMPLICIT NONE
+    COMPLEX (DP), INTENT (in) :: beta(:,:), psi(:,:)
+    TYPE (bec_type), INTENT (inout) :: betapsi ! NB: must be INOUT otherwise
+                                               !  the allocatd array is lost
+    ATTRIBUTES( DEVICE ) :: beta, psi
+
+    INTEGER, INTENT (in) :: npw
+    INTEGER, OPTIONAL :: nbnd
+    !
+    INTEGER :: local_nbnd
+    INTEGER, EXTERNAL :: ldim_block, gind_block
+    INTEGER :: m_loc, m_begin, ip
+    REAL(DP), ALLOCATABLE :: dtmp(:,:)
+    !
+    IF ( present (nbnd) ) THEN
+        local_nbnd = nbnd
+    ELSE
+        local_nbnd = size ( psi, 2)
+    ENDIF
+
+#if 0
+    IF ( gamma_only ) THEN
+       !
+       IF( betapsi%comm == mp_get_comm_null() ) THEN
+          !
+          CALL calbec_gamma ( npw, beta, psi, betapsi%r, local_nbnd, intra_bgrp_comm )
+          !
+       ELSE
+          !
+          ALLOCATE( dtmp( SIZE( betapsi%r, 1 ), SIZE( betapsi%r, 2 ) ) )
+          !
+          DO ip = 0, betapsi%nproc - 1
+             m_loc   = ldim_block( betapsi%nbnd , betapsi%nproc, ip )
+             m_begin = gind_block( 1,  betapsi%nbnd, betapsi%nproc, ip )
+             IF( ( m_begin + m_loc - 1 ) > local_nbnd ) m_loc = local_nbnd - m_begin + 1
+             IF( m_loc > 0 ) THEN
+                CALL calbec_gamma ( npw, beta, psi(:,m_begin:m_begin+m_loc-1), dtmp, m_loc, betapsi%comm )
+                IF( ip == betapsi%mype ) THEN
+                   betapsi%r(:,1:m_loc) = dtmp(:,1:m_loc)
+                END IF
+             END IF
+          END DO
+
+          DEALLOCATE( dtmp )
+          !
+       END IF
+       !
+    ELSEIF ( noncolin) THEN
+       !
+       CALL  calbec_nc ( npw, beta, psi, betapsi%nc, local_nbnd )
+       !
+    ELSE
+       !
+#endif
+       CALL  calbec_k_gpu ( npw, beta, psi, betapsi%k_d, betapsi%k, local_nbnd )
+#if 0
+       !
+    ENDIF
+#endif
+    !
+    RETURN
+    !
+  END SUBROUTINE calbec_bec_type_gpu
+  !-----------------------------------------------------------------------
+
+#endif
+
   SUBROUTINE calbec_gamma_nocomm ( npw, beta, psi, betapsi, nbnd )
     !-----------------------------------------------------------------------
     USE mp_bands, ONLY: intra_bgrp_comm
@@ -185,12 +278,12 @@ CONTAINS
         IF ( gstart == 2 ) &
            CALL DGER( nkb, m, -1.0_DP, beta, 2*npwx, psi, 2*npwx, betapsi, nkb )
         !
-    ENDIF
-    !
-    CALL mp_sum( betapsi( :, 1:m ), comm )
-    !
-    CALL stop_clock( 'calbec' )
-    !
+     ENDIF
+     !
+     CALL mp_sum( betapsi( :, 1:m ), comm )
+     !
+     CALL stop_clock( 'calbec' )
+     !
     RETURN
     !
   END SUBROUTINE calbec_gamma
@@ -253,6 +346,68 @@ CONTAINS
     !
   END SUBROUTINE calbec_k
   !
+#ifdef USE_CUDA
+  SUBROUTINE calbec_k_gpu ( npw, beta, psi, betapsi, betapsi_h, nbnd )
+    !-----------------------------------------------------------------------
+    !
+    ! ... matrix times matrix with summation index (k=1,npw) running on
+    ! ... G-vectors or PWs : betapsi(i,j) = \sum_k beta^*(i,k) psi(k,j)
+    !
+    USE mp_bands, ONLY : intra_bgrp_comm
+    USE mp,       ONLY : mp_sum
+    USE gpu_routines
+
+    IMPLICIT NONE
+    COMPLEX (DP), INTENT (in) :: beta(:,:), psi(:,:)
+    COMPLEX (DP), INTENT (out) :: betapsi(:,:)
+    COMPLEX (DP), INTENT (inout) :: betapsi_h(:,:)
+    ATTRIBUTES(DEVICE) :: beta, psi, betapsi
+
+    INTEGER, INTENT (in) :: npw
+    INTEGER, OPTIONAL :: nbnd
+    !
+    INTEGER :: nkb, npwx, m, istat
+    !
+    nkb = size (beta, 2)
+    IF ( nkb == 0 ) RETURN
+    !
+    CALL start_clock( 'calbec' )
+
+!    IF ( npw == 0 ) betapsi(:,:)=(0.0_DP,0.0_DP)
+    npwx= size (beta, 1)
+    IF ( npwx /= size (psi, 1) ) CALL errore ('calbec', 'size mismatch', 1)
+    IF ( npwx < npw ) CALL errore ('calbec', 'size mismatch', 2)
+    IF ( present (nbnd) ) THEN
+        m = nbnd
+    ELSE
+        m = size ( psi, 2)
+    ENDIF
+#ifdef DEBUG
+    WRITE (*,*) 'calbec k'
+    WRITE (*,*)  nkb,  size (betapsi,1) , m , size (betapsi, 2)
+#endif
+    IF ( nkb /= size (betapsi,1) .or. m > size (betapsi, 2) ) &
+      CALL errore ('calbec', 'size mismatch', 3)
+    !
+    IF ( npw == 0 ) betapsi(:,:)=(0.0_DP,0.0_DP)
+
+    istat = cublasZgemm3m(cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nkb, m, npw, (1.0_DP,0.0_DP), &
+                 beta, npwx, psi, npwx, (0.0_DP,0.0_DP), betapsi, nkb )
+
+
+    !
+    betapsi_h( :, 1:m ) = betapsi( :, 1:m )
+    !CALL mp_sum( betapsi( :, 1:m ), intra_bgrp_comm )
+    CALL mp_sum( betapsi_h( :, 1:m ), intra_bgrp_comm )
+    betapsi( :, 1:m ) = betapsi_h( :, 1:m )
+    !
+    CALL stop_clock( 'calbec' )
+    !
+    RETURN
+    !
+  END SUBROUTINE calbec_k_gpu
+#endif
+  !
   !-----------------------------------------------------------------------
   SUBROUTINE calbec_nc ( npw, beta, psi, betapsi, nbnd )
     !-----------------------------------------------------------------------
@@ -312,7 +467,9 @@ CONTAINS
     IMPLICIT NONE
     TYPE (bec_type) :: bec
     LOGICAL :: isalloc
+
     isalloc = (allocated(bec%r) .or. allocated(bec%nc) .or. allocated(bec%k))
+
     RETURN
     !
     !-----------------------------------------------------------------------
@@ -327,8 +484,11 @@ CONTAINS
     TYPE (bec_type) :: bec
     INTEGER, INTENT (in) :: nkb, nbnd
     INTEGER, INTENT (in), OPTIONAL :: comm
-    INTEGER :: ierr, nbnd_siz
-    INTEGER, EXTERNAL :: ldim_block, gind_block
+    INTEGER :: ierr, nbnd_siz, i, j
+    INTEGER, EXTERNAL :: ldim_block, lind_block, gind_block
+#ifdef USE_CUDA
+    COMPLEX(dp), DEVICE, pointer :: becp_k_d(:,:)
+#endif
     !
     nbnd_siz = nbnd
     bec%comm = mp_get_comm_null()
@@ -368,11 +528,42 @@ CONTAINS
        !
     ELSE
        !
+#ifdef USE_CUDA
+       if(allocated( bec%k   ) .and. size(bec%k  ) < nkb*nbnd_siz) deallocate( bec%k   )
+       if(allocated( bec%k_d ) .and. size(bec%k_d) < nkb*nbnd_siz) deallocate( bec%k_d )
+
+       if(.not. allocated(bec%k) ) then
+         ALLOCATE( bec%k( nkb, nbnd_siz ), STAT=ierr )
+         IF( ierr /= 0 ) &
+            CALL errore( ' allocate_bec_type ', ' cannot allocate bec%k ', ABS(ierr) )
+         !
+       endif
+       bec%k(:,:)=(0.0D0,0.0D0)
+
+       if(.not. allocated(bec%k_d) ) then
+#ifdef __CUDA_DEBUG
+         print *,"alloc bec%k_d",nkb,nbnd_siz
+#endif
+         ALLOCATE( bec%k_d( nkb, nbnd_siz ), STAT=ierr )
+         IF( ierr /= 0 ) &
+            CALL errore( ' allocate_bec_type ', ' cannot allocate bec%k_d ', ABS(ierr) )
+         !
+       endif
+       becp_k_d => becp%k_d
+!$cuf kernel do(2) <<<*,*>>>
+       DO j = 1, nbnd_siz
+          DO i = 1, nkb
+             becp_k_d(i,j)=(0.0D0,0.0D0)
+          ENDDO
+       ENDDO
+
+#else
        ALLOCATE( bec%k( nkb, nbnd_siz ), STAT=ierr )
        IF( ierr /= 0 ) &
           CALL errore( ' allocate_bec_type ', ' cannot allocate bec%k ', ABS(ierr) )
        !
        bec%k(:,:)=(0.0D0,0.0D0)
+#endif
        !
     ENDIF
     !
@@ -394,6 +585,9 @@ CONTAINS
     IF (allocated(bec%r))  DEALLOCATE(bec%r)
     IF (allocated(bec%nc)) DEALLOCATE(bec%nc)
     IF (allocated(bec%k))  DEALLOCATE(bec%k)
+#ifdef USE_CUDA
+    IF (allocated(bec%k_d))  DEALLOCATE(bec%k_d)
+#endif
     !
     RETURN
     !
@@ -406,11 +600,14 @@ CONTAINS
     INTEGER, INTENT(in) :: nkb, nbnd
 
     IF (gamma_only) THEN
-       CALL dcopy(nkb*nbnd, bec%r, 1, bec1%r, 1)
+       CALL dcopy(nkb*nbnd, bec1%r, 1, bec%r, 1)
     ELSEIF (noncolin) THEN
        CALL zcopy(nkb*npol*nbnd, bec%nc, 1, bec1%nc,  1)
     ELSE
        CALL zcopy(nkb*nbnd, bec%k, 1, bec1%k, 1)
+#ifdef USE_CUDA
+       bec1%k_d = bec%k
+#endif
     ENDIF
 
     RETURN

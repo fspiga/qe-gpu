@@ -38,6 +38,11 @@ SUBROUTINE wfcinit()
   USE mp,                   ONLY : mp_bcast
   USE qes_types_module,            ONLY : output_type
   USE qes_libs_module,             ONLY : qes_reset_output
+#ifdef USE_CUDA
+  USE uspp,                 ONLY : vkb_d
+  USE klist,                ONLY : igk_k_d
+  USE wvfct,                ONLY : g2kin,g2kin_d
+#endif
   !
   IMPLICIT NONE
   !
@@ -162,10 +167,19 @@ SUBROUTINE wfcinit()
      current_k = ik
      IF ( lsda ) current_spin = isk(ik)
      call g2_kin (ik)
+#ifdef USE_CUDA
+     g2kin=g2kin_d   ! copy kinetic energy back to CPU
+#endif
      !
      ! ... More Hpsi initialization: nonlocal pseudopotential projectors |beta>
      !
-     IF ( nkb > 0 ) CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
+     IF ( nkb > 0 ) then
+#ifdef USE_CUDA
+        CALL init_us_2_gpu( ngk(ik), igk_k_d(1,ik), xk(1,ik), vkb_d )
+#else
+        CALL init_us_2( ngk(ik), igk_k(1,ik), xk(1,ik), vkb )
+#endif
+     END IF
      !
      ! ... Needed for LDA+U
      !
@@ -210,6 +224,13 @@ SUBROUTINE init_wfc ( ik )
   USE random_numbers,       ONLY : randy
   USE mp_bands,             ONLY : intra_bgrp_comm, inter_bgrp_comm, my_bgrp_id
   USE mp,                   ONLY : mp_sum
+#ifdef USE_CUDA
+  USE cudafor
+  USE curand
+  USE wavefunctions_module, ONLY : evc_d
+  USE klist,                ONLY :  nks
+#endif
+  USE cpu_gpu_interface,    ONLY : rotate_wfc
   !
   IMPLICIT NONE
   !
@@ -223,6 +244,13 @@ SUBROUTINE init_wfc ( ik )
   !
   COMPLEX(DP), ALLOCATABLE :: wfcatom(:,:,:) ! atomic wfcs for initialization
   !
+#ifdef USE_CUDA
+  REAL(DP), DEVICE, ALLOCATABLE :: etatom_d(:)
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: wfcatom_d(:,:,:)
+  double precision, allocatable,device:: rand_d(:,:,:)
+  type(curandGenerator):: gen
+  integer:: istat,ngklocal
+#endif
   !
   IF ( starting_wfc(1:6) == 'atomic' ) THEN
      !
@@ -244,6 +272,9 @@ SUBROUTINE init_wfc ( ik )
   END IF
   !
   ALLOCATE( wfcatom( npwx, npol, n_starting_wfc ) )
+#ifdef USE_CUDA
+  ALLOCATE( wfcatom_d( npwx, npol, n_starting_wfc ) )
+#endif
   !
   IF ( starting_wfc(1:6) == 'atomic' ) THEN
      !
@@ -257,6 +288,28 @@ SUBROUTINE init_wfc ( ik )
          ! ... in this case, introduce a small randomization of wavefunctions
          ! ... to prevent possible "loss of states"
          !
+#if defined(USE_CUDA) && !defined(NO_CURAND)
+         wfcatom_d=wfcatom
+         allocate(rand_d(2*ngk(ik),npol,n_starting_atomic_wfc))
+         istat=curandCreateGenerator(gen,CURAND_RNG_PSEUDO_XORWOW) 
+         istat=curandGenerateNormalDouble(gen,rand_d,2*ngk(ik)*npol*n_starting_atomic_wfc,0.d0,1.d0)
+         ngklocal=ngk(ik)
+!$cuf kernel do (3) <<<*,*>>>
+         DO ibnd = 1, n_starting_atomic_wfc
+            DO ipol = 1, npol
+               DO ig = 1, ngklocal
+                  rr  =  rand_d(ig,ipol,ibnd)
+                  arg  = tpi * rand_d(ig+1,ipol,ibnd)
+                  wfcatom_d(ig,ipol,ibnd) = wfcatom_d(ig,ipol,ibnd) * &
+                     ( 1.0_DP + 0.05_DP * CMPLX( rr*COS(arg), rr*SIN(arg) ,kind=DP) ) 
+               END DO
+            END DO
+         END DO
+
+        istat=curandDestroyGenerator(gen)
+        deallocate(rand_d)
+        wfcatom=wfcatom_d
+#else
          DO ibnd = 1, n_starting_atomic_wfc
             !
             DO ipol = 1, npol
@@ -274,6 +327,7 @@ SUBROUTINE init_wfc ( ik )
             END DO
             !
          END DO
+#endif
          !
      END IF
      !
@@ -309,10 +363,16 @@ SUBROUTINE init_wfc ( ik )
 
   if (my_bgrp_id > 0) wfcatom(:,:,:) = (0.d0,0.d0)
   call mp_sum(wfcatom,inter_bgrp_comm)
+#ifdef USE_CUDA
+   wfcatom_d = wfcatom
+#endif
   !
   ! ... Diagonalize the Hamiltonian on the basis of atomic wfcs
   !
   ALLOCATE( etatom( n_starting_wfc ) )
+#ifdef USE_CUDA
+  ALLOCATE( etatom_d( n_starting_wfc ) )
+#endif
   !
   ! ... Allocate space for <beta|psi>
   !
@@ -329,8 +389,19 @@ SUBROUTINE init_wfc ( ik )
   ! ... subspace diagonalization (calls Hpsi)
   !
   CALL start_clock( 'wfcinit:wfcrot' )
+#ifdef USE_CUDA
+  evc_d = evc
+  etatom_d = etatom
+  wfcatom_d = wfcatom
+  CALL rotate_wfc ( npwx, ngk(ik), n_starting_wfc, gstart, &
+                        nbnd, wfcatom_d, npol, okvan, evc_d, etatom_d ) 
+   evc = evc_d
+   etatom = etatom_d
+   wfcatom = wfcatom_d
+#else
   CALL rotate_wfc ( npwx, ngk(ik), n_starting_wfc, gstart, &
                     nbnd, wfcatom, npol, okvan, evc, etatom )
+#endif
   CALL stop_clock( 'wfcinit:wfcrot' )
   !
   lelfield = lelfield_save
@@ -343,6 +414,10 @@ SUBROUTINE init_wfc ( ik )
   CALL deallocate_bec_type ( becp )
   DEALLOCATE( etatom )
   DEALLOCATE( wfcatom )
+#ifdef USE_CUDA
+  DEALLOCATE( etatom_d )
+  DEALLOCATE( wfcatom_d )
+#endif
   !
   RETURN
   !

@@ -32,6 +32,15 @@ SUBROUTINE print_clock_pw()
    CALL print_clock( 'forces' )
    CALL print_clock( 'stress' )
    !
+   IF ( iverbosity > 0 ) THEN
+    WRITE( stdout, '(/5x,"Called by forces:")' )
+     CALL print_clock( 'forces:us' )
+     CALL print_clock( 'forces:lc' )
+     CALL print_clock( 'forces:cc' )
+     CALL print_clock( 'forces:ew' )
+     CALL print_clock( 'forces:corr' )
+   ENDIF
+   !
    WRITE( stdout, '(/5x,"Called by init_run:")' )
    CALL print_clock( 'wfcinit' )
    IF ( iverbosity > 0 ) THEN
@@ -162,6 +171,16 @@ SUBROUTINE print_clock_pw()
    CALL print_clock( 'reduce' )
    CALL print_clock( 'fft_scatter' )
    CALL print_clock( 'ALLTOALL' )
+#endif
+   !
+#if defined (__FFT_CLOCKS)
+   IF ( iverbosity > 0 )  THEN
+   WRITE( stdout, '(/,5X,"FFT compute routines")' )
+      CALL print_clock( 'cft_1z' )
+      CALL print_clock( 'cft_2xy' )
+      CALL print_clock( 'GPU_cft_1z' )
+      CALL print_clock( 'GPU_cft_2xy' )
+   ENDIF
 #endif
    !
    IF ( lda_plus_U ) THEN

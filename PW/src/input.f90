@@ -49,6 +49,9 @@ SUBROUTINE iosys()
                             ntyp_ => nsp, &
                             nat_  => nat, &
                             amass, tau_format
+#ifdef USE_CUDA
+  USE ions_base,     ONLY : tau_d, ityp_d
+#endif
   !
   USE basis,         ONLY : startingconfig, starting_wfc, starting_pot
   !
@@ -1458,6 +1461,11 @@ SUBROUTINE iosys()
   ! ... only if they were read from input, not from file
   !
   IF ( ierr /= 0 ) CALL convert_tau ( tau_format, nat_, tau)
+
+#ifdef USE_CUDA
+  ALLOCATE(ityp_d, source = ityp)
+  ALLOCATE(tau_d, source = tau)
+#endif
   !
   ! ... set up k-points
   !
@@ -1473,13 +1481,9 @@ SUBROUTINE iosys()
      !
      ! ... set default value of wmass
      !
-#if defined __PGI
      DO ia = 1, nat_
         wmass = wmass + amass( ityp(ia) )
      ENDDO
-#else
-     wmass = sum( amass(ityp(:)) )
-#endif
      !
      wmass = wmass * amu_ry
      IF ( calc == 'nd' .or. calc == 'nm' ) THEN

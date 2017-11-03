@@ -25,11 +25,18 @@ subroutine force_corr (forcescc)
   USE cell_base,            ONLY : tpiba
   USE fft_base,             ONLY : dfftp
   USE fft_interfaces,       ONLY : fwfft
-  USE gvect,                ONLY : ngm, gstart, nl, g, ngl, gl, igtongl
   USE lsda_mod,             ONLY : nspin
   USE scf,                  ONLY : vnew
   USE control_flags,        ONLY : gamma_only
+#ifdef USE_CUDA
+  USE wavefunctions_module, ONLY : psic=>psic_d
+  USE compute_rhocgnt_gpu_m
+  USE cudafor
+  USE gvect,                ONLY : ngm, gstart, nl=>nl_d, g=>g_d, ngl, gl=>gl_d, igtongl=>igtongl_d
+#else
+  USE gvect,                ONLY : ngm, gstart, nl, g, ngl, gl, igtongl
   USE wavefunctions_module, ONLY : psic
+#endif 
   USE mp_bands,             ONLY : intra_bgrp_comm
   USE mp,                   ONLY : mp_sum
   !
@@ -38,14 +45,38 @@ subroutine force_corr (forcescc)
   real(DP) :: forcescc (3, nat)
   !
   real(DP), allocatable :: rhocgnt (:), aux (:)
+#ifdef USE_CUDA
+  attributes(device):: rhocgnt
+  real(DP), pointer, device :: vnew_of_r_d(:,:)
+  integer    :: blocks
+  type(dim3) :: threads
+#endif
   ! work space
-  real(DP) ::  gx, arg, fact
+  real(DP) ::  gx, arg, fact, tmpf, tau1,tau2,tau3
+  real(DP) ::  fscc1, fscc2, fscc3
   ! temp factors
-  integer :: ir, isup, isdw, ig, nt, na, ipol, ndm
+  integer :: ir, isup, isdw, ig, nt, na, ipol, ndm, i
   ! counters
   !
   ! vnew is V_out - V_in, psic is the temp space
-  !
+
+#ifdef USE_CUDA
+! We need to use a pointer and lbound/ubound for the CUF kernels 
+   vnew%of_r_d = vnew%of_r
+   vnew_of_r_d => vnew%of_r_d
+  if (nspin == 1 .or. nspin == 4) then
+   !$cuf kernel do(1) <<<*,*>>>
+    do i = lbound(psic,1), ubound(psic, 1)
+     psic(i) = vnew_of_r_d (i, 1)
+    end do
+  else
+   !$cuf kernel do(1) <<<*,*>>>
+    do i = lbound(psic,1), ubound(psic, 1)
+     psic(i) = (vnew_of_r_d (i, 1) + vnew_of_r_d (i, 2)) * 0.5d0
+    end do
+  end if
+#else
+
   if (nspin == 1 .or. nspin == 4) then
      psic(:) = vnew%of_r (:, 1)
   else
@@ -53,9 +84,12 @@ subroutine force_corr (forcescc)
      isdw = 2
      psic(:) = (vnew%of_r (:, isup) + vnew%of_r (:, isdw)) * 0.5d0
   end if
-  !
   ndm = MAXVAL ( msh(1:ntyp) )
-  allocate ( aux(ndm), rhocgnt(ngl) )
+  allocate ( aux(ndm) )
+
+#endif
+
+  allocate ( rhocgnt(ngl) )
 
   forcescc(:,:) = 0.d0
 
@@ -71,6 +105,12 @@ subroutine force_corr (forcescc)
      !
      ! Here we compute the G.ne.0 term
      !
+#ifdef USE_CUDA
+     threads = dim3(32, 8, 1)
+     blocks = ceiling(real(ngl-gstart+1)/8)  ! The loop goes from gstart to ngl, so there are only ngl-gstart+1 elements
+     call compute_rhocgnt_gpu <<<blocks, threads>>> (ngl-gstart+1, msh(nt), tpiba, gl(gstart),rgrid(nt)%r_d,&
+       upf(nt)%rho_at_d, rgrid(nt)%rab_d, rhocgnt(gstart))
+#else
      do ig = gstart, ngl
         gx = sqrt (gl (ig) ) * tpiba
         do ir = 1, msh (nt)
@@ -83,24 +123,48 @@ subroutine force_corr (forcescc)
         enddo
         call simpson (msh (nt), aux, rgrid(nt)%rab, rhocgnt (ig) )
      enddo
+#endif
+
      do na = 1, nat
         if (nt.eq.ityp (na) ) then
+           tau1 = tau(1,na)
+           tau2 = tau(2,na)
+           tau3 = tau(3,na)
+           fscc1 = 0.d0
+           fscc2 = 0.d0
+           fscc3 = 0.d0
+#ifdef USE_CUDA
+          !$cuf kernel do(1) <<<*,*>>>
+#else
+          !$omp parallel do default(shared),private(arg,tmpf),reduction(+:fscc1,fscc2,fscc3)
+#endif
            do ig = gstart, ngm
-              arg = (g (1, ig) * tau (1, na) + g (2, ig) * tau (2, na) &
-                   + g (3, ig) * tau (3, na) ) * tpi
-              do ipol = 1, 3
-                 forcescc (ipol, na) = forcescc (ipol, na) + fact * &
-                      rhocgnt (igtongl(ig) ) * CMPLX(sin(arg),cos(arg),kind=DP) * &
-                      g(ipol,ig) * tpiba * CONJG(psic(nl(ig)))
-              enddo
+              arg = (g (1, ig) * tau1 + &
+                     g (2, ig) * tau2 + &
+                     g (3, ig) * tau3 ) * tpi
+              tmpf=  fact * rhocgnt (igtongl(ig) ) * tpiba * &
+                     DBLE( CMPLX(sin(arg),cos(arg),kind=DP) * CONJG(psic(nl(ig))) )
+              fscc1 = fscc1 + tmpf *  g(1,ig)
+              fscc2 = fscc2 + tmpf *  g(2,ig)
+              fscc3 = fscc3 + tmpf *  g(3,ig)
            enddo
+#ifndef USE_CUDA
+          !$omp end parallel do 
+#endif
+           forcescc(1,na) = forcescc(1,na) + fscc1
+           forcescc(2,na) = forcescc(2,na) + fscc2
+           forcescc(3,na) = forcescc(3,na) + fscc3
         endif
      enddo
   enddo
-  !
+
   call mp_sum(  forcescc, intra_bgrp_comm )
   !
+#ifdef USE_CUDA
+  deallocate ( rhocgnt )
+#else
   deallocate ( aux, rhocgnt )
+#endif
 
   return
 end subroutine force_corr

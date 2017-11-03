@@ -28,6 +28,11 @@ SUBROUTINE hinit0()
   use ldaU,         ONLY : lda_plus_U, U_projection
   USE control_flags,ONLY : tqr, tq_smoothing, tbeta_smoothing
   USE io_global,    ONLY : stdout
+#ifdef USE_CUDA
+  USE ions_base,    ONLY : tau_d
+  USE gvect,        ONLY : g_d, eigts1_d, eigts2_d, eigts3_d
+  USE vlocal,       ONLY : strf_d
+#endif
   !
   IMPLICIT NONE
   !
@@ -70,8 +75,17 @@ SUBROUTINE hinit0()
   !
   ! ... initialize the structure factor
   !
+#ifdef USE_CUDA
+  CALL struc_fact_gpu( nat, tau_d, nsp, ityp, ngm, g_d, bg, &
+                   dfftp%nr1, dfftp%nr2, dfftp%nr3, strf_d, eigts1_d, eigts2_d, eigts3_d )
+  eigts1 = eigts1_d
+  eigts2 = eigts2_d
+  eigts3 = eigts3_d
+  strf = strf_d
+#else
   CALL struc_fact( nat, tau, nsp, ityp, ngm, g, bg, &
                    dfftp%nr1, dfftp%nr2, dfftp%nr3, strf, eigts1, eigts2, eigts3 )
+#endif
   !
   ! these routines can be used to patch quantities that are dependent
   ! on the ions and cell parameters

@@ -1,4 +1,3 @@
-!
 ! Copyright (C) 2001-2016 Quantum ESPRESSO group
 ! This file is distributed under the terms of the
 ! GNU General Public License. See the file `License'
@@ -372,6 +371,13 @@ SUBROUTINE electrons_scf ( printout, exxen )
   !
   USE plugin_variables,     ONLY : plugin_etot
   !
+#ifdef USE_CUDA
+  USE dfunct,               ONLY : newd_gpu
+  USE cudafor
+  USE scf,                  ONLY : rho_core_d, rhog_core_d, vltot_d, vrs_d, funct_on_gpu
+  USE wvfct,                ONLY : psi_d, hpsi_d, spsi_d, comm_h_c, comm_s_c
+  USE wvfct,  ONLY : hc_d, sc_d, vc_d, vc_temp_d, ew_d, conv_d, conv_idx_d
+#endif
   IMPLICIT NONE
   !
   INTEGER, INTENT (IN) :: printout
@@ -397,6 +403,9 @@ SUBROUTINE electrons_scf ( printout, exxen )
       eext=0.0_DP   ! external forces contribution to the total energy
   LOGICAL :: &
       first, exst
+#ifdef USE_CUDA
+   INTEGER :: istat, iexch, icorr, igcx, igcc
+#endif
   !
   ! ... auxiliary variables for calculating and storing temporary copies of
   ! ... the charge density and of the HXC-potential
@@ -455,6 +464,13 @@ SUBROUTINE electrons_scf ( printout, exxen )
         GO TO 10
      END IF
      iter = iter + 1
+!#ifdef USE_NVTX
+!     if(idum>2) then
+!       istat = cudaDeviceSynchronize()
+!       istat = cudaThreadExit()
+!       EXIT
+!     endif
+!#endif
      !
      WRITE( stdout, 9010 ) iter, ecutwfc, mixing_beta
      !
@@ -520,7 +536,11 @@ SUBROUTINE electrons_scf ( printout, exxen )
         ! ... sum_band computes new becsum (stored in uspp modules)
         ! ... and a subtly different copy in rho%bec (scf module)
         !
+#ifdef USE_CUDA
+        CALL sum_band_gpu()
+#else
         CALL sum_band()
+#endif
         !
         ! ... the Harris-Weinert-Foulkes energy is computed here using only
         ! ... quantities obtained from the input density
@@ -601,6 +621,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
            !
            first = .FALSE.
            !
+#ifndef NO_REPEAT
            IF ( dr2 < tr2_min ) THEN
               !
               WRITE( stdout, '(/,5X,"Threshold (ethr) on eigenvalues was ", &
@@ -612,6 +633,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
               CYCLE scf_step
               !
            END IF
+#endif
            !
         END IF
         !
@@ -620,8 +642,21 @@ SUBROUTINE electrons_scf ( printout, exxen )
            ! ... no convergence yet: calculate new potential from mixed
            ! ... charge density (i.e. the new estimate)
            !
+#ifdef USE_CUDA
+           ! If calling supported functional configuration, use GPU path
+           if (funct_on_gpu) then
+             CALL v_of_rho_gpu( rhoin, rho_core, rho_core_d, rhog_core, rhog_core_d,&
+                            ehart, etxc, vtxc, eth, etotefield, charge, v)
+
+           ! Otherwise, fallback to CPU path
+           else
+             CALL v_of_rho( rhoin, rho_core, rhog_core, &
+                            ehart, etxc, vtxc, eth, etotefield, charge, v)
+           endif
+#else
            CALL v_of_rho( rhoin, rho_core, rhog_core, &
                           ehart, etxc, vtxc, eth, etotefield, charge, v)
+#endif
            IF (okpaw) THEN
               CALL PAW_potential(rhoin%bec, ddd_paw, epaw,etot_cmp_paw)
               CALL PAW_symmetrize_ddd(ddd_paw)
@@ -677,17 +712,34 @@ SUBROUTINE electrons_scf ( printout, exxen )
      !
      ! ... define the total local potential (external + scf)
      !
+#ifdef USE_CUDA
+     v%of_r_d = v%of_r
+     vltot_d = vltot
+     CALL sum_vrs_gpu( dfftp%nnr, nspin, vltot_d, v%of_r_d, vrs_d )
+#else
      CALL sum_vrs( dfftp%nnr, nspin, vltot, v%of_r, vrs )
+#endif
      !
      ! ... interpolate the total local potential
      !
-     CALL interpolate_vrs( dfftp%nnr, nspin, doublegrid, kedtau, v%kin_r, vrs )
+#ifdef USE_CUDA
+       CALL interpolate_vrs_gpu( dfftp%nnr, nspin, doublegrid, kedtau, v%kin_r, vrs_d)
+       vrs = vrs_d
+#else
+       CALL interpolate_vrs( dfftp%nnr, nspin, doublegrid, kedtau, v%kin_r, vrs )
+#endif
+     !vrs_d = vrs
      !
      ! ... in the US case we have to recompute the self-consistent
      ! ... term in the nonlocal potential
      ! ... PAW: newd contains PAW updates of NL coefficients
      !
+#ifdef USE_CUDA
+!#if 0
+     CALL newd_gpu()
+#else
      CALL newd()
+#endif
      !
      IF ( lelfield ) en_el =  calc_pol ( )
      !
@@ -837,6 +889,22 @@ SUBROUTINE electrons_scf ( printout, exxen )
   !
   IF ( output_drho /= ' ' ) CALL remove_atomic_rho()
   call destroy_scf_type ( rhoin )
+
+#ifdef USE_CUDA
+  IF (ALLOCATED(psi_d)) DEALLOCATE(psi_d)
+  IF (ALLOCATED(hpsi_d)) DEALLOCATE(hpsi_d)
+  IF (ALLOCATED(spsi_d)) DEALLOCATE(spsi_d)
+!  IF (ALLOCATED(comm_h_c)) DEALLOCATE(comm_h_c)
+!  IF (ALLOCATED(comm_s_c)) DEALLOCATE(comm_s_c)
+!  IF (ALLOCATED(hc_d)) DEALLOCATE(hc_d)
+!  IF (ALLOCATED(sc_d)) DEALLOCATE(sc_d)
+!  IF (ALLOCATED(vc_d)) DEALLOCATE(vc_d)
+!  IF (ALLOCATED(vc_temp_d)) DEALLOCATE(vc_temp_d)
+!  IF (ALLOCATED(ew_d)) DEALLOCATE(ew_d)
+!  IF (ALLOCATED(conv_d)) DEALLOCATE(conv_d)
+!  IF (ALLOCATED(conv_idx_d)) DEALLOCATE(conv_idx_d)
+#endif
+
   CALL stop_clock( 'electrons' )
   !
   RETURN

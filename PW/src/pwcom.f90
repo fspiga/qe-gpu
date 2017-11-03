@@ -35,6 +35,13 @@ MODULE klist
   INTEGER, ALLOCATABLE :: &
        igk_k(:,:),&       ! index of G corresponding to a given index of k+G
        ngk(:)             ! number of plane waves for each k point
+#ifdef USE_CUDA
+  ATTRIBUTES(PINNED) :: igk_k
+  INTEGER, ALLOCATABLE, DEVICE :: &
+       igk_k_d(:,:),      &! index of G corresponding to a given index of k+G on GPU
+       ngk_d(:)            ! number of plane waves for each k point
+       
+#endif
   !
   INTEGER :: &
        nks,               &! number of k points in this pool
@@ -73,6 +80,9 @@ CONTAINS
     DO ik = 1, nks
        CALL gk_sort( xk(1,ik), ngm, g, gcutw, ngk(ik), igk_k(1,ik), gk )
     END DO
+#ifdef USE_CUDA
+    IF(.NOT.ALLOCATED(igk_k_d)) ALLOCATE ( igk_k_d, source=igk_k)
+#endif
     DEALLOCATE ( gk )
     !
   END SUBROUTINE init_igk
@@ -80,6 +90,10 @@ CONTAINS
   SUBROUTINE deallocate_igk ( ) 
   IF ( ALLOCATED( ngk ) )        DEALLOCATE( ngk )
   IF ( ALLOCATED( igk_k ) )      DEALLOCATE( igk_k )
+#ifdef USE_CUDA
+  IF ( ALLOCATED( ngk_d ) )      DEALLOCATE( ngk_d )
+  IF ( ALLOCATED(igk_k_d))       DEALLOCATE ( igk_k_d)
+#endif
   END SUBROUTINE deallocate_igk
 
 END MODULE klist
@@ -187,6 +201,12 @@ MODULE vlocal
        strf(:,:)              ! the structure factor
   REAL(DP), ALLOCATABLE :: &
        vloc(:,:)              ! the local potential for each atom type
+#ifdef USE_CUDA
+  COMPLEX(DP), DEVICE,  ALLOCATABLE :: &
+       strf_d(:,:)              ! the structure factor
+  REAL(DP), DEVICE, ALLOCATABLE :: &
+       vloc_d(:,:)              ! the local potential for each atom type
+#endif
   !
 END MODULE vlocal
 !
@@ -212,6 +232,20 @@ MODULE wvfct
   INTEGER, ALLOCATABLE :: &
        btype(:,:)         ! one if the corresponding state has to be
                           ! converged to full accuracy, zero otherwise
+#ifdef USE_CUDA
+  REAL(DP), DEVICE, ALLOCATABLE :: &
+       et_d(:,:),          &! eigenvalues of the hamiltonian
+       wg_d(:,:),          &! the weight of each k point and band
+       g2kin_d(:)           ! kinetic energy
+
+  COMPLEX(DP), PINNED, ALLOCATABLE :: comm_h_c(:,:), comm_s_c(:,:) ! complex host buffers used for mp_sum
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: psi_d(:,:,:), hpsi_d(:,:,:), spsi_d(:,:,:)
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: hc_d(:,:), sc_d(:,:), vc_d(:,:), vc_temp_d(:,:)
+  REAL(DP), DEVICE, ALLOCATABLE :: ew_d(:)
+  LOGICAL, DEVICE, ALLOCATABLE :: conv_d(:)
+  INTEGER, DEVICE, ALLOCATABLE :: conv_idx_d(:)
+
+#endif
   !
 END MODULE wvfct
 !
@@ -324,6 +358,12 @@ MODULE us
        qrad(:,:,:,:),   &! radial FT of Q functions
        tab(:,:,:),      &! interpolation table for PPs
        tab_at(:,:,:)     ! interpolation table for atomic wfc
+#ifdef USE_CUDA
+  REAL(DP), DEVICE, ALLOCATABLE :: &
+       qrad_d(:,:,:,:), &! radial FT of Q functions
+       tab_d(:,:,:),    &! interpolation table for PPs
+       tab_d2y_d(:,:,:)    ! for cubic splines
+#endif
   LOGICAL :: spline_ps = .false.
   REAL(DP), ALLOCATABLE :: &
        tab_d2y(:,:,:)    ! for cubic splines

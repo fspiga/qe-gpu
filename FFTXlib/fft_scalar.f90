@@ -27,10 +27,6 @@
      USE fft_scalar_dfti
 #elif defined(__LINUX_ESSL)
      USE fft_scalar_essl
-#elif defined(__SX6)
-     USE fft_scalar_sx6
-#elif defined(__ARM_LIB)
-     USE fft_scalar_arm
 #else
      USE fft_scalar_fftw
 #endif

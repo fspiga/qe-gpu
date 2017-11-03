@@ -3,7 +3,7 @@
 include ../../make.inc
 
 # location of needed modules and included files (if any)
-MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib
+MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib 
 
 PWOBJS = \
 pwscf.o 
@@ -40,6 +40,7 @@ bp_strings.o \
 buffers.o \
 c_bands.o \
 c_phase_field.o \
+cpu_gpu_interface.o \
 orbm_kubo.o \
 ccgdiagg.o \
 cdiagh.o \
@@ -251,11 +252,19 @@ wannier_occ.o \
 wannier_enrg.o \
 wyckoff.o       
 
+
 QEMODS=../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.a
 
 TLDEPS=bindir mods libs liblapack libblas
 
-all : tldeps pw.x manypw.x generate_vdW_kernel_table.x generate_rVV10_kernel_table.x
+# If F90FLAGS_WORKAROUND is defined some files are compiled differently
+# # as workaround for compiler bugs
+ifdef F90FLAGS_WORKAROUND
+read_file_new.o pw_restart.o paw_onecenter.o :
+	$(MPIF90) $(F90FLAGS_WORKAROUND) -c $(*).f90 -o $(*).o
+endif
+         
+all : tldeps pw.x
 
 pw.x : $(PWOBJS) libpw.a $(LIBOBJS) $(QEMODS)
 	$(LD) $(LDFLAGS) -o $@ \

@@ -6,16 +6,15 @@ include ../make.inc
 #MODFLAGS= $(MOD_FLAG)../iotk/src $(MOD_FLAG).
 
 FFTX = \
+cuda.o \
 task_groups.o \
 scatter_mod.o  \
 fft_fwinv.o  \
 fft_scalar.o  \
-fft_scalar.ARM_LIB.o  \
 fft_scalar.DFTI.o  \
 fft_scalar.ESSL.o  \
 fft_scalar.FFTW.o  \
 fft_scalar.FFTW3.o  \
-fft_scalar.SX6.o  \
 fft_parallel.o  \
 fft_interfaces.o  \
 stick_base.o  \
@@ -25,7 +24,8 @@ fft_support.o  \
 fft_error.o  \
 fft_stick.o  \
 fft_types.o \
-fft_param.o
+fft_param.o \
+ipca2a.o
 
 
 all : libqefft.a
@@ -34,10 +34,14 @@ libqefft.a: 	$(FFTX)
 	$(AR) $(ARFLAGS) $@ $?       
 	$(RANLIB) $@    
 
-fft_scalar.o : fft_scalar.f90  fft_scalar.FFTW3.f90  fft_scalar.FFTW.f90  fft_scalar.SX6.f90 fft_scalar.DFTI.f90  fft_scalar.ESSL.f90
+fft_scalar.o : fft_scalar.f90  fft_scalar.FFTW3.f90  fft_scalar.FFTW.f90  fft_scalar.DFTI.f90  fft_scalar.ESSL.f90
 
 
 fft_stick.o : fft_stick.c fftw.c fftw.h konst.h
+
+# 
+ipca2a.o : ipca2a.c
+	$(MPICC) $(CFLAGS) -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI= -c ipca2a.c -o ipca2a.o -I${CUDADIR}/include
 
 TEST : test.o libqefft.a
 	$(LD) $(LDFLAGS) -o fft_test.x test.o libqefft.a $(LIBS)

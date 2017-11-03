@@ -45,6 +45,10 @@ MODULE scf
 
   TYPE scf_type
      REAL(DP),   ALLOCATABLE :: of_r(:,:)  ! the charge density in R-space
+#ifdef USE_CUDA
+     REAL(DP),   ALLOCATABLE, DEVICE :: of_r_d(:,:)  ! the charge density in R-space
+     COMPLEX(DP),ALLOCATABLE, DEVICE :: of_g_d(:,:)  ! the charge density in G-space
+#endif
      COMPLEX(DP),ALLOCATABLE :: of_g(:,:)  ! the charge density in G-space
      REAL(DP),   ALLOCATABLE :: kin_r(:,:) ! the kinetic energy density in R-space
      COMPLEX(DP),ALLOCATABLE :: kin_g(:,:) ! the kinetic energy density in G-space
@@ -62,9 +66,9 @@ MODULE scf
      REAL(DP)                 :: el_dipole  ! electrons dipole
   END TYPE mix_type
 
-  type (scf_type) :: rho  ! the charge density and its other components
-  type (scf_type) :: v    ! the scf potential
-  type (scf_type) :: vnew ! used to correct the forces
+  type (scf_type), TARGET :: rho  ! the charge density and its other components
+  type (scf_type), TARGET :: v    ! the scf potential
+  type (scf_type), TARGET :: vnew ! used to correct the forces
 
   REAL(DP) :: v_of_0    ! vltot(G=0)      
   REAL(DP), ALLOCATABLE :: &
@@ -72,6 +76,20 @@ MODULE scf
        vrs(:,:),       &! the total pot. in real space (smooth grid)
        rho_core(:),    &! the core charge in real space
        kedtau(:,:)      ! position dependent kinetic energy enhancement factor
+#ifdef USE_CUDA
+  REAL(DP), DEVICE, ALLOCATABLE :: &
+       vltot_d(:),       &! the local potential in real space
+       vrs_d(:,:),       &! the total pot. in real space (smooth grid)
+       rho_core_d(:),    &! the core charge in real space
+       kedtau_d(:,:)      ! position dependent kinetic energy enhancement factor
+
+  COMPLEX(DP), DEVICE, ALLOCATABLE :: &
+       rhog_core_d(:)     ! the core charge in reciprocal space
+
+  LOGICAL :: funct_on_gpu ! flag for functional support (v_of_rho, v_xc) on GPU.
+
+#endif
+
   COMPLEX(DP), ALLOCATABLE :: &
        rhog_core(:)     ! the core charge in reciprocal space
 
@@ -91,6 +109,10 @@ CONTAINS
    LOGICAL,INTENT(IN),OPTIONAL :: do_not_allocate_becsum ! PAW hack
    LOGICAL                     :: allocate_becsum        ! PAW hack
    allocate ( rho%of_r( dfftp%nnr, nspin) )
+#ifdef USE_CUDA
+   allocate ( rho%of_r_d( dfftp%nnr, nspin) )
+   allocate ( rho%of_g_d( ngm, nspin ) )
+#endif
    allocate ( rho%of_g( ngm, nspin ) )
    if (dft_is_meta() .or. lxdm) then
       allocate ( rho%kin_r( dfftp%nnr, nspin) )
@@ -122,6 +144,10 @@ CONTAINS
    TYPE (scf_type) :: rho
 
    if (ALLOCATED(rho%of_r))  deallocate(rho%of_r)
+#ifdef USE_CUDA
+   if (ALLOCATED(rho%of_r_d))  deallocate(rho%of_r_d)
+   if (ALLOCATED(rho%of_g_d))  deallocate(rho%of_g_d)
+#endif
    if (ALLOCATED(rho%of_g))  deallocate(rho%of_g)
    if (ALLOCATED(rho%kin_r)) deallocate(rho%kin_r)
    if (ALLOCATED(rho%kin_g)) deallocate(rho%kin_g)
@@ -196,26 +222,69 @@ CONTAINS
  end subroutine assign_scf_to_mix_type
  !
  subroutine assign_mix_to_scf_type(rho_m, rho_s)
+#ifdef USE_CUDA
+   USE wavefunctions_module, ONLY : psic => psic_d
+   USE gvect,                ONLY : nl => nl_d, nlm
+#else
    USE wavefunctions_module, ONLY : psic
-   USE control_flags,        ONLY : gamma_only
    USE gvect,                ONLY : nl, nlm
+#endif
+   USE control_flags,        ONLY : gamma_only
    IMPLICIT NONE
    TYPE (mix_type), INTENT(IN) :: rho_m
-   TYPE (scf_type), INTENT(INOUT) :: rho_s
+   TYPE (scf_type), INTENT(INOUT), TARGET :: rho_s
    INTEGER :: is
+#ifdef USE_CUDA
+   INTEGER :: i, j
+   REAL(DP), DEVICE, POINTER :: rho_s_of_r_d(:,:)
+   COMPLEX(DP), DEVICE, POINTER :: rho_s_of_g_d(:, :)
+
+   rho_s_of_g_d => rho_s%of_g_d
+   rho_s_of_r_d => rho_s%of_r_d
+#endif
    
+#ifdef USE_CUDA
+   rho_s_of_g_d(1:ngms,:) = rho_m%of_g(1:ngms,:)
+#else
    rho_s%of_g(1:ngms,:) = rho_m%of_g(1:ngms,:)
+#endif
    ! define rho_s%of_r 
 
    DO is = 1, nspin
-      psic(:) = ( 0.D0, 0.D0 )
-      psic(nl(:)) = rho_s%of_g(:,is)
-      IF ( gamma_only ) psic(nlm(:)) = CONJG( rho_s%of_g(:,is) )
-      CALL invfft ('Dense', psic, dfftp)
-      rho_s%of_r(:,is) = psic(:)
+#ifdef USE_CUDA
+         !$cuf kernel do (1) <<<*, *>>>
+         DO i = lbound(psic, 1), ubound(psic, 1)
+           psic(i) = ( 0.D0, 0.D0 )
+         END DO
+         !$cuf kernel do (1) <<<*, *>>>
+         DO i = lbound(nl, 1), ubound(nl, 1)
+           psic(nl(i)) = rho_s_of_g_d(i,is)
+         END DO
+         IF ( gamma_only ) THEN
+           !psic(nlm(:)) = CONJG( rhoin%of_g(:,is) )
+           print*, "assign_mix_to_scf_type: GAMMA ONLY NOT SUPPORTED!"
+           flush(6); stop
+         ENDIF
+#else
+         psic(:) = ( 0.D0, 0.D0 )
+         psic(nl(:)) = rho_s%of_g(:,is)
+         IF ( gamma_only ) psic(nlm(:)) = CONJG( rho_s%of_g(:,is) )
+#endif
+         CALL invfft ('Dense', psic, dfftp)
+#ifdef USE_CUDA
+         !$cuf kernel do (1) <<<*, *>>>
+         DO i = lbound(psic, 1), ubound(psic, 1)
+           rho_s_of_r_d(i,is) = psic(i)
+         END DO
+#else
+         rho_s%of_r(:,is) = psic(:)
+#endif
    END DO
 
    if (dft_is_meta() .or. lxdm) then
+#ifdef USE_CUDA
+      print*, "high_frequency_mixing: DFT_IS_META .or. LXDM NOT SUPPORTED!"
+#else
       rho_s%kin_g(1:ngms,:) = rho_m%kin_g(:,:)
       ! define rho_s%kin_r 
       DO is = 1, nspin
@@ -225,6 +294,7 @@ CONTAINS
          CALL invfft ('Dense', psic, dfftp)
          rho_s%kin_r(:,is) = psic(:)
       END DO
+#endif
    end if
 
    if (lda_plus_u_nc) rho_s%ns_nc(:,:,:,:) = rho_m%ns_nc(:,:,:,:)
@@ -239,11 +309,21 @@ CONTAINS
   !----------------------------------------------------------------------------
   ! works like DCOPY for scf_type copy variables :  Y = X 
   USE kinds, ONLY : DP
+#ifdef USE_CUDA
+  USE cudafor
+#endif
   IMPLICIT NONE
   TYPE(scf_type), INTENT(IN)    :: X
   TYPE(scf_type), INTENT(INOUT) :: Y
+#ifdef USE_CUDA
+  INTEGER                       :: istat
+#endif
   Y%of_r  = X%of_r
   Y%of_g  = X%of_g
+#ifdef USE_CUDA
+  Y%of_r_d = Y%of_r
+  Y%of_g_d = Y%of_g
+#endif
   if (dft_is_meta() .or. lxdm) then
      Y%kin_r = X%kin_r
      Y%kin_g = X%kin_g
@@ -313,27 +393,81 @@ CONTAINS
  end subroutine mix_type_SCAL
  !
  subroutine high_frequency_mixing ( rhoin, input_rhout, alphamix )
+#ifdef USE_CUDA
+   USE wavefunctions_module, ONLY : psic => psic_d
+   USE gvect,                ONLY : nl => nl_d, nlm
+#else
    USE wavefunctions_module, ONLY : psic
-   USE control_flags,        ONLY : gamma_only
    USE gvect,                ONLY : nl, nlm
+#endif
+   USE control_flags,        ONLY : gamma_only
  IMPLICIT NONE
-   TYPE (scf_type), INTENT(INOUT)     :: rhoin
-   TYPE (scf_type), INTENT(IN)  :: input_rhout
+   TYPE (scf_type), INTENT(INOUT), TARGET     :: rhoin
+   TYPE (scf_type), INTENT(IN), TARGET  :: input_rhout
    REAL(DP), INTENT(IN) :: alphamix
    INTEGER :: is
+
+#ifdef USE_CUDA
+   INTEGER :: i, j
+   REAL(DP), DEVICE, POINTER :: rhoin_of_r_d(:,:)
+   COMPLEX(DP), DEVICE, POINTER :: rhoin_of_g_d(:, :), rhout_of_g_d(:,:)
+
+   rhoin_of_g_d => rhoin%of_g_d
+   rhoin_of_r_d => rhoin%of_r_d
+   rhout_of_g_d => input_rhout%of_g_d
+#endif
    if (ngms < ngm ) then
+#ifdef USE_CUDA
+      !$cuf kernel do (2) <<<*, *>>>
+      do j = lbound(rhoin_of_g_d, 2), ubound(rhoin_of_g_d, 2)
+        do i = lbound(rhoin_of_g_d, 1), ubound(rhoin_of_g_d, 1)
+          if (i > ngms) then
+            rhoin_of_g_d(i, j) = rhoin_of_g_d(i, j) + alphamix * ( rhout_of_g_d(i, j) -rhoin_of_g_d(i, j))
+          else
+            rhoin_of_g_d(i, j) = (0.d0, 0.d0)
+          endif
+        end do
+      end do
+#else
       rhoin%of_g = rhoin%of_g + alphamix * ( input_rhout%of_g-rhoin%of_g)
       rhoin%of_g(1:ngms,1:nspin) = (0.d0,0.d0)
+#endif
       ! define rho_s%of_r 
       DO is = 1, nspin
+#ifdef USE_CUDA
+         !$cuf kernel do (1) <<<*, *>>>
+         DO i = lbound(psic, 1), ubound(psic, 1)
+           psic(i) = ( 0.D0, 0.D0 )
+         END DO
+         !$cuf kernel do (1) <<<*, *>>>
+         DO i = lbound(nl, 1), ubound(nl, 1)
+           psic(nl(i)) = rhoin_of_g_d(i,is)
+         END DO
+         IF ( gamma_only ) THEN
+           !psic(nlm(:)) = CONJG( rhoin%of_g(:,is) )
+           print*, "high_frequency_mixing: GAMMA ONLY NOT SUPPORTED!"
+           flush(6); stop
+         ENDIF
+#else
          psic(:) = ( 0.D0, 0.D0 )
          psic(nl(:)) = rhoin%of_g(:,is)
          IF ( gamma_only ) psic(nlm(:)) = CONJG( rhoin%of_g(:,is) )
+#endif
          CALL invfft ('Dense', psic, dfftp)
+#ifdef USE_CUDA
+         !$cuf kernel do (1) <<<*, *>>>
+         DO i = lbound(psic, 1), ubound(psic, 1)
+           rhoin_of_r_d(i,is) = psic(i)
+         END DO
+#else
          rhoin%of_r(:,is) = psic(:)
+#endif
       END DO
       !
       if (dft_is_meta() .or. lxdm) then
+#ifdef USE_CUDA
+         print*, "high_frequency_mixing: DFT_IS_META .or. LXDM NOT SUPPORTED!"
+#else
          rhoin%kin_g = rhoin%kin_g + alphamix * ( input_rhout%kin_g-rhoin%kin_g)
          rhoin%kin_g(1:ngms,1:nspin) = (0.d0,0.d0)
          ! define rho_s%of_r 
@@ -344,10 +478,16 @@ CONTAINS
             CALL invfft ('Dense', psic, dfftp)
             rhoin%kin_r(:,is) = psic(:)
          END DO
+#endif
       end if
    else
+#ifdef USE_CUDA
+      rhoin_of_g_d(:,:)= (0.d0,0.d0)
+      rhoin_of_r_d(:,:)= 0.d0
+#else
       rhoin%of_g(:,:)= (0.d0,0.d0)
       rhoin%of_r(:,:)= 0.d0
+#endif
       if (dft_is_meta() .or. lxdm) then
          rhoin%kin_g(:,:)= (0.d0,0.d0)
          rhoin%kin_r(:,:)= 0.d0
@@ -358,7 +498,6 @@ CONTAINS
 
    return
  end subroutine high_frequency_mixing 
-
 
  subroutine open_mix_file( iunit, extension, exst )
    USE control_flags,        ONLY : io_level

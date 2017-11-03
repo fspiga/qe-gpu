@@ -140,6 +140,7 @@ SUBROUTINE dndepsilon ( ipol, jpol, ldim, dns )
                                     me_pool, nproc_pool
    USE mp,                   ONLY : mp_sum
 
+   USE cpu_gpu_interface,    ONLY : s_psi
    IMPLICIT NONE
    !
    ! I/O variables first

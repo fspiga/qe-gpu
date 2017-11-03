@@ -37,6 +37,10 @@ SUBROUTINE potinit()
   USE control_flags,        ONLY : lscf
   USE scf,                  ONLY : rho, rho_core, rhog_core, &
                                    vltot, v, vrs, kedtau
+#ifdef USE_CUDA
+  USE scf,                  ONLY : rho_core_d, rhog_core_d, funct_on_gpu
+#endif
+                                   
   USE funct,                ONLY : dft_is_meta
   USE wavefunctions_module, ONLY : psic
   USE ener,                 ONLY : ehart, etxc, vtxc, epaw
@@ -126,7 +130,12 @@ SUBROUTINE potinit()
      WRITE( UNIT = stdout, &
             FMT = '(/5X,"Initial potential from superposition of free atoms")' )
      !
+#ifdef USE_CUDA
+     CALL atomic_rho_gpu( rho%of_r_d, nspin )
+     rho%of_r = rho%of_r_d
+#else
      CALL atomic_rho( rho%of_r, nspin )
+#endif
 
      ! ... in the lda+U case set the initial value of ns
      IF (lda_plus_u) THEN
@@ -227,10 +236,30 @@ SUBROUTINE potinit()
   !
   CALL plugin_scf_potential(rho,.FALSE.,-1.d0)
   !
+
+#ifdef USE_CUDA
+    rho%of_r_d = rho%of_r
+    rho%of_g_d = rho%of_g
+#endif
+
+
   ! ... compute the potential and store it in v
   !
+#ifdef USE_CUDA
+ ! If calling supported functional configuration, use GPU path
+ if (funct_on_gpu) then
+   CALL v_of_rho_gpu( rho, rho_core, rho_core_d, rhog_core, rhog_core_d,&
+                  ehart, etxc, vtxc, eth, etotefield, charge, v)
+
+ ! Otherwise, fallback to CPU path
+ else
+   CALL v_of_rho( rho, rho_core, rhog_core, &
+                  ehart, etxc, vtxc, eth, etotefield, charge, v)
+ endif
+#else
   CALL v_of_rho( rho, rho_core, rhog_core, &
                  ehart, etxc, vtxc, eth, etotefield, charge, v )
+#endif
   IF (okpaw) CALL PAW_potential(rho%bec, ddd_PAW, epaw)
   !
   ! ... define the total local potential (external+scf)

@@ -12,6 +12,7 @@ becmod.o : mp.o
 becmod.o : mp_bands.o
 becmod.o : noncol.o
 becmod.o : recvec.o
+becmod.o : gpu_routines.o
 bfgs_module.o : basic_algebra_routines.o
 bfgs_module.o : cell_base.o
 bfgs_module.o : constants.o
@@ -101,6 +102,8 @@ funct.o : io_global.o
 funct.o : kind.o
 funct.o : xc_rVV10.o
 funct.o : xc_vdW_DF.o
+funct_gpu.o : constants.o
+funct_gpu.o : kind.o
 functionals.o : constants.o
 functionals.o : kind.o
 functionals.o : libxc.o
@@ -112,6 +115,7 @@ generate_function.o : kind.o
 generate_function.o : mp.o
 generate_function.o : mp_bands.o
 generate_k_along_lines.o : kind.o
+gpu_routines.o	:	kind.o
 gth.o : cell_base.o
 gth.o : constants.o
 gth.o : funct.o
@@ -171,7 +175,9 @@ mp.o : kind.o
 mp.o : parallel_include.o
 mp_bands.o : mp.o
 mp_bands.o : parallel_include.o
+mp_base.o : mp.o
 mp_base.o : kind.o
+mp_base.o : mp.o
 mp_base.o : parallel_include.o
 mp_diag.o : mp.o
 mp_diag.o : mp_world.o
@@ -385,6 +391,7 @@ set_signal.o : mp.o
 set_signal.o : mp_world.o
 setqf.o : kind.o
 simpsn.o : kind.o
+simpsn.o : constants.o
 sort.o : kind.o
 space_group.o : kind.o
 sph_bes.o : constants.o
@@ -493,4 +500,3 @@ xsf.o : kind.o
 ylmr2.o : constants.o
 ylmr2.o : kind.o
 zdotc_wrapper.o : kind.o
-environment.o : ../include/configure.h

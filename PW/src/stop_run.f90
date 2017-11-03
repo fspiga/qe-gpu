@@ -19,11 +19,15 @@ SUBROUTINE stop_run( exit_status )
   USE mp_global,          ONLY : mp_global_end
   USE environment,        ONLY : environment_end
   USE io_files,           ONLY : iuntmp, seqopn
+#ifdef USE_CUDA
+  USE cudafor
+#endif
   !
   IMPLICIT NONE
   !
   INTEGER, INTENT(IN) :: exit_status
   LOGICAL             :: exst, opnd, lflag
+  INTEGER :: istat
   !
   lflag = ( exit_status == 0 ) 
   IF ( lflag ) THEN
@@ -48,6 +52,14 @@ SUBROUTINE stop_run( exit_status )
   !
   CALL clean_pw( .TRUE. )
   !
+#ifdef USE_CUDA
+#if defined(__GPU_DEBUG)
+  print *,"calling cudaThreadExit"
+#endif
+  !istat = cudaThreadExit
+  !
+#endif
+
   CALL environment_end( 'PWSCF' )
   !
   CALL mp_global_end ()
@@ -69,7 +81,13 @@ SUBROUTINE do_stop( exit_status )
   ELSE IF ( exit_status == 1 ) THEN
      STOP 1
   ELSE IF ( exit_status == 2 ) THEN
+!STOP 2 interrupts the profiler buffer flush
+#ifdef USE_NVTX
+     print *,"exit_status == 2"
+     STOP
+#else
      STOP 2
+#endif
   ELSE IF ( exit_status == 3 ) THEN
      STOP 3
   ELSE IF ( exit_status == 4 ) THEN

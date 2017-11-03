@@ -215,6 +215,12 @@ SUBROUTINE readpp ( input_dft, printout, ecutwfc_pp, ecutrho_pp )
         endif
         !
      endif
+#ifdef USE_CUDA
+     !rgrid(nt)%r_d = rgrid(nt)%r
+     !rgrid(nt)%rab_d = rgrid(nt)%rab
+     allocate(rgrid(nt)%r_d, source=rgrid(nt)%r)
+     allocate(rgrid(nt)%rab_d, source=rgrid(nt)%rab)
+#endif
      !
      ! end of reading
      !

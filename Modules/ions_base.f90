@@ -32,6 +32,10 @@
       REAL(DP) :: zv(ntypx)    = 0.0_DP
       REAL(DP) :: amass(ntypx) = 0.0_DP
       REAL(DP) :: rcmax(ntypx) = 0.0_DP
+#ifdef USE_CUDA
+      REAL(DP), DEVICE :: zv_d(ntypx)    ! It is only allocated. Once zv isinitialized 
+                                          !the content will be copied over in setup.f90
+#endif 
 
       !     ityp( i ) = the type of i-th atom in stdin
       !     atm( j )  = name of the type of the j-th atomic specie
@@ -39,6 +43,10 @@
 
       INTEGER,  ALLOCATABLE :: ityp(:)
       REAL(DP), ALLOCATABLE :: tau(:,:)     !  initial positions read from stdin (in bohr)
+#ifdef USE_CUDA
+      INTEGER,  ALLOCATABLE, DEVICE :: ityp_d(:)
+      REAL(DP), ALLOCATABLE, DEVICE :: tau_d(:,:)     !  initial positions read from stdin (in bohr)
+#endif
       REAL(DP), ALLOCATABLE :: vel(:,:)     !  initial velocities read from stdin (in bohr)
       REAL(DP), ALLOCATABLE :: tau_srt(:,:) !  tau sorted by specie in bohr
       REAL(DP), ALLOCATABLE :: vel_srt(:,:) !  vel sorted by specie in bohr
@@ -344,6 +352,9 @@
       !
       tions_base_init = .TRUE.
       !
+#ifdef USE_CUDA
+      allocate(tau_d, source = tau)   
+#endif
       RETURN
       !
     END SUBROUTINE ions_base_init
@@ -356,6 +367,10 @@
       !
       IF ( ALLOCATED( ityp ) )    DEALLOCATE( ityp )
       IF ( ALLOCATED( tau ) )     DEALLOCATE( tau )
+#ifdef USE_CUDA
+      IF ( ALLOCATED( ityp_d ) )    DEALLOCATE( ityp_d )
+      IF ( ALLOCATED( tau_d ) )   DEALLOCATE( tau_d )
+#endif
       IF ( ALLOCATED( vel ) )     DEALLOCATE( vel )
       IF ( ALLOCATED( tau_srt ) ) DEALLOCATE( tau_srt )
       IF ( ALLOCATED( vel_srt ) ) DEALLOCATE( vel_srt )

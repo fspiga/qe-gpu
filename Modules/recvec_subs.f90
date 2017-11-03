@@ -17,6 +17,10 @@ MODULE recvec_subs
    USE gvect,              ONLY : ig_l2g, g, gg, ngm, ngm_g, gcutm, &
                                   mill,  nl, gstart
    USE gvecs,              ONLY : ngms, gcutms, ngms_g, nls
+#ifdef USE_CUDA
+   USE gvect,              ONLY : nl_d, g_d, gg_d, mill_d
+   USE gvecs,              ONLY : nls_d
+#endif
    USE fft_base,           ONLY : dfftp, dffts
 !
    USE kinds,              ONLY : DP
@@ -208,7 +212,7 @@ CONTAINS
       j = mill_g(2, ng)
       k = mill_g(3, ng)
 
-#if defined(__MPI)
+#if defined(__MPI) && !defined(__USE_3D_FFT)
       IF( global_sort ) THEN
          m1 = mod (i, dfftp%nr1) + 1
          IF (m1 < 1) m1 = m1 + dfftp%nr1
@@ -290,6 +294,13 @@ CONTAINS
    IF ( gamma_only) CALL index_minusg()
 
    IF( ALLOCATED( ngmpe ) ) DEALLOCATE( ngmpe )
+#ifdef USE_CUDA
+   nl_d = nl
+   nls_d = nls
+   mill_d = mill
+   g_d = g
+   gg_d = gg
+#endif
 
    END SUBROUTINE ggen
    !
@@ -359,6 +370,9 @@ SUBROUTINE gshells ( vc )
    !
    USE kinds,              ONLY : DP
    USE gvect,              ONLY : gg, ngm, gl, ngl, igtongl
+#ifdef USE_CUDA
+   USE gvect,              ONLY : gl_d, gg_d, igtongl_d
+#endif
    USE constants,          ONLY : eps8
    !
    IMPLICIT NONE
@@ -373,6 +387,9 @@ SUBROUTINE gshells ( vc )
       !
       ngl = ngm
       gl => gg
+#ifdef USE_CUDA
+      gl_d => gg_d
+#endif
       DO ng = 1, ngm
          igtongl (ng) = ng
       ENDDO
@@ -401,6 +418,13 @@ SUBROUTINE gshells ( vc )
 
       IF (igl /= ngl) CALL errore ('gshells', 'igl <> ngl', ngl)
 
+#ifdef USE_CUDA
+      allocate(gl_d, source = gl)
+#endif
    ENDIF
+#ifdef USE_CUDA
+   igtongl_d = igtongl
+#endif
+
 
    END SUBROUTINE gshells

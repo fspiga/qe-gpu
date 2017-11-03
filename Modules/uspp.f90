@@ -34,6 +34,9 @@ MODULE uspp_param
        nvb,                  &! number of species with Vanderbilt PPs (CPV)
        ish(npsx)              ! for each specie the index of the first beta 
                               ! function: ish(1)=1, ish(i)=1+SUM(nh(1:i-1))
+#ifdef USE_CUDA
+   INTEGER, ALLOCATABLE, DEVICE ::    nh_d(:)
+#endif
 CONTAINS
   !
   !----------------------------------------------------------------------------
@@ -103,12 +106,18 @@ MODULE uspp
   !
   USE kinds, ONLY: DP
   USE parameters, ONLY: lmaxx, lqmax
+#ifdef USE_CUDA
+!  USE cudafor
+#endif
   IMPLICIT NONE
   PRIVATE
   SAVE
   PUBLIC :: nlx, lpx, lpl, ap, aainit, indv, nhtol, nhtolm, indv_ijkb0, &
             nkb, nkbus, vkb, dvan, deeq, qq, nhtoj, ijtoh, beta, &
             becsum, deallocate_uspp
+#ifdef USE_CUDA
+  PUBLIC :: lpx_d, lpl_d, ap_d, indv_d, nhtol_d, nhtolm_d, vkb_d, deeq_d, qq_d, becsum_d, indv_ijkb0_d
+#endif
        
   PUBLIC :: okvan, nlcc_any
   PUBLIC :: qq_so, dvan_so, deeq_nc 
@@ -139,6 +148,30 @@ MODULE uspp
   !
   COMPLEX(DP), ALLOCATABLE, TARGET :: &
        vkb(:,:)                ! all beta functions in reciprocal space
+
+#ifdef USE_CUDA
+  attributes( pinned ) :: vkb,deeq,qq,becsum
+  INTEGER, ALLOCATABLE, DEVICE ::             &! for each pair of combined momenta lm(1),lm(2): 
+       lpx_d(:,:),     &! maximum combined angular momentum LM
+       lpl_d(:,:,:)    ! list of combined angular momenta  LM
+  REAL(DP), ALLOCATABLE, DEVICE :: &
+       ap_d(:,:,:)
+
+  INTEGER, DEVICE, ALLOCATABLE ::&
+       indv_d(:,:),        &! indes linking  atomic beta's to beta's in the solid
+       nhtol_d(:,:),       &! correspondence n <-> angular momentum l
+       nhtolm_d(:,:),      &! correspondence n <-> combined lm index for (l,m)
+       indv_ijkb0_d(:)      ! first beta (index in the solid) for each atom 
+
+  COMPLEX(DP), DEVICE, ALLOCATABLE, TARGET :: &
+       vkb_d(:,:)                ! all beta functions in reciprocal space
+  REAL(DP), DEVICE, ALLOCATABLE :: &
+       deeq_d(:,:,:,:),         &! the integral of V_eff and Q_{nm} 
+       qq_d(:,:,:),             &! the q functions in the solid
+       becsum_d(:,:,:)           ! \sum_i f(i) <psi(i)|beta_l><beta_m|psi(i)>
+
+#endif
+
   REAL(DP), ALLOCATABLE :: &
        becsum(:,:,:)           ! \sum_i f(i) <psi(i)|beta_l><beta_m|psi(i)>
   REAL(DP), ALLOCATABLE :: &
@@ -245,6 +278,13 @@ CONTAINS
     deallocate(ylm)
     deallocate(rr)
     deallocate(r)
+
+#ifdef USE_CUDA
+  allocate(lpx_d(nlx,nlx) , lpl_d(nlx,nlx,mx), ap_d(lqmax*lqmax,nlx,nlx) )
+  lpx_d = lpx
+  ap_d = ap
+  lpl_d = lpl
+#endif
     
     return
   end subroutine aainit
@@ -334,6 +374,18 @@ CONTAINS
     IF( ALLOCATED( deeq_nc ) )    DEALLOCATE( deeq_nc )
     IF( ALLOCATED( beta ) )       DEALLOCATE( beta )
     IF( ALLOCATED( dbeta ) )      DEALLOCATE( dbeta )
+
+#ifdef USE_CUDA
+    IF( ALLOCATED( nhtol_d ) )      DEALLOCATE( nhtol_d )
+    IF( ALLOCATED( indv_d ) )       DEALLOCATE( indv_d )
+    IF( ALLOCATED( nhtolm_d ) )     DEALLOCATE( nhtolm_d )
+    IF( ALLOCATED( indv_ijkb0_d ) ) DEALLOCATE( indv_ijkb0_d )
+
+    IF( ALLOCATED( vkb_d ) )      DEALLOCATE( vkb_d )
+    IF( ALLOCATED( deeq_d ) )     DEALLOCATE( deeq_d )
+    IF( ALLOCATED( qq_d ) )         DEALLOCATE( qq_d )
+    IF( ALLOCATED( becsum_d ) )     DEALLOCATE( becsum_d )
+#endif
     !
   END SUBROUTINE deallocate_uspp
   !

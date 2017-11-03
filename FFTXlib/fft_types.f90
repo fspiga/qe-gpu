@@ -13,7 +13,9 @@ MODULE fft_types
 
   USE fft_support, ONLY : good_fft_order, good_fft_dimension
   USE fft_param
-
+#ifdef USE_CUDA
+  USE cudafor
+#endif
   IMPLICIT NONE
   PRIVATE
   SAVE
@@ -46,6 +48,25 @@ MODULE fft_types
     INTEGER, ALLOCATABLE :: iss(:)   ! index of the first rho stick on each proc
     INTEGER, ALLOCATABLE :: isind(:) ! for each position in the plane indicate the stick index
     INTEGER, ALLOCATABLE :: ismap(:) ! for each stick in the plane indicate the position
+#ifdef USE_CUDA
+    INTEGER, ALLOCATABLE, DEVICE:: ismap_d(:)
+    INTEGER(kind=cuda_stream_kind) :: a2a_comp, a2a_h2d, a2a_d2h
+    TYPE(cudaEvent), allocatable, dimension(:) :: a2a_event
+    INTEGER(kind=cuda_stream_kind), allocatable, dimension(:) :: bstreams
+    TYPE(cudaEvent), allocatable, dimension(:) :: bevents
+#endif
+
+#ifdef USE_CUDA
+    INTEGER              :: batchsize = 16    ! how many ffts to batch together
+    INTEGER              :: subbatchsize = 4  ! size of subbatch for pipelining
+#else
+    INTEGER              :: batchsize = 1    ! how many ffts to batch together
+    INTEGER              :: subbatchsize = 1  ! size of subbatch for pipelining
+#endif
+#ifdef USE_IPC
+    INTEGER :: IPC_PEER(16)
+#endif
+    INTEGER, ALLOCATABLE :: srh(:,:) ! Isend/recv handles by subbatch
     INTEGER, ALLOCATABLE :: iplp(:)  ! indicate which "Y" plane should be FFTed ( potential )
     INTEGER, ALLOCATABLE :: iplw(:)  ! indicate which "Y" plane should be FFTed ( wave func )
     !
@@ -103,6 +124,10 @@ CONTAINS
     INTEGER, INTENT(in) :: comm ! mype starting from 0
     INTEGER :: nx, ny, ierr
     INTEGER :: mype, root, nproc ! mype starting from 0
+    INTEGER :: nsubbatches
+#ifdef USE_CUDA
+    INTEGER :: istat,i
+#endif
 
     IF ( ALLOCATED( desc%nsp ) ) &
         CALL fftx_error__(' fft_type_allocate ', ' fft arrays already allocated ', 1 )
@@ -137,6 +162,29 @@ CONTAINS
     ALLOCATE( desc%iss( nproc ) )
     ALLOCATE( desc%isind( nx * ny ) )
     ALLOCATE( desc%ismap( nx * ny ) )
+#ifdef USE_CUDA
+    ALLOCATE( desc%ismap_d( nx * ny ) )
+
+    istat = cudaStreamCreate( desc%a2a_comp )
+    istat = cudaStreamCreate( desc%a2a_d2h )
+    istat = cudaStreamCreate( desc%a2a_h2d )
+
+    ALLOCATE( desc%a2a_event( max(2*nproc, 3) ) )
+    DO i = 1, max(2*nproc, 3)
+       istat = cudaEventCreate( desc%a2a_event( i ) )
+    ENDDO
+
+    nsubbatches = ceiling(real(desc%batchsize)/desc%subbatchsize)
+
+    ALLOCATE( desc%bstreams( nsubbatches ) )
+    ALLOCATE( desc%bevents( nsubbatches ) )
+    DO i = 1, nsubbatches
+      istat = cudaStreamCreate( desc%bstreams(i) )
+      istat = cudaEventCreate( desc%bevents(i) )
+    ENDDO
+
+#endif
+    ALLOCATE( desc%srh(2*nproc, nsubbatches))
     ALLOCATE( desc%iplp( nx ) )
     ALLOCATE( desc%iplw( nx ) )
 
@@ -161,6 +209,11 @@ CONTAINS
 
   SUBROUTINE fft_type_deallocate( desc )
     TYPE (fft_type_descriptor) :: desc
+    INTEGER :: nsubbatches
+
+#ifdef USE_CUDA
+    INTEGER :: istat,i,nproc
+#endif
     IF ( ALLOCATED( desc%nsp ) )    DEALLOCATE( desc%nsp )
     IF ( ALLOCATED( desc%nsw ) )    DEALLOCATE( desc%nsw )
     IF ( ALLOCATED( desc%ngl ) )    DEALLOCATE( desc%ngl )
@@ -170,6 +223,31 @@ CONTAINS
     IF ( ALLOCATED( desc%iss ) )    DEALLOCATE( desc%iss )
     IF ( ALLOCATED( desc%isind ) )  DEALLOCATE( desc%isind )
     IF ( ALLOCATED( desc%ismap ) )  DEALLOCATE( desc%ismap )
+#ifdef USE_CUDA
+    IF ( allocated(  desc%ismap_d))  DEALLOCATE( desc%ismap_d)
+
+    istat = cudaStreamDestroy( desc%a2a_comp )
+    istat = cudaStreamDestroy( desc%a2a_d2h )
+    istat = cudaStreamDestroy( desc%a2a_h2d )
+
+    nproc = desc%nproc
+
+    DO i = 1, 2*nproc
+       istat = cudaEventDestroy( desc%a2a_event( i ) )
+    ENDDO
+    DEALLOCATE( desc%a2a_event( 2*nproc ) )
+
+    nsubbatches = ceiling(real(desc%batchsize)/desc%subbatchsize)
+    DO i = 1, nsubbatches
+      istat = cudaStreamDestroy( desc%bstreams(i) )
+      istat = cudaEventDestroy( desc%bevents(i) )
+    ENDDO
+
+    DEALLOCATE( desc%bstreams )
+    DEALLOCATE( desc%bevents )
+
+#endif
+    IF ( ALLOCATED( desc%srh ) )   DEALLOCATE( desc%srh )
     IF ( ALLOCATED( desc%iplp ) )   DEALLOCATE( desc%iplp )
     IF ( ALLOCATED( desc%iplw ) )   DEALLOCATE( desc%iplw )
 #if defined(__MPI)
@@ -477,6 +555,11 @@ CONTAINS
        !
     END IF
 
+#ifdef USE_CUDA
+    ! Copy ismap to GPU
+    desc%ismap_d = desc%ismap
+#endif
+
     RETURN
   END SUBROUTINE fft_type_set
 !=----------------------------------------------------------------------------=!
@@ -706,7 +789,6 @@ CONTAINS
       RETURN
    
    END SUBROUTINE grid_set
-
 !=----------------------------------------------------------------------------=!
 END MODULE fft_types
 !=----------------------------------------------------------------------------=!

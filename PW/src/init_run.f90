@@ -26,7 +26,11 @@ SUBROUTINE init_run()
   USE funct,              ONLY : dft_is_hybrid
   USE recvec_subs,        ONLY : ggen
   USE wannier_new,        ONLY : use_wannier    
+#ifdef USE_CUDA
+  USE dfunct,             ONLY : newd_gpu
+#else
   USE dfunct,             ONLY : newd
+#endif
   USE esm,                ONLY : do_comp_esm, esm_init
   USE mp_bands,           ONLY : intra_bgrp_comm, inter_bgrp_comm, nbgrp, root_bgrp_id
   USE mp,                 ONLY : mp_bcast
@@ -35,8 +39,17 @@ SUBROUTINE init_run()
 #if defined(__HDF5)
   USE hdf5_qe, ONLY : initialize_hdf5
 #endif
+#ifdef USE_CUDA
+  USE cudafor
+  USE wvfct,              ONLY : et_d, wg_d
+  USE funct,              ONLY : get_iexch, get_icorr, get_igcx, get_igcc
+  USE scf,                ONLY : funct_on_gpu
+#endif
   !
   IMPLICIT NONE
+#ifdef USE_CUDA
+  integer  :: iexch, icorr, igcx, igcc
+#endif
   !
   !
   CALL start_clock( 'init_run' )
@@ -91,6 +104,11 @@ SUBROUTINE init_run()
   !
   et(:,:) = 0.D0
   wg(:,:) = 0.D0
+#ifdef USE_CUDA
+  ALLOCATE( et_d( nbnd, nkstot ) , wg_d( nbnd, nkstot ) )
+  et_d = 0.D0
+  wg_d = 0.D0
+#endif
   !
   btype(:,:) = 1
   !
@@ -103,9 +121,27 @@ SUBROUTINE init_run()
   !
   CALL hinit0()
   !
+#ifdef USE_CUDA
+  ! Check is functional configuration is supported on GPU and set flag
+  iexch = get_iexch
+  icorr = get_icorr
+  igcx = get_igcx
+  igcc = get_igcc
+  funct_on_gpu = (iexch .eq. 1 .and. & 
+                 (icorr .eq. 1 .or. icorr .eq. 4) .and. &
+                 (igcx .eq. 0 .or. igcx .eq. 2 .or. igcx .eq. 3) .and. &
+                 (igcc .eq. 0 .or. igcc .eq. 2 .or. igcc .eq. 4))
+
+#endif
+
   CALL potinit()
   !
+#ifdef USE_CUDA
+  CALL newd_gpu()
+#else
   CALL newd()
+#endif
+
 #if defined(__HDF5)
   ! calls h5open_f mandatory in any application using hdf5
   CALL initialize_hdf5()
@@ -139,6 +175,9 @@ SUBROUTINE pre_init()
   !
   USE ions_base,        ONLY : nat, nsp, ityp
   USE uspp_param,       ONLY : upf, lmaxkb, nh, nhm, nbetam
+#ifdef USE_CUDA
+  USE uspp_param,       ONLY : nh_d
+#endif
   USE uspp,             ONLY : nkb, nkbus
   IMPLICIT NONE
   INTEGER :: na, nt, nb
@@ -159,6 +198,10 @@ SUBROUTINE pre_init()
      ENDDO
      !
   ENDDO
+#ifdef USE_CUDA
+  if (allocated(nh_d)) deallocate(nh_d)
+  allocate(nh_d, source = nh)
+#endif
   !
   ! calculate the maximum number of beta functions
   !

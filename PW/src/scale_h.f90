@@ -27,6 +27,10 @@ subroutine scale_h
   USE funct,      ONLY : dft_is_hybrid
   USE mp,         ONLY : mp_max
   USE mp_bands,   ONLY : intra_bgrp_comm
+#ifdef USE_CUDA
+  USE gvect,      ONLY : g_d, gg_d
+  USE us,         ONLY : qrad_d, tab_d
+#endif
   !
   implicit none
   !
@@ -38,6 +42,8 @@ subroutine scale_h
   !
   ! scale the k points
   !
+  CALL start_clock( 'scale_h' )
+
   call cryst_to_cart (nkstot, xk, at_old, - 1)
   call cryst_to_cart (nkstot, xk, bg, + 1)
   IF(nks_start>0)THEN
@@ -81,6 +87,13 @@ subroutine scale_h
   tab(:,:,:) = tab(:,:,:) * sqrt (omega_old/omega)
   qrad(:,:,:,:) = qrad(:,:,:,:) * omega_old/omega
   tab_at(:,:,:) = tab_at(:,:,:) * sqrt (omega_old/omega)
+
+#ifdef USE_CUDA
+  g_d = g
+  gg_d = gg
+  tab_d = tab
+  qrad_d = qrad
+#endif
   !
   ! recalculate the local part of the pseudopotential
   !
@@ -90,6 +103,9 @@ subroutine scale_h
   !
   IF ( dft_is_hybrid() ) CALL exx_grid_reinit()
   !
+
+  CALL stop_clock( 'scale_h' )
+
   return
 end subroutine scale_h
 

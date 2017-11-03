@@ -136,7 +136,11 @@ SUBROUTINE mix_rho( input_rhout, rhoin, alphamix, dr2, tr2_min, iter, n_iter,&
   !
   conv = ( dr2 < tr2 )
   !
+#ifndef NO_REPEAT
   IF ( conv .OR. dr2 < tr2_min ) THEN
+#else
+  IF ( conv) THEN
+#endif
      !
      ! ... if convergence is achieved or if the self-consistency error (dr2) is
      ! ... smaller than the estimated error due to diagonalization (tr2_min),
@@ -303,6 +307,7 @@ SUBROUTINE mix_rho( input_rhout, rhoin, alphamix, dr2, tr2_min, iter, n_iter,&
   ! ... set new trial density
   !
   call mix_type_AXPY ( alphamix, rhout_m, rhoin_m )
+
   ! ... simple mixing for high_frequencies (and set to zero the smooth ones)
   call high_frequency_mixing ( rhoin, input_rhout, alphamix )
   ! ... add the mixed rho for the smooth frequencies
@@ -310,6 +315,11 @@ SUBROUTINE mix_rho( input_rhout, rhoin, alphamix, dr2, tr2_min, iter, n_iter,&
   !
   call destroy_mix_type(rhout_m)
   call destroy_mix_type(rhoin_m)
+
+#ifdef USE_CUDA
+  rhoin%of_r = rhoin%of_r_d
+  rhoin%of_g = rhoin%of_g_d
+#endif
 
   CALL stop_clock( 'mix_rho' )
   !

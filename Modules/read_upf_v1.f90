@@ -156,6 +156,11 @@ subroutine read_upf_v1 (iunps, upf, grid, ierr, header_only)
   ENDIF
   ENDIF
 
+#ifdef USE_CUDA
+   ALLOCATE(upf%rho_at_d(upf%mesh), source=upf%rho_at)
+   ALLOCATE(upf%rho_atc_d(upf%mesh), source=upf%rho_atc)
+#endif
+
 200 return
 
 end subroutine read_upf_v1
@@ -361,6 +366,10 @@ subroutine read_pseudo_local (upf, iunps)
   upf%vloc = 0.0_DP
 
   read (iunps, *, err=100, end=100) (upf%vloc(ir) , ir=1,upf%mesh )
+
+#ifdef USE_CUDA
+  ALLOCATE(upf%vloc_d(upf%mesh), source=upf%vloc)
+#endif
 
   return
 

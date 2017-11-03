@@ -34,7 +34,14 @@
      ! nlm = as above, for G< (used only with gamma tricks)
 
      INTEGER, ALLOCATABLE :: nl(:), nlm(:)
-
+#ifdef USE_CUDA
+     attributes(pinned) :: nl
+     INTEGER, DEVICE, ALLOCATABLE :: nl_d(:)
+     REAL(DP), DEVICE, ALLOCATABLE, TARGET :: gg_d(:)
+     REAL(DP), DEVICE, ALLOCATABLE, TARGET :: g_d(:,:)
+     INTEGER, DEVICE, ALLOCATABLE, TARGET :: mill_d(:,:)
+     COMPLEX(DP), DEVICE, ALLOCATABLE :: eigts1_d(:,:), eigts2_d(:,:), eigts3_d(:,:)
+#endif
      INTEGER :: gstart = 2 ! index of the first G vector whose module is > 0
                            ! Needed in parallel execution: gstart=2 for the
                            ! proc that holds G=0, gstart=1 for all others
@@ -48,6 +55,10 @@
      !
      REAL(DP), POINTER :: gl(:) 
      INTEGER, ALLOCATABLE, TARGET :: igtongl(:) 
+#ifdef USE_CUDA
+     REAL(DP), DEVICE, POINTER :: gl_d(:) 
+     INTEGER, DEVICE, ALLOCATABLE, TARGET :: igtongl_d(:) 
+#endif
      !
      !     G-vectors cartesian components ( in units tpiba =(2pi/a)  )
      !
@@ -106,6 +117,13 @@
        ALLOCATE( g(3, ngm) )
        ALLOCATE( mill(3, ngm) )
        ALLOCATE( nl (ngm) )
+#ifdef USE_CUDA
+       ALLOCATE( gg_d(ngm) )
+       ALLOCATE( g_d(3, ngm) )
+       ALLOCATE( mill_d(3, ngm) )
+       ALLOCATE( nl_d (ngm) )
+       ALLOCATE( igtongl_d(ngm) )
+#endif
        ALLOCATE( nlm(ngm) )
        ALLOCATE( ig_l2g(ngm) )
        ALLOCATE( igtongl(ngm) )
@@ -118,6 +136,11 @@
        ! IF( ASSOCIATED( gl ) ) DEALLOCATE( gl )
        IF( ALLOCATED( gg ) ) DEALLOCATE( gg )
        IF( ALLOCATED( g ) )  DEALLOCATE( g )
+#ifdef USE_CUDA
+       IF( ALLOCATED( gg_d ) ) DEALLOCATE( gg_d )
+       IF( ALLOCATED( g_d ) )  DEALLOCATE( g_d )
+       IF( ALLOCATED( mill_d ) ) DEALLOCATE( mill_d )
+#endif
        IF( ALLOCATED( mill_g ) ) DEALLOCATE( mill_g )
        IF( ALLOCATED( mill ) ) DEALLOCATE( mill )
        IF( ALLOCATED( igtongl ) ) DEALLOCATE( igtongl )
@@ -127,6 +150,13 @@
        IF( ALLOCATED( eigts2 ) ) DEALLOCATE( eigts2 )
        IF( ALLOCATED( eigts3 ) ) DEALLOCATE( eigts3 )
        IF( ALLOCATED( nl ) ) DEALLOCATE( nl )
+#ifdef USE_CUDA
+       IF( ALLOCATED( igtongl_d ) ) DEALLOCATE( igtongl_d )
+       IF( ALLOCATED( eigts1_d ) ) DEALLOCATE( eigts1_d )
+       IF( ALLOCATED( eigts2_d ) ) DEALLOCATE( eigts2_d )
+       IF( ALLOCATED( eigts3_d ) ) DEALLOCATE( eigts3_d )
+       IF( ALLOCATED( nl_d ) ) DEALLOCATE( nl_d )
+#endif
        IF( ALLOCATED( nlm ) ) DEALLOCATE( nlm )
      END SUBROUTINE deallocate_gvect
 
@@ -163,6 +193,10 @@
      ! nlm = as above, for G< (used only with gamma tricks)
 
      INTEGER, ALLOCATABLE :: nls(:), nlsm(:)
+#ifdef USE_CUDA
+     attributes(pinned) :: nls
+     INTEGER, DEVICE, ALLOCATABLE :: nls_d(:) !, nlsm_d(:)
+#endif
 
      REAL(DP) :: ecuts = 0.0_DP   ! energy cut-off = 4*ecutwfc
      REAL(DP) :: gcutms= 0.0_DP   ! ecuts/(2 pi/a)^2, cut-off for |G|^2
@@ -195,6 +229,9 @@
        !
        ALLOCATE( nls (ngms) )
        ALLOCATE( nlsm(ngms) )
+#ifdef USE_CUDA
+       ALLOCATE( nls_d, source=nls )
+#endif
        !
        RETURN 
        !
@@ -203,6 +240,10 @@
      SUBROUTINE deallocate_gvecs()
        IF( ALLOCATED( nls ) ) DEALLOCATE( nls )
        IF( ALLOCATED( nlsm ) ) DEALLOCATE( nlsm )
+#ifdef USE_CUDA
+       IF( ALLOCATED( nls_d ) ) DEALLOCATE( nls_d )
+#endif
+
      END SUBROUTINE deallocate_gvecs
 
 !=----------------------------------------------------------------------------=!

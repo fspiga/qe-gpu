@@ -57,6 +57,11 @@ TYPE radial_grid_type
        rmax,       & ! the maximum radial point
        zmesh,      & ! the ionic charge used for the mesh
        dx            ! the deltax of the linear mesh
+#ifdef USE_CUDA
+  REAL(DP),POINTER,DEVICE :: &
+       r_d(:),    & ! the radial mesh
+       rab_d(:) ! d r(x) / d x where x is the linear grid
+#endif
 END TYPE radial_grid_type
 
   PRIVATE
@@ -105,6 +110,11 @@ END TYPE radial_grid_type
          Y%rm1(1:X%mesh) = X%rm1(1:X%mesh)
          Y%rm2(1:X%mesh) = X%rm2(1:X%mesh)
          Y%rm3(1:X%mesh) = X%rm3(1:X%mesh)
+!#ifdef USE_CUDA
+!         !TODO: put cuf kernel or d2d memcpy here
+!         !Y%r_d = X%r_d
+!         !Y%rab = X%rab_d
+!#endif
          !
          Y%xmin  = X%xmin
          Y%rmax  = X%rmax
@@ -128,6 +138,11 @@ END TYPE radial_grid_type
          grid%rm2(mesh),  & ! 1 / r**2
          grid%rm3(mesh)   ) ! 1 / r**3
       grid%mesh = mesh
+!#ifdef USE CUDA
+!      allocate(           &
+!         grid%r_d(mesh),    &
+!         grid%rab_d(mesh)   ) ! d r(x) / d x where x is the linear grid
+!#endif
       end subroutine allocate_radial_grid
 !
 !---------------------------------------------------------------
@@ -142,6 +157,10 @@ END TYPE radial_grid_type
        if (associated(grid%rm2)) deallocate(grid%rm2)
        if (associated(grid%rm3)) deallocate(grid%rm3)
        grid%mesh = 0
+!#ifdef USE_CUDA
+!       if (associated(grid%r_d))   deallocate(grid%r_d)
+!       if (associated(grid%rab_d)) deallocate(grid%rab_d)
+!#endif
        call nullify_radial_grid(grid)
       end subroutine deallocate_radial_grid_s
 !---------------------------------------------------------------
@@ -158,6 +177,10 @@ END TYPE radial_grid_type
          if (associated(grid(n)%rm2)) deallocate(grid(n)%rm2)
          if (associated(grid(n)%rm3)) deallocate(grid(n)%rm3)
          grid(n)%mesh = 0
+!#ifdef USE_CUDA
+!       if (associated(grid(n)%r_d))   deallocate(grid(n)%r_d)
+!       if (associated(grid(n)%rab_d)) deallocate(grid(n)%rab_d)
+!#endif
        enddo
        !deallocate(grid)
       end subroutine deallocate_radial_grid_v
@@ -175,6 +198,11 @@ END TYPE radial_grid_type
          grid%rm2,  & ! 1 / r**2
          grid%rm3   ) ! 1 / r**3
       grid%mesh = -1
+!#ifdef USE_CUDA
+!      nullify(           &
+!         grid%r_d,    &
+!         grid%rab_d   ) ! d r(x) / d x where x is the linear grid
+!#endif
       end subroutine nullify_radial_grid
 !
 !---------------------------------------------------------------
@@ -220,6 +248,11 @@ END TYPE radial_grid_type
       grid%xmin = xmin
       grid%rmax = rmax
       grid%zmesh = zmesh
+
+!#ifdef USE_CUDA
+!      grid%r_d = grid%r
+!      grid%rab_d = grid%rab
+!#endif
 
       return
       end subroutine do_mesh

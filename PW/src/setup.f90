@@ -40,6 +40,9 @@ SUBROUTINE setup()
   USE constants,          ONLY : pi, degspin
   USE cell_base,          ONLY : at, bg, alat, tpiba, tpiba2, ibrav, omega
   USE ions_base,          ONLY : nat, tau, ntyp => nsp, ityp, zv
+#ifdef USE_CUDA
+  USE ions_base,          ONLY : zv_d
+#endif
   USE basis,              ONLY : starting_pot, natomwfc
   USE gvect,              ONLY : gcutm, ecutrho
   USE gvecw,              ONLY : gcutw, ecutwfc
@@ -154,15 +157,14 @@ SUBROUTINE setup()
   ! ... Compute the ionic charge for each atom type and the total ionic charge
   !
   zv(1:ntyp) = upf(1:ntyp)%zp
-  !
-#if defined (__PGI)
-     ionic_charge = 0._DP
-     DO na = 1, nat
-        ionic_charge = ionic_charge + zv( ityp(na) )
-     END DO
-#else
-     ionic_charge = SUM( zv(ityp(1:nat)) ) 
+#ifdef USE_CUDA
+  zv_d = zv
 #endif
+  !
+  ionic_charge = 0._DP
+  DO na = 1, nat
+     ionic_charge = ionic_charge + zv( ityp(na) )
+  END DO
   !
   ! ... set the number of electrons 
   !
@@ -292,13 +294,9 @@ SUBROUTINE setup()
      !
      DO is = 1, nspin_lsda
         !
-#if defined (__PGI)
         DO ibnd = 1, nbnd
            iocc = iocc + f_inp(ibnd,is)
         END DO
-#else
-        iocc = iocc + SUM( f_inp(1:nbnd,is) )
-#endif
         !
         DO ibnd = 1, nbnd
            if (f_inp(ibnd,is) > 2.d0/nspin_lsda .or. f_inp(ibnd,is) < 0.d0) &

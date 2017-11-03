@@ -20,7 +20,7 @@ MODULE environment
       nproc_image
   USE mp_pools,  ONLY: npool
   USE mp_bands,  ONLY: ntask_groups, nproc_bgrp, nbgrp
-  USE global_version, ONLY: version_number, svn_revision
+  USE global_version, ONLY: version_number, svn_revision, gpu_version_number
 
   IMPLICIT NONE
 
@@ -66,8 +66,9 @@ CONTAINS
     CALL start_clock( TRIM(code) )
 
     code_version = TRIM (code) // " v." // TRIM (version_number)
-    IF ( TRIM (svn_revision) /= "unknown" ) code_version = &
-         TRIM (code_version) // " (svn rev. " // TRIM (svn_revision) // ")"
+!    IF ( TRIM (svn_revision) /= "unknown" ) code_version = &
+!         TRIM (code_version) // " (svn rev. " // TRIM (svn_revision) // ")"
+    code_version = TRIM (code_version) // " (gpu tag v" // TRIM (gpu_version_number) // ")"
 
     ! ... for compatibility with PWSCF
 
@@ -195,7 +196,7 @@ CONTAINS
   !==-----------------------------------------------------------------------==!
   SUBROUTINE parallel_info ( )
     !
-#if defined(__OPENMP)
+#if defined(_OPENMP)
     INTEGER, EXTERNAL :: omp_get_max_threads
     !
     WRITE( stdout, '(/5X,"Parallel version (MPI & OpenMP), running on ",&
@@ -207,8 +208,22 @@ CONTAINS
          omp_get_max_threads()
 #else
     WRITE( stdout, '(/5X,"Parallel version (MPI), running on ",&
-         &I5," processors")' ) nproc 
+         & I5," processors")' ) nproc 
 #endif
+    !
+#if defined(USE_CUDA)
+    WRITE( stdout, '(/5X,"GPU accelerated version")')
+#if defined(USE_GPU_MPI)
+    WRITE( stdout, '(5x,"with CUDA-aware MPI enabled")')
+#endif
+#if defined(USE_IPC)
+    WRITE( stdout, '(5x,"with CUDA IPC enabled")')
+#endif
+#if defined(NO_CURAND)
+    WRITE( stdout, '(5x,"with CURAND number generation disabled")')
+#endif
+    WRITE( stdout, '(5x)')
+#endif 
     !
     IF ( nimage > 1 ) WRITE( stdout, &
          '(5X,"path-images division:  nimage    = ",I7)' ) nimage
@@ -227,11 +242,11 @@ CONTAINS
   !==-----------------------------------------------------------------------==!
   SUBROUTINE serial_info ( )
     !
-#if defined(__OPENMP)
+#if defined(_OPENMP)
     INTEGER, EXTERNAL :: omp_get_max_threads
 #endif
     !
-#if defined(__OPENMP)
+#if defined(_OPENMP)
     WRITE( stdout, '(/5X,"Serial multi-threaded version, running on ",&
          &I4," processor cores")' ) omp_get_max_threads()
     !

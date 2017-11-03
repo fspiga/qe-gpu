@@ -86,6 +86,7 @@ addusforce.o : ../../Modules/mp_bands.o
 addusforce.o : ../../Modules/noncol.o
 addusforce.o : ../../Modules/recvec.o
 addusforce.o : ../../Modules/uspp.o
+addusforce.o : addusdens.o
 addusforce.o : realus.o
 addusforce.o : scf_mod.o
 addusstress.o : ../../FFTXlib/fft_interfaces.o
@@ -96,6 +97,7 @@ addusstress.o : ../../Modules/ions_base.o
 addusstress.o : ../../Modules/kind.o
 addusstress.o : ../../Modules/recvec.o
 addusstress.o : ../../Modules/uspp.o
+addusstress.o : addusdens.o
 addusstress.o : pwcom.o
 addusstress.o : scf_mod.o
 allocate_fft.o : ../../Modules/control_flags.o
@@ -211,6 +213,7 @@ c_bands.o : ../../Modules/wavefunctions.o
 c_bands.o : atomic_wfc_mod.o
 c_bands.o : bp_mod.o
 c_bands.o : buffers.o
+c_bands.o : cpu_gpu_interface.o
 c_bands.o : g_psi_mod.o
 c_bands.o : ldaU.o
 c_bands.o : pwcom.o
@@ -247,6 +250,7 @@ cdiaghg.o : ../../Modules/kind.o
 cdiaghg.o : ../../Modules/mp.o
 cdiaghg.o : ../../Modules/mp_bands.o
 cdiaghg.o : ../../Modules/mp_diag.o
+cdiaghg.o : ../../Modules/gpu_routines.o
 cegterg.o : ../../LAXlib/la_types.o
 cegterg.o : ../../LAXlib/ptoolkit.o
 cegterg.o : ../../Modules/io_global.o
@@ -254,6 +258,8 @@ cegterg.o : ../../Modules/kind.o
 cegterg.o : ../../Modules/mp.o
 cegterg.o : ../../Modules/mp_bands.o
 cegterg.o : ../../Modules/mp_diag.o
+cegterg.o : pwcom.o
+cegterg.o : cdiaghg.o
 clean_pw.o : ../../FFTXlib/fft_types.o
 clean_pw.o : ../../Modules/atom.o
 clean_pw.o : ../../Modules/constraints_module.o
@@ -360,6 +366,7 @@ data_structure_custom.o : ../../Modules/mp.o
 data_structure_custom.o : ../../Modules/mp_bands.o
 data_structure_custom.o : ../../Modules/recvec.o
 data_structure_custom.o : pwcom.o
+deriv_drhoc.o : drhoc.o
 deriv_drhoc.o : ../../Modules/constants.o
 deriv_drhoc.o : ../../Modules/kind.o
 divide.o : ../../Modules/mp.o
@@ -538,12 +545,14 @@ force_corr.o : ../../Modules/mp_bands.o
 force_corr.o : ../../Modules/recvec.o
 force_corr.o : ../../Modules/uspp.o
 force_corr.o : ../../Modules/wavefunctions.o
+force_corr.o : atomic_rho.o
 force_corr.o : pwcom.o
 force_corr.o : scf_mod.o
 force_ew.o : ../../Modules/constants.o
 force_ew.o : ../../Modules/kind.o
 force_ew.o : ../../Modules/mp.o
 force_ew.o : ../../Modules/mp_bands.o
+force_ew.o : pwcom.o
 force_hub.o : ../../Modules/becmod.o
 force_hub.o : ../../Modules/cell_base.o
 force_hub.o : ../../Modules/control_flags.o
@@ -660,6 +669,7 @@ gen_us_dj.o : ../../Modules/recvec.o
 gen_us_dj.o : ../../Modules/splinelib.o
 gen_us_dj.o : ../../Modules/uspp.o
 gen_us_dj.o : pwcom.o
+gen_us_dj.o : addusdens.o
 gen_us_dy.o : ../../Modules/cell_base.o
 gen_us_dy.o : ../../Modules/constants.o
 gen_us_dy.o : ../../Modules/io_global.o
@@ -669,6 +679,7 @@ gen_us_dy.o : ../../Modules/recvec.o
 gen_us_dy.o : ../../Modules/splinelib.o
 gen_us_dy.o : ../../Modules/uspp.o
 gen_us_dy.o : pwcom.o
+gen_us_dy.o : addusdens.o
 generate_rVV10_kernel_table.o : ../../Modules/constants.o
 generate_rVV10_kernel_table.o : ../../Modules/io_global.o
 generate_rVV10_kernel_table.o : ../../Modules/kind.o
@@ -698,6 +709,7 @@ gradcorr.o : ../../Modules/constants.o
 gradcorr.o : ../../Modules/control_flags.o
 gradcorr.o : ../../Modules/fft_base.o
 gradcorr.o : ../../Modules/funct.o
+gradcorr.o : ../../Modules/funct_gpu.o
 gradcorr.o : ../../Modules/kind.o
 gradcorr.o : ../../Modules/noncol.o
 gradcorr.o : ../../Modules/recvec.o
@@ -708,6 +720,7 @@ h_1psi.o : ../../Modules/control_flags.o
 h_1psi.o : ../../Modules/kind.o
 h_1psi.o : ../../Modules/noncol.o
 h_1psi.o : bp_mod.o
+h_1psi.o : cpu_gpu_interface.o
 h_1psi.o : realus.o
 h_epsi_her_apply.o : ../../Modules/becmod.o
 h_epsi_her_apply.o : ../../Modules/cell_base.o
@@ -753,6 +766,7 @@ h_psi.o : ../../Modules/recvec.o
 h_psi.o : ../../Modules/uspp.o
 h_psi.o : ../../Modules/wavefunctions.o
 h_psi.o : bp_mod.o
+h_psi.o : cpu_gpu_interface.o
 h_psi.o : exx.o
 h_psi.o : ldaU.o
 h_psi.o : pwcom.o
@@ -871,6 +885,7 @@ init_us_2.o : ../../Modules/kind.o
 init_us_2.o : ../../Modules/recvec.o
 init_us_2.o : ../../Modules/splinelib.o
 init_us_2.o : ../../Modules/uspp.o
+init_us_2.o : addusdens.o
 init_us_2.o : pwcom.o
 init_us_b0.o : ../../Modules/atom.o
 init_us_b0.o : ../../Modules/cell_base.o
@@ -1116,6 +1131,7 @@ newd.o : ../../Modules/noncol.o
 newd.o : ../../Modules/recvec.o
 newd.o : ../../Modules/uspp.o
 newd.o : ../../Modules/wavefunctions.o
+newd.o : addusdens.o
 newd.o : ldaU.o
 newd.o : pwcom.o
 newd.o : realus.o
@@ -1165,6 +1181,7 @@ orbm_kubo.o : ../../Modules/recvec.o
 orbm_kubo.o : ../../Modules/uspp.o
 orbm_kubo.o : bp_mod.o
 orbm_kubo.o : buffers.o
+orbm_kubo.o : cpu_gpu_interface.o
 orbm_kubo.o : pwcom.o
 orbm_kubo.o : scf_mod.o
 orbm_kubo.o : start_k.o
@@ -1540,6 +1557,7 @@ pwscf.o : ../../Modules/command_line_options.o
 pwscf.o : ../../Modules/environment.o
 pwscf.o : ../../Modules/mp_global.o
 pwscf.o : ../../Modules/read_input.o
+pwscf.o : ../../Modules/gpu_routines.o
 qvan2.o : ../../Modules/kind.o
 qvan2.o : ../../Modules/uspp.o
 qvan2.o : pwcom.o
@@ -1666,6 +1684,7 @@ regterg.o : ../../Modules/kind.o
 regterg.o : ../../Modules/mp.o
 regterg.o : ../../Modules/mp_bands.o
 regterg.o : ../../Modules/mp_diag.o
+regterg.o : cpu_gpu_interface.o
 remove_atomic_rho.o : ../../Modules/fft_base.o
 remove_atomic_rho.o : ../../Modules/io_files.o
 remove_atomic_rho.o : ../../Modules/io_global.o
@@ -1689,6 +1708,7 @@ rho2zeta.o : ../../Modules/io_global.o
 rho2zeta.o : ../../Modules/kind.o
 rotate_wfc.o : ../../Modules/control_flags.o
 rotate_wfc.o : ../../Modules/kind.o
+rotate_wfc.o : cpu_gpu_interface.o
 rotate_wfc_gamma.o : ../../LAXlib/la_types.o
 rotate_wfc_gamma.o : ../../LAXlib/ptoolkit.o
 rotate_wfc_gamma.o : ../../Modules/control_flags.o
@@ -1696,12 +1716,15 @@ rotate_wfc_gamma.o : ../../Modules/kind.o
 rotate_wfc_gamma.o : ../../Modules/mp.o
 rotate_wfc_gamma.o : ../../Modules/mp_bands.o
 rotate_wfc_gamma.o : ../../Modules/mp_diag.o
+rotate_wfc_gamma.o : cpu_gpu_interface.o
 rotate_wfc_k.o : ../../LAXlib/la_types.o
 rotate_wfc_k.o : ../../LAXlib/ptoolkit.o
 rotate_wfc_k.o : ../../Modules/kind.o
 rotate_wfc_k.o : ../../Modules/mp.o
 rotate_wfc_k.o : ../../Modules/mp_bands.o
 rotate_wfc_k.o : ../../Modules/mp_diag.o
+rotate_wfc_k.o : cdiaghg.o
+rotate_wfc_k.o : cpu_gpu_interface.o
 run_driver.o : ../../Modules/cell_base.o
 run_driver.o : ../../Modules/check_stop.o
 run_driver.o : ../../Modules/control_flags.o
@@ -1800,6 +1823,7 @@ set_rhoc.o : scf_mod.o
 set_vrs.o : ../../Modules/fft_base.o
 set_vrs.o : ../../Modules/funct.o
 set_vrs.o : ../../Modules/kind.o
+set_vrs.o : scf_mod.o
 setlocal.o : ../../FFTXlib/fft_interfaces.o
 setlocal.o : ../../Modules/cell_base.o
 setlocal.o : ../../Modules/constants.o
@@ -1982,6 +2006,7 @@ stress.o : symme.o
 stress.o : xdm_dispersion.o
 struct_fact.o : ../../Modules/constants.o
 struct_fact.o : ../../Modules/kind.o
+struct_fact.o : pwcom.o
 sum_band.o : ../../FFTXlib/fft_interfaces.o
 sum_band.o : ../../Modules/becmod.o
 sum_band.o : ../../Modules/cell_base.o
@@ -2127,6 +2152,7 @@ v_of_rho.o : ../../Modules/constants.o
 v_of_rho.o : ../../Modules/control_flags.o
 v_of_rho.o : ../../Modules/fft_base.o
 v_of_rho.o : ../../Modules/funct.o
+v_of_rho.o : ../../Modules/funct_gpu.o
 v_of_rho.o : ../../Modules/io_global.o
 v_of_rho.o : ../../Modules/ions_base.o
 v_of_rho.o : ../../Modules/kind.o
@@ -2253,6 +2279,7 @@ wfcinit.o : ../../Modules/wavefunctions.o
 wfcinit.o : atomic_wfc_mod.o
 wfcinit.o : bp_mod.o
 wfcinit.o : buffers.o
+wfcinit.o : cpu_gpu_interface.o
 wfcinit.o : ldaU.o
 wfcinit.o : pw_restart.o
 wfcinit.o : pw_restart_new.o

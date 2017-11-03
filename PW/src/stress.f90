@@ -17,6 +17,10 @@ subroutine stress ( sigma )
   USE constants,     ONLY : ry_kbar
   USE ener,          ONLY : etxc, vtxc
   USE gvect,         ONLY : ngm, gstart, nl, g, gg, gcutm
+#ifdef USE_CUDA
+  USE gvect,         ONLY : g_d, gg_d
+  USE ions_base,     ONLY : zv_d
+#endif
   USE fft_base,      ONLY : dfftp
   USE ldaU,          ONLY : lda_plus_u, U_projection
   USE lsda_mod,      ONLY : nspin
@@ -64,7 +68,11 @@ subroutine stress ( sigma )
   !
   !  hartree contribution
   !
+#ifdef USE_CUDA
+  call stres_har_gpu (sigmahar)
+#else
   call stres_har (sigmahar)
+#endif
   !
   !  xc contribution (diagonal)
   !
@@ -81,12 +89,21 @@ subroutine stress ( sigma )
   !
   ! core correction contribution
   !
+#ifdef USE_CUDA
+  call stres_cc_gpu (sigmaxcc)
+#else
   call stres_cc (sigmaxcc)
+#endif
   !
   !  ewald contribution
   !
+#ifdef USE_CUDA
+  call stres_ewa_gpu (alat, nat, ntyp, ityp, zv,zv_d, at, bg, tau, omega, g_d, &
+       gg_d, ngm, gstart, gamma_only, gcutm, sigmaewa)
+#else
   call stres_ewa (alat, nat, ntyp, ityp, zv, at, bg, tau, omega, g, &
        gg, ngm, gstart, gamma_only, gcutm, sigmaewa)
+#endif
   !
   !  semi-empirical dispersion contribution
   !
@@ -101,7 +118,11 @@ subroutine stress ( sigma )
   !
   !  kinetic + nonlocal contribuition
   !
+#ifdef USE_CUDA
+  call stres_knl_gpu (sigmanlc, sigmakin)
+#else
   call stres_knl (sigmanlc, sigmakin)
+#endif
   !
   do l = 1, 3
      do m = 1, 3

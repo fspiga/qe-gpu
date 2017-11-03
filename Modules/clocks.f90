@@ -28,6 +28,10 @@
 !#define __TRACE
 ! ... See also comments in subroutine print_this_clock about parallel case
 !
+
+! This mode is set by default
+#define __CLOCK_SECONDS
+
 !----------------------------------------------------------------------------
 MODULE mytime
   !----------------------------------------------------------------------------
@@ -100,6 +104,10 @@ SUBROUTINE start_clock( label )
 #endif
   USE mytime,    ONLY : nclock, clock_label, notrunning, no, maxclock, &
                         t0cpu, t0wall
+
+#ifdef USE_NVTX
+  USE nvtx
+#endif
   !
   IMPLICIT NONE
   !
@@ -108,10 +116,20 @@ SUBROUTINE start_clock( label )
   CHARACTER(len=12) :: label_
   INTEGER          :: n
   REAL(DP), EXTERNAL :: scnds, cclock
+#ifdef USE_CUDA
+  INTEGER :: istat
+  INTEGER(kind=8) :: freeMem, totalMem
+#endif
   !
 #if defined (__TRACE)
   WRITE( stdout, '("mpime = ",I2,", TRACE (depth=",I2,") Start: ",A12)') mpime, trace_depth, label
   trace_depth = trace_depth + 1
+#ifdef USE_CUDA
+  istat = cudaDeviceSynchronize
+  istat = CudaMemGetInfo(freeMem, totalMem)
+  print*, "GPU Memory :", freeMem/10.d0**6, " MB free / ", totalMem/10.d0**6, " MB avail"
+  flush(6)
+#endif
 #endif
   !
   IF ( no .and. ( nclock == 1 ) ) RETURN
@@ -131,8 +149,23 @@ SUBROUTINE start_clock( label )
 !            WRITE( stdout, '("start_clock: clock # ",I2," for ",A12, &
 !                           & " already started")' ) n, label_
         ELSE
+#ifdef USE_NVTX
+#ifdef NO_FFT_NVTX
+  if(label_(1:3) == 'a2a' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+    !nothing
+  else
+     CALL nvtxStartRange(label_,n)
+  endif
+#else
+  if(label_(1:3) == 'A2A' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+     CALL nvtxStartRangeAsync(label_,n)
+  else
+     CALL nvtxStartRange(label_,n)
+  endif
+#endif
+#endif
            t0cpu(n) = scnds()
-                   t0wall(n) = cclock()
+          t0wall(n) = cclock()
         ENDIF
         !
         RETURN
@@ -151,6 +184,21 @@ SUBROUTINE start_clock( label )
      !
      nclock                                     = nclock + 1
      clock_label(nclock)        = label_
+#ifdef USE_NVTX
+#ifdef NO_FFT_NVTX
+  if(label_(1:3) == 'a2a' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+    !nothing
+  else
+     CALL nvtxStartRange(label_,nclock)
+  endif
+#else
+  if(label_(1:3) == 'A2A' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+     CALL nvtxStartRangeAsync(label_,nclock)
+  else
+     CALL nvtxStartRange(label_,nclock)
+  endif
+#endif
+#endif
      t0cpu(nclock)                      = scnds()
      t0wall(nclock)                     = cclock()
      !
@@ -172,6 +220,9 @@ SUBROUTINE stop_clock( label )
 #endif
   USE mytime,    ONLY : no, nclock, clock_label, cputime, walltime, &
                         notrunning, called, t0cpu, t0wall
+#ifdef USE_NVTX
+  USE nvtx
+#endif
   !
   IMPLICIT NONE
   !
@@ -206,6 +257,21 @@ SUBROUTINE stop_clock( label )
            !
         ELSE
            !
+#ifdef USE_NVTX
+#ifdef NO_FFT_NVTX
+  if(label_(1:3) == 'a2a' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+    !nothing
+  else
+          call nvtxEndRange
+  endif
+#else
+  if(label_(1:3) == 'A2A' .or. label_(1:3) == 'fft' .or. label_(2:4) == 'fft') then
+     CALL nvtxEndRangeAsync
+  else
+     CALL nvtxEndRange
+  endif
+#endif
+#endif
            cputime(n)   = cputime(n) + scnds() - t0cpu(n)
            walltime(n)  = walltime(n) + cclock() - t0wall(n)
            t0cpu(n)             = notrunning

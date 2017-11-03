@@ -873,13 +873,13 @@ SUBROUTINE drhov(irb,eigrb,rhovan,drhovan,rhog,rhor,drhog,drhor)
       COMPLEX(DP), ALLOCATABLE :: qv(:)
 !
       INTEGER  :: itid, mytid, ntids
-#if defined(__OPENMP)
+#if defined(_OPENMP)
       INTEGER  :: omp_get_thread_num, omp_get_num_threads
       EXTERNAL :: omp_get_thread_num, omp_get_num_threads
 #endif
 !
 !$omp parallel default(none), private(i,j,iss,ir,ig,mytid,ntids,itid), shared(nspin,dfftp,drhor,drhog,rhor,rhog,ainv,ngm) 
-#if defined(__OPENMP)
+#if defined(_OPENMP)
       mytid = omp_get_thread_num()  ! take the thread ID
       ntids = omp_get_num_threads() ! take the number of threads
 #else
@@ -928,7 +928,7 @@ SUBROUTINE drhov(irb,eigrb,rhovan,drhovan,rhog,rhor,drhog,drhor)
                ALLOCATE( qv( dfftb%nnr ) )
                ALLOCATE( dqgbt( ngb, 2 ) )
 
-#if defined(__OPENMP)
+#if defined(_OPENMP)
                mytid = omp_get_thread_num()  ! take the thread ID
                ntids = omp_get_num_threads() ! take the number of threads
                itid  = 0
@@ -954,7 +954,7 @@ SUBROUTINE drhov(irb,eigrb,rhovan,drhovan,rhog,rhor,drhog,drhor)
                      IF (ia.EQ.na(is)) nfft=1
 #endif
 
-#if defined(__OPENMP)
+#if defined(_OPENMP)
                      IF ( mytid /= itid ) THEN
                         isa = isa + nfft
                         itid = MOD( itid + 1, ntids )
@@ -1175,7 +1175,7 @@ SUBROUTINE rhov(irb,eigrb,rhovan,rhog,rhor)
       COMPLEX(DP), ALLOCATABLE :: v(:)
       COMPLEX(DP), ALLOCATABLE :: qv(:)
 
-#if defined(__OPENMP)
+#if defined(_OPENMP)
       INTEGER  :: itid, mytid, ntids
       INTEGER  :: omp_get_thread_num, omp_get_num_threads
       EXTERNAL :: omp_get_thread_num, omp_get_num_threads
@@ -1194,7 +1194,7 @@ SUBROUTINE rhov(irb,eigrb,rhovan,rhog,rhor)
       ! private variable need to be initialized, otherwise
       ! outside the parallel region they have an undetermined value
       !
-#if defined(__OPENMP)
+#if defined(_OPENMP)
       mytid = 0
       ntids = 1
       itid  = 0
@@ -1220,7 +1220,7 @@ SUBROUTINE rhov(irb,eigrb,rhovan,rhog,rhor)
          v (:) = (0.d0, 0.d0)
 !$omp end workshare
 
-#if defined(__OPENMP)
+#if defined(_OPENMP)
          mytid = omp_get_thread_num()  ! take the thread ID
          ntids = omp_get_num_threads() ! take the number of threads
          itid  = 0
@@ -1251,7 +1251,7 @@ SUBROUTINE rhov(irb,eigrb,rhovan,rhog,rhor)
                IF( ia .EQ. na(is) ) nfft = 1
 #endif
 
-#if defined(__OPENMP)
+#if defined(_OPENMP)
                IF ( mytid /= itid ) THEN
                   isa = isa + nfft
                   itid = MOD( itid + 1, ntids )

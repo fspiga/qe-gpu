@@ -170,6 +170,479 @@ SUBROUTINE newq(vr,deeq,skip_vltot)
   !
 END SUBROUTINE newq
   !
+
+#ifdef USE_CUDA
+SUBROUTINE newq_gpu(vr,vr_d,deeq,deeq_d,skip_vltot)
+  !
+  !   This routine computes the integral of the perturbed potential with
+  !   the Q function
+  !
+  USE kinds,                ONLY : DP
+  USE ions_base,            ONLY : nat, ntyp => nsp, ityp
+  USE cell_base,            ONLY : omega
+  USE fft_base,             ONLY : dfftp
+  USE fft_interfaces,       ONLY : fwfft
+  USE gvect,                ONLY : g, gg, ngm, gstart, mill, &
+                                   eigts1, eigts2, eigts3, nl
+  USE lsda_mod,             ONLY : nspin
+  USE scf,                  ONLY : vltot
+  USE uspp_param,           ONLY : upf, lmaxq, nh, nhm
+  USE control_flags,        ONLY : gamma_only
+  USE wavefunctions_module, ONLY : psic
+  USE spin_orb,             ONLY : lspinorb, domag
+  USE noncollin_module,     ONLY : nspin_mag
+  USE mp_bands,             ONLY : intra_bgrp_comm
+  USE mp,                   ONLY : mp_sum
+  !
+  USE ylmr2_gpu
+  USE qvan2_gpu_m
+  USE gvect,                ONLY : g_d, gg_d, mill_d, &
+                                   eigts1_d, eigts2_d, eigts3_d, nl_d
+  USE wavefunctions_module, ONLY : psic_d
+  USE scf,                  ONLY : vltot_d
+  !
+  USE cublas, ONLY : cublasDgemm
+  !
+  IMPLICIT NONE
+  !
+  !
+  ! Input: potential , output: contribution to integral
+  REAL(kind=dp), intent(in)  :: vr(dfftp%nnr,nspin)
+  REAL(kind=dp), intent(out) :: deeq( nhm, nhm, nat, nspin )
+  LOGICAL, intent(in) :: skip_vltot !If .false. vltot is added to vr when necessary
+
+!make inout for now since I am initializing it:
+  REAL(kind=dp), device, intent(inout)  :: vr_d(dfftp%nnr,nspin)
+  REAL(kind=dp), device, intent(out) :: deeq_d( nhm, nhm, nat, nspin )
+
+
+  ! INTERNAL
+  INTEGER :: ig, nt, ih, jh, na, is, ijh, nij, nb, nab
+  ! counters on g vectors, atom type, beta functions x 2,
+  !   atoms, spin, aux, aux, beta func x2 (again)
+  COMPLEX(DP), ALLOCATABLE :: vaux(:,:), aux(:,:), qgm(:,:)
+    ! work space
+  REAL(DP), ALLOCATABLE :: ylmk0(:,:), qmod(:), deeaux(:,:)
+    ! spherical harmonics, modulus of G
+  REAL(DP) :: fact
+  !
+
+  COMPLEX(DP), device, ALLOCATABLE :: vaux_d(:,:), aux_d(:,:), qgm_d(:,:)
+    ! work space
+  REAL(DP), device, ALLOCATABLE :: ylmk0_d(:,:), qmod_d(:), deeaux_d(:,:)
+  integer :: nhnt
+
+  IF ( gamma_only ) THEN
+     fact = 2.0_dp
+  ELSE
+     fact = 1.0_dp
+  END IF
+  !
+  vr_d = vr
+
+
+!  deeq(:,:,:,:) = 0.D0
+  deeq_d = 0.D0
+  !
+!  ALLOCATE( vaux(ngm,nspin_mag), qmod( ngm ), ylmk0( ngm, lmaxq*lmaxq ) )
+  ALLOCATE( vaux_d(ngm,nspin_mag), qmod_d( ngm ), ylmk0_d( ngm, lmaxq*lmaxq ) )
+  !
+!  CALL ylmr2( lmaxq * lmaxq, ngm, g, gg, ylmk0 )
+
+  CALL ylmr2_d (lmaxq * lmaxq, ngm, g_d, gg_d, ylmk0_d)
+
+!  call compare( ylmk0, ylmk0_d, "ylmk0")
+
+!  qmod(1:ngm) = SQRT( gg(1:ngm) )
+
+!$cuf kernel do(1) <<<*,*>>>
+  DO ig = 1, ngm
+     qmod_d (ig) = sqrt (gg_d (ig) )
+  ENDDO
+!  call compare(qmod, qmod_d, "qmod")
+  !
+  ! ... fourier transform of the total effective potential
+  !
+  DO is = 1, nspin_mag
+     !
+     IF ( (nspin_mag == 4 .AND. is /= 1) .or. skip_vltot ) THEN 
+!$cuf kernel do(1) <<<*,*>>>
+        do ig=1,dfftp%nnr
+           psic_d(ig) = vr_d(ig,is)
+        end do
+
+     ELSE
+
+!$cuf kernel do(1) <<<*,*>>>
+        do ig=1,dfftp%nnr
+           psic_d(ig) = vltot_d(ig) + vr_d(ig,is)
+        end do
+
+     END IF
+
+     CALL fwfft ('Dense', psic_d, dfftp)
+
+!$cuf kernel do(1) <<<*,*>>>
+        do ig=1,ngm
+           vaux_d(ig, is) = psic_d(nl_d(ig))
+        end do
+
+     !
+  END DO
+
+  DO nt = 1, ntyp
+     !
+     IF ( upf(nt)%tvanp ) THEN
+        !
+        ! nij = max number of (ih,jh) pairs per atom type nt
+        !
+        nij = nh(nt)*(nh(nt)+1)/2
+        ALLOCATE ( qgm_d(ngm,nij) )
+        !
+        ! ... Compute and store Q(G) for this atomic species 
+        ! ... (without structure factor)
+        !
+        ijh = 0
+        DO ih = 1, nh(nt)
+           DO jh = ih, nh(nt)
+              ijh = ijh + 1
+              CALL qvan2_gpu ( ngm, ih, jh, nt, qmod_d, qgm_d(1,ijh), ylmk0_d )
+           END DO
+        END DO
+
+
+        !
+        ! count max number of atoms of type nt
+        !
+        nab = 0
+        DO na = 1, nat
+           IF ( ityp(na) == nt ) nab = nab + 1
+        END DO
+        ALLOCATE ( aux_d (ngm, nab ), deeaux_d(nij, nab) )
+
+        !
+        ! ... Compute and store V(G) times the structure factor e^(-iG*tau)
+        !
+        DO is = 1, nspin_mag
+           nb = 0
+           DO na = 1, nat
+              IF ( ityp(na) == nt ) THEN
+                 nb = nb + 1
+!$cuf kernel do(1) <<<*,*>>>
+                 do ig=1,ngm
+                    aux_d(ig, nb) = vaux_d(ig,is) * CONJG ( &
+                      eigts1_d(mill_d(1,ig),na) * &
+                      eigts2_d(mill_d(2,ig),na) * &
+                      eigts3_d(mill_d(3,ig),na) )
+                 end do
+
+              END IF
+           END DO
+
+           CALL cublasDgemm( 'C', 'N', nij, nab, 2*ngm, fact, qgm_d, 2*ngm, aux_d, &
+                    2*ngm, 0.0_dp, deeaux_d, nij )
+           IF ( gamma_only .AND. gstart == 2 ) print *,"gamma_only qstart==2 not supported yet!!!!"
+
+           IF ( gamma_only .AND. gstart == 2 ) &
+                CALL DGER(nij, nab,-1.0_dp, qgm, 2*ngm, aux, 2*ngm, deeaux, nij)
+           !
+           nb = 0
+           DO na = 1, nat
+              IF ( ityp(na) == nt ) THEN
+                 nb = nb + 1
+                 !ijh = 0
+                 nhnt = nh(nt)
+!$cuf kernel do(2) <<<*,*>>>
+                 DO ih = 1, nhnt
+                    DO jh = 1, nhnt
+                       ijh = jh + ((ih-1)*(2*nhnt-ih))/2
+                       if( jh>=ih ) deeq_d(ih,jh,na,is) = omega * deeaux_d(ijh,nb)
+                       if( jh> ih ) deeq_d(jh,ih,na,is) = deeq_d(ih,jh,na,is)
+                    END DO
+                 END DO
+              END IF
+           END DO
+
+           !
+        END DO
+        !
+        DEALLOCATE ( deeaux_d, aux_d, qgm_d )
+        !
+     END IF
+     !
+  END DO
+  !
+  DEALLOCATE( qmod_d, ylmk0_d, vaux_d )
+  deeq = deeq_d
+  CALL mp_sum( deeq( :, :, :, 1:nspin_mag ), intra_bgrp_comm )
+  !deeq_d = deeq
+  !
+END SUBROUTINE newq_gpu
+
+
+!----------------------------------------------------------------------------
+SUBROUTINE newd_gpu( ) 
+  !----------------------------------------------------------------------------
+  !
+  ! ... This routine computes the integral of the effective potential with
+  ! ... the Q function and adds it to the bare ionic D term which is used
+  ! ... to compute the non-local term in the US scheme.
+  !
+  USE kinds,                ONLY : DP
+  USE ions_base,            ONLY : nat, ntyp => nsp, ityp
+  USE lsda_mod,             ONLY : nspin
+  USE uspp,                 ONLY : deeq, dvan, deeq_nc, dvan_so, okvan
+  USE uspp_param,           ONLY : upf, lmaxq, nh, nhm
+  USE spin_orb,             ONLY : lspinorb, domag
+  USE noncollin_module,     ONLY : noncolin, nspin_mag
+  USE uspp,                 ONLY : nhtol, nhtolm
+  USE scf,                  ONLY : v
+  USE realus,        ONLY : newq_r
+  USE control_flags, ONLY : tqr
+  USE ldaU,          ONLY : lda_plus_U, U_projection
+  !
+  USE uspp,     ONLY : deeq_d
+  IMPLICIT NONE
+  !
+  REAL(DP) :: timer
+  INTEGER :: ig, nt, ih, jh, na, is, nht, nb, mb
+  ! counters on g vectors, atom type, beta functions x 2,
+  !   atoms, spin, aux, aux, beta func x2 (again)
+  !
+  !
+  IF ( .NOT. okvan ) THEN
+     !
+     ! ... no ultrasoft potentials: use bare coefficients for projectors
+     !
+     DO na = 1, nat
+        !
+        nt  = ityp(na)
+        nht = nh(nt)
+        !
+        IF ( lspinorb ) THEN
+           !
+           deeq_nc(1:nht,1:nht,na,1:nspin) = dvan_so(1:nht,1:nht,1:nspin,nt)
+           !
+        ELSE IF ( noncolin ) THEN
+           !
+           deeq_nc(1:nht,1:nht,na,1) = dvan(1:nht,1:nht,nt)
+           deeq_nc(1:nht,1:nht,na,2) = ( 0.D0, 0.D0 )
+           deeq_nc(1:nht,1:nht,na,3) = ( 0.D0, 0.D0 )
+           deeq_nc(1:nht,1:nht,na,4) = dvan(1:nht,1:nht,nt)
+           !
+        ELSE
+           !
+           DO is = 1, nspin
+              !
+              deeq(1:nht,1:nht,na,is) = dvan(1:nht,1:nht,nt)
+              !
+           END DO
+           !
+        END IF
+        !
+     END DO
+
+     deeq_d = deeq
+
+     !
+     ! ... early return
+     !
+     RETURN
+     !
+  END IF
+  !
+  CALL start_clock( 'newd' )
+  !
+  IF (tqr) THEN
+     CALL newq_r(v%of_r,deeq,.false.)
+  ELSE
+     CALL newq_gpu(v%of_r, v%of_r_d, deeq, deeq_d, .false.)
+  END IF
+  !
+  IF (noncolin) call add_paw_to_deeq(deeq)
+  !
+  atoms : &
+  DO na = 1, nat
+     !
+     nt  = ityp(na)
+     if_noncolin:&
+     IF ( noncolin ) THEN
+        !
+        IF (upf(nt)%has_so) THEN
+           !
+           CALL newd_so(na)
+           !
+        ELSE
+           !
+           CALL newd_nc(na)
+           !
+        END IF
+        !
+     ELSE if_noncolin
+        !
+        DO is = 1, nspin
+           !
+           DO ih = 1, nh(nt)
+              DO jh = ih, nh(nt)
+                 deeq(ih,jh,na,is) = deeq(ih,jh,na,is) + dvan(ih,jh,nt)
+                 deeq(jh,ih,na,is) = deeq(ih,jh,na,is)
+              END DO
+           END DO
+           !
+        END DO
+        !
+     END IF if_noncolin
+     !
+  END DO atoms
+  !
+  IF (.NOT.noncolin) CALL add_paw_to_deeq(deeq)
+  !
+  IF (lda_plus_U .AND. (U_projection == 'pseudo')) CALL add_vhub_to_deeq(deeq)
+  !
+  deeq_d = deeq
+
+  CALL stop_clock( 'newd' )
+  !
+  RETURN
+  !
+  CONTAINS
+    !
+    !------------------------------------------------------------------------
+    SUBROUTINE newd_so(na)
+      !------------------------------------------------------------------------
+      !
+      USE spin_orb, ONLY : fcoef
+      !
+      IMPLICIT NONE
+      !
+      INTEGER :: na
+
+      INTEGER :: ijs, is1, is2, kh, lh
+      !
+      !
+      nt=ityp(na)
+      ijs = 0
+      !
+      DO is1 = 1, 2
+         !
+         DO is2 =1, 2
+            !
+            ijs = ijs + 1
+            !
+            IF (domag) THEN
+               DO ih = 1, nh(nt)
+                  !
+                  DO jh = 1, nh(nt)
+                     !
+                     deeq_nc(ih,jh,na,ijs) = dvan_so(ih,jh,ijs,nt)
+                     !
+                     DO kh = 1, nh(nt)
+                        !
+                        DO lh = 1, nh(nt)
+                           !
+                           deeq_nc(ih,jh,na,ijs) = deeq_nc(ih,jh,na,ijs) +   &
+                                deeq (kh,lh,na,1)*            &
+                             (fcoef(ih,kh,is1,1,nt)*fcoef(lh,jh,1,is2,nt)  + &
+                             fcoef(ih,kh,is1,2,nt)*fcoef(lh,jh,2,is2,nt)) + &
+                             deeq (kh,lh,na,2)*            &
+                             (fcoef(ih,kh,is1,1,nt)*fcoef(lh,jh,2,is2,nt)  + &
+                             fcoef(ih,kh,is1,2,nt)*fcoef(lh,jh,1,is2,nt)) + &
+                             (0.D0,-1.D0)*deeq (kh,lh,na,3)*            &
+                             (fcoef(ih,kh,is1,1,nt)*fcoef(lh,jh,2,is2,nt)  - &
+                             fcoef(ih,kh,is1,2,nt)*fcoef(lh,jh,1,is2,nt)) + &
+                             deeq (kh,lh,na,4)*            &
+                             (fcoef(ih,kh,is1,1,nt)*fcoef(lh,jh,1,is2,nt)  - &
+                             fcoef(ih,kh,is1,2,nt)*fcoef(lh,jh,2,is2,nt))   
+                           !
+                        END DO
+                        !
+                     END DO
+                     !
+                  END DO
+                  !
+               END DO
+               !
+            ELSE
+               !
+               DO ih = 1, nh(nt)
+                  !
+                  DO jh = 1, nh(nt)
+                     !
+                     deeq_nc(ih,jh,na,ijs) = dvan_so(ih,jh,ijs,nt)
+                     !
+                     DO kh = 1, nh(nt)
+                        !
+                        DO lh = 1, nh(nt)
+                           !
+                           deeq_nc(ih,jh,na,ijs) = deeq_nc(ih,jh,na,ijs) +   &
+                                deeq (kh,lh,na,1)*            &
+                             (fcoef(ih,kh,is1,1,nt)*fcoef(lh,jh,1,is2,nt)  + &
+                             fcoef(ih,kh,is1,2,nt)*fcoef(lh,jh,2,is2,nt) ) 
+                           !
+                        END DO
+                        !
+                     END DO
+                     !
+                  END DO
+                  !
+               END DO
+               !
+            END IF
+            !
+         END DO
+         !
+      END DO
+      !
+    RETURN
+      !
+    END SUBROUTINE newd_so
+    !
+    !------------------------------------------------------------------------
+    SUBROUTINE newd_nc(na)
+      !------------------------------------------------------------------------
+      !
+      IMPLICIT NONE
+      !
+      INTEGER :: na
+      !
+      nt = ityp(na)
+      !
+      DO ih = 1, nh(nt)
+         !
+         DO jh = 1, nh(nt)
+            !
+            IF (lspinorb) THEN
+               deeq_nc(ih,jh,na,1) = dvan_so(ih,jh,1,nt) + &
+                                     deeq(ih,jh,na,1) + deeq(ih,jh,na,4)
+               !                      
+               deeq_nc(ih,jh,na,4) = dvan_so(ih,jh,4,nt) + &
+                                     deeq(ih,jh,na,1) - deeq(ih,jh,na,4)
+               !
+            ELSE
+               deeq_nc(ih,jh,na,1) = dvan(ih,jh,nt) + &
+                                     deeq(ih,jh,na,1) + deeq(ih,jh,na,4)
+               !                      
+               deeq_nc(ih,jh,na,4) = dvan(ih,jh,nt) + &
+                                     deeq(ih,jh,na,1) - deeq(ih,jh,na,4)
+               !
+            END IF
+            deeq_nc(ih,jh,na,2) = deeq(ih,jh,na,2) - &
+                                  ( 0.D0, 1.D0 ) * deeq(ih,jh,na,3)
+            !                      
+            deeq_nc(ih,jh,na,3) = deeq(ih,jh,na,2) + &
+                                  ( 0.D0, 1.D0 ) * deeq(ih,jh,na,3)
+            !                      
+         END DO
+         !
+      END DO
+      !
+    RETURN
+    END SUBROUTINE newd_nc
+    !
+END SUBROUTINE newd_gpu
+
+#endif
+
 !----------------------------------------------------------------------------
 SUBROUTINE newd( ) 
   !----------------------------------------------------------------------------
@@ -190,9 +663,13 @@ SUBROUTINE newd( )
   USE realus,        ONLY : newq_r
   USE control_flags, ONLY : tqr
   USE ldaU,          ONLY : lda_plus_U, U_projection
+#ifdef USE_CUDA
+  USE uspp,          ONLY : deeq_d
+#endif
   !
   IMPLICIT NONE
   !
+  REAL(DP) :: timer
   INTEGER :: ig, nt, ih, jh, na, is, nht, nb, mb
   ! counters on g vectors, atom type, beta functions x 2,
   !   atoms, spin, aux, aux, beta func x2 (again)
@@ -284,6 +761,10 @@ SUBROUTINE newd( )
   !
   IF (lda_plus_U .AND. (U_projection == 'pseudo')) CALL add_vhub_to_deeq(deeq)
   !
+#ifdef USE_CUDA
+  print *,"in newd CPU, copy deeq to GPU!!!!"
+  deeq_d = deeq
+#endif
   CALL stop_clock( 'newd' )
   !
   RETURN

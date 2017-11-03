@@ -1062,7 +1062,9 @@ MODULE realus
       USE scf,              ONLY : vltot
       USE mp_bands,         ONLY : intra_bgrp_comm
       USE mp,               ONLY : mp_sum
-
+#ifdef USE_CUDA
+      USE uspp,             ONLY : deeq_d
+#endif
           IMPLICIT NONE
       !
       ! Input: potential , output: contribution to integral
@@ -1114,6 +1116,11 @@ MODULE realus
       deeq(:,:,:,:) = deeq(:,:,:,:)*omega/(dfftp%nr1*dfftp%nr2*dfftp%nr3)
       DEALLOCATE( aux )
       CALL mp_sum(  deeq(:,:,:,1:nspin_mag) , intra_bgrp_comm )
+
+#ifdef USE_CUDA
+deeq_d = deeq
+print *,"IN newq_r: deeq copy to GPU!!!"
+#endif
       !
     END SUBROUTINE newq_r
     !
