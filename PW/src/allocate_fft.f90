@@ -33,6 +33,7 @@ SUBROUTINE allocate_fft
   USE fft_parallel, ONLY : f_h, aux_h, aux_d, aux2_h, aux2_d
   USE wavefunctions_module, ONLY : psic_d, psic_batch_d                     
   USE scf,        ONLY : vltot_d, vrs_d, rho_core_d, rhog_core_d
+  USE mpiDeviceUtil, ONLY : dev_id, node_id
 #endif     
   IMPLICIT NONE
  integer :: i
@@ -87,8 +88,8 @@ SUBROUTINE allocate_fft
   ALLOCATE (rhog_core_d( ngm ) )                              
   ALLOCATE (vrs_d( dfftp%nnr, nspin))                         
 #ifdef USE_IPC
-  call init_ipc( psic_batch_d, 0, dfftp%comm, dfftp%IPC_PEER )
-  call init_ipc(       aux2_d, 1, dfftp%comm, dffts%IPC_PEER )
+  call init_ipc( psic_batch_d, 0, dfftp%comm, dfftp%IPC_PEER, dev_id, node_id )
+  call init_ipc(       aux2_d, 1, dfftp%comm, dffts%IPC_PEER, dev_id, node_id )
 #ifdef __CUDA_DEBUG
 DO i = 1,dfftp%nproc
   print *,"IPC_PEER[ ",i," ]:",dfftp%IPC_PEER(i)

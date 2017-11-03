@@ -3037,7 +3037,7 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      istat = cudaMemcpy2DAsync( f_aux2_d((me-1)*sendsiz + 1), nppx, f_in_d(offset + 1 ), nr3x, npp_(me), batchsize * ncpx,cudaMemcpyDeviceToDevice, dfft%bstreams(batch_id) )
 
      if(req_cnt .gt. 0) then
-        call MPI_WAITALL(req_cnt, dfft%srh(:, batch_id), MPI_STATUSES_IGNORE, ierr)
+        call MPI_WAITALL(req_cnt, dfft%srh(1:req_cnt, batch_id), MPI_STATUSES_IGNORE, ierr)
      endif
 
 #ifdef USE_IPC
@@ -3219,7 +3219,7 @@ SUBROUTINE fft_scatter_gpu_batch_b ( dfft, f_in_d, f_in, nr3x, nxx_, f_aux_d, f_
      cudaMemcpyDeviceToDevice, dfft%bstreams(batch_id) )
 
      if(req_cnt .gt. 0) then
-        call MPI_WAITALL(req_cnt, dfft%srh(:, batch_id), MPI_STATUSES_IGNORE, ierr)
+        call MPI_WAITALL(req_cnt, dfft%srh(1:req_cnt, batch_id), MPI_STATUSES_IGNORE, ierr)
      endif
 #ifdef USE_IPC
      call sync_ipc_sends( gcomm )

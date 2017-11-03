@@ -51,13 +51,17 @@ static int first_time = 1;
 static double* buff_rem[MAXBUF][MAXPEER];
 static double* buff_base[MAXBUF];
 static int can_access_peer[MAXPEER];
+static int dev_ids[MAXPEER];
+static int node_ids[MAXPEER];
 static int gprocs;
 static int grank;
 
-void init_ipc_( double* buffer, int *buff_id_p, MPI_Fint *Fcomm, int* ipc_peers)
+void init_ipc_( double* buffer, int *buff_id_p, MPI_Fint *Fcomm, int* ipc_peers, int* dev_id_p, int* node_id_p)
 {
 #ifdef USE_CUDA
   int buff_id = *buff_id_p;
+  int dev_id = *dev_id_p;
+  int node_id = *node_id_p;
   int rank, nprocs, i;
   cudaIpcMemHandle_t loc_handle;
   cudaIpcMemHandle_t rem_handle[MAXPEER];
@@ -84,22 +88,30 @@ void init_ipc_( double* buffer, int *buff_id_p, MPI_Fint *Fcomm, int* ipc_peers)
                   rem_handle, sizeof(cudaIpcMemHandle_t), MPI_CHAR,
                   comm);
 
+  MPI_Allgather( &dev_id, 1, MPI_INT, &dev_ids, 1, MPI_INT, comm);
+  MPI_Allgather( &node_id, 1, MPI_INT, &node_ids, 1, MPI_INT, comm);
+
   for(i=0; i<nprocs; i++){
     can_access_peer[i] = 0;
+    if (i != rank && node_ids[rank] == node_ids[i]){
+      istat = cudaDeviceCanAccessPeer(&can_access_peer[i], dev_ids[rank], dev_ids[i]);
 
-    if(i!=rank){
-      istat = cudaIpcOpenMemHandle((void **)(&buff_rem[buff_id][i]), rem_handle[i], cudaIpcMemLazyEnablePeerAccess);
-      if(istat == cudaSuccess){
-        can_access_peer[i] = 1;
-      }else{
-        istat = cudaGetLastError();
+      if (istat != cudaSuccess){
+        printf("Error in cudaDeviceCanAccessPeer: %d %s\n",istat, cudaGetErrorString(istat));
+      }
+
+      if (can_access_peer[i]){
 #ifdef __CUDA_DEBUG
-        printf("Error in cudaIpcOpenMemHandle: %d %s\n",istat, cudaGetErrorString(istat));
+        printf("opening IPC handle host %d, dev %d --> host %d, dev %d \n", node_ids[rank], dev_ids[rank], node_ids[i], dev_ids[i]);
 #endif
+        istat = cudaIpcOpenMemHandle((void **)(&buff_rem[buff_id][i]), rem_handle[i], cudaIpcMemLazyEnablePeerAccess);
+        if (istat != cudaSuccess){
+          printf("Error in cudaIpcOpenMemHandle: %d %s\n",istat, cudaGetErrorString(istat));
+        }
       }
     }
   }
-
+    
   for(i=0; i<nprocs; i++){
     if(i!=rank){
       ipc_peers[i] = can_access_peer[i];
