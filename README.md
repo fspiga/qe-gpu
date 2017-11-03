@@ -24,27 +24,29 @@ The [PGI](http://www.pgroup.com/products/community.htm) compiler version 17.10
 or above is required to use QE-GPU. It containes CUDA SDK and pre-built 
 Open MPI for parallel execution (check the
 [PGI Instalation Guide](http://www.pgroup.com/doc/pgiinstall174.pdf) how to 
-install it). **no other compilers are supported**
+install it). **No other compilers are supported**
 
-You need data-centre grade NVIDIA TESLA Kepler (K20, K40, K80) or Pascal (P100)
-or Volta (V100). No other cards are supported. NVIDIA TESLA P100 and V100 are strongly 
-recommend for their on-board memory capacity and douple precision performance.
+You need NVIDIA TESLA Kepler (K20, K40, K80) or Pascal (P100) or Volta (V100). 
+No other cards are supported. NVIDIA TESLA P100 and V100 are strongly recommend 
+for their on-board memory capacity and douple precision performance.
 
 This version of QE-GPU it is based on Quantum ESPRESSO v6.1. It runs **exclusively** 
-in parallel, Open MPI is required and also Intel MKL.
+in parallel. For x86 architecture, you also also recent version Intel Math Kernel 
+Library (MKL). For POWER architecture, make sure you can access IBM Engineering and 
+Scientific Subroutine Library (ESSL) for maximum performance.
 
 
 ### Installation
 
-To compile QE-GPU, copy a `make.inc` template from "install/" directory into the main directory and run make.
-
-These make.inc templates are available:
-* `make.inc_x86-64` to compile on any x86-64 machines with NVIDIA GPU (`GPU_ARCH={35, 60}`)
-* `make.inc_CRAY_PizDaint` to compile on Piz Daint at CSCS, CRAY XC30 with P100 PCIe GPU (`GPU_ARCH=60`)
-* `make.inc_POWER_DAVIDE*` to compile on PRACE "DAVIDE" machine at CINECA, based on POWER8 with GPU (`GPU_ARCH=60`)
-* `make.inc_POWER_SUMMITDEV` to compile on ORNL early access system in preparation of next OLCF's next big supercomputer, SUMMIT (`GPU_ARCH=60`)
+To compile QE-GPU there is no automatic procedure. You must copy a `make.inc` template from "install/" directory into the main directory, edit it based and then run make. Make sure `GPU_ARCH` and `CUDA_RUNTIME` are specified correctly and various paths to libraries and header files point into the correct locations.
 
 By invoking _make_ alone a list of acceptable targets will be displayed. Binaries go in "bin/". Read comments in the `make.inc` templates to customize it further based on your ebvironment and where math libraries are located. The architectures/environments supported are x86-64, POWER and CRAY.
+
+These templates are available:
+* `make.inc_x86-64` to compile on a generic x86-64 machine with NVIDIA GPU
+* `make.inc_CRAY_PizDaint` to compile on Piz Daint at CSCS, CRAY XC30 with P100 GPU (`GPU_ARCH=60`)
+* `make.inc_POWER_DAVIDE*` to compile on PRACE "DAVIDE" machine at CINECA, based on POWER8 with GPU (`GPU_ARCH=60`)
+* `make.inc_POWER_SUMMITDEV` to compile on early access system SUMMITDEV at ORNL, based on POWER8 with GPU (`GPU_ARCH=60`)
 
 The QE-GPU package has been reduced in size to the minimum essential. For more
 information, please refer to the general documentation provided with the full
