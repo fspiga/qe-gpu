@@ -2481,7 +2481,7 @@ SUBROUTINE gradv_h_of_rho_r_gpu( rho, gradv )
   !
   DO ipol = 1, 3
     !
-    gaux(:) = CMPLX(0.d0,0.d0,kind=dp)
+    gaux(:) = (0.0_dp,0.0_dp)
     !
     DO ig = gstart, ngm
       !

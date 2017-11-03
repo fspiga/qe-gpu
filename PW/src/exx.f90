@@ -186,6 +186,7 @@ MODULE exx
 
   TYPE(fft_type_descriptor),target :: dfftp_loc, dffts_loc
   TYPE(fft_type_descriptor),target :: dfftp_exx, dffts_exx
+
   TYPE (sticks_map) :: smap_exx ! Stick map descriptor
   INTEGER :: ngw_loc, ngs_loc
   INTEGER :: ngw_exx, ngs_exx
