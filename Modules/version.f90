@@ -15,6 +15,6 @@ MODULE global_version
   CHARACTER (LEN=6) :: version_number = '6.1'
   CHARACTER (LEN=12) :: svn_revision = '13369'
   !
-  CHARACTER (LEN=6) :: gpu_version_number = '0.3'
+  CHARACTER (LEN=6) :: gpu_version_number = '1.0'
   !
 END MODULE global_version
