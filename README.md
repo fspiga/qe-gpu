@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/80047177.svg)](https://zenodo.org/badge/latestdoi/80047177)
+
 - [Report new Bug Issue](https://github.com/RSE-Cambridge/qe-gpu/issues/new)
 - [Guidelines for Contributing](CONTRIBUTING.md)
 - [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md)
@@ -26,7 +28,7 @@ install it). **no other compilers are supported**
 
 You need data-centre grade NVIDIA TESLA Kepler (K20, K40, K80) or Pascal (P100)
 or Volta (V100). No other cards are supported. NVIDIA TESLA P100 and V100 are strongly 
-recommend for its memory capacity and performance.
+recommend for their on-board memory capacity and douple precision performance.
 
 This version of QE-GPU it is based on Quantum ESPRESSO v6.1. It runs **exclusively** 
 in parallel, Open MPI is required and also Intel MKL.
@@ -53,8 +55,8 @@ Quantum ESPRESSO suite or visit the official web site
 ### Citation
 
 If you use the code for science or any form of scientific and technical dissemination activity, we kindly ask to cite the code using the two following references:
-* GPU-accelerated Quantum ESPRESSO (v1.0). Zenodo. [![DOI](https://zenodo.org/badge/80047177.svg)](https://zenodo.org/badge/latestdoi/80047177)
-* Romero, J., Phillips, E. Fatica, M., Spiga, F., Giannozzi, P.: A performance study of Quantum ESPRESSO's PWscf code on multi-core and GPU systems, 8th IEEE International Workshop on Performance Modeling, Benchmarking and Simulation of High Performance Computer Systems (PMBS17), Lecture Notes in Computer Science, Springer, Denver (2017)
+* Romero, J., Phillips, E. Fatica, M., Spiga, F.: GPU-accelerated Quantum ESPRESSO, Version 1.0 (November 2017), http://doi.org/10.5281/zenodo.836889 
+* Romero, J., Phillips, E. Fatica, M., Spiga, F., Giannozzi, P.: _A performance study of Quantum ESPRESSO's PWscf code on multi-core and GPU systems_, 8th IEEE International Workshop on Performance Modeling, Benchmarking and Simulation of High Performance Computer Systems (PMBS17), Lecture Notes in Computer Science, Springer, Denver (2017)
 
 
 ### License
