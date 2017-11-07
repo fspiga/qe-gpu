@@ -25,7 +25,7 @@ F90FLAGS       = -O3 -Mpreprocess -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME) -Mlar
 FFLAGS         = -O3 -Mpreprocess  
 
 # If this flag is present some files are compiled differently as workaround for compiler bugs
-F90FLAGS_WORKAROUND = -O3 -Mpreprocess -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME) -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+F90FLAGS_WORKAROUND = -O1 -Mpreprocess -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME) -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 
 LD             = mpif90
 LDFLAGS        = -mp -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME) -Mlarge_arrays

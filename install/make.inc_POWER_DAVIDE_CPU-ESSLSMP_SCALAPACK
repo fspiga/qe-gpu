@@ -21,7 +21,7 @@ F90FLAGS       = -O3 -mp -Mpreprocess  -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MOD
 FFLAGS         = -O3 -mp -Mpreprocess 
 
 # If this flag is present some files are compiled differently as workaround for compiler bugs
-F90FLAGS_WORKAROUND = -O3 -Mpreprocess  -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+F90FLAGS_WORKAROUND = -O1 -Mpreprocess  -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 
 LD             = mpif90
 LDFLAGS        = -mp -Mlarge_arrays
