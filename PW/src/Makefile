@@ -256,22 +256,11 @@ wyckoff.o
 QEMODS=../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.a
 
 TLDEPS=bindir mods libs liblapack libblas
-#
+
 # If F90FLAGS_WORKAROUND is defined some files are compiled differently
 # # as workaround for compiler bugs
 ifdef F90FLAGS_WORKAROUND
-#read_file_new.o pw_restart.o paw_onecenter.o :
-#	$(MPIF90) $(F90FLAGS_WORKAROUND) -c $(*).f90 -o $(*).o
-cegterg.o : ../../LAXlib/la_types.o \
-../../LAXlib/ptoolkit.o \
-../../Modules/io_global.o \
-../../Modules/kind.o \
-../../Modules/mp.o \
-../../Modules/mp_bands.o \
-../../Modules/mp_diag.o \
-pwcom.o \
-cdiaghg.o \
-cegterg.f90 
+cegterg.o : 
 	$(MPIF90) $(F90FLAGS_WORKAROUND) -c $(*).f90 -o $(*).o
 endif
 
