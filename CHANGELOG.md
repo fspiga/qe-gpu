@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file. This projec
 
 ## [Unreleased]
 ### Fixes
-- Workaround for compiler bug on POWER systems (see 92327a54)
+- Workaround for compiler bug on POWER systems (commit 92327a54a03b81774f7928a431acfe26adda7ff7)
 
 ## [1.0.0] - 2017-11-03
 
