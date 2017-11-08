@@ -18,7 +18,7 @@ CC             = pgcc
 F77            = pgf90
 
 GPU_ARCH=60
-UDA_RUNTIME=8.0
+CUDA_RUNTIME=8.0
 
 CFLAGS         = -O3 -Mpreprocess $(DFLAGS) $(IFLAGS)
 F90FLAGS       = -O3 -Mpreprocess -Mcuda=cc$(GPU_ARCH),cuda$(CUDA_RUNTIME) -Mlarge_arrays $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
