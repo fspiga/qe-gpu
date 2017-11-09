@@ -260,12 +260,12 @@ TLDEPS=bindir mods libs liblapack libblas
 # If F90FLAGS_WORKAROUND is defined some files are compiled differently
 # # as workaround for compiler bugs
 ifdef F90FLAGS_WORKAROUND
-read_file_new.o pw_restart.o paw_onecenter.o :
+cegterg.o : 
 	$(MPIF90) $(F90FLAGS_WORKAROUND) -c $(*).f90 -o $(*).o
 endif
-         
-all : tldeps pw.x
 
+all : tldeps pw.x
+         
 pw.x : $(PWOBJS) libpw.a $(LIBOBJS) $(QEMODS)
 	$(LD) $(LDFLAGS) -o $@ \
 	   $(PWOBJS) libpw.a $(QEMODS) $(LIBOBJS) $(LIBS)
@@ -299,5 +299,7 @@ generate_rVV10_kernel_table.x : libpw.a generate_rVV10_kernel_table.o
 
 
 include make.depend
+
+
 
 # DO NOT DELETE

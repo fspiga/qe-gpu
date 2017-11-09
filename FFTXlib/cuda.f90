@@ -14,6 +14,7 @@ module mpiDeviceUtil
   INCLUDE 'mpif.h'
 #endif
     character (len=MPI_MAX_PROCESSOR_NAME) :: hostname
+    integer :: dev_id, node_id
 
   interface
      subroutine quicksort(base, nmemb, elemsize, compar) &
@@ -74,12 +75,14 @@ contains
     call MPI_COMM_RANK(newComm, newRank, ierr)
 
     dev = newRank
-    ierr = cudaSetDevice(dev)
+    dev_id = dev
+    node_id = color
+    ierr = cudaSetDevice(dev_id)
     
 #if 0
     do i=0,nProcs-1
       if(myrank == i) then
-          write(6,"(A8,I4,A8,A12,A12,I2)") "Rank: ",myrank,"Host: ",hostname(1:namelength),"Using GPU: ",dev
+          write(6,"(A8,I4,A8,A12,A12,I2)") "Rank: ",myrank,"Host: ",hostname(1:namelength),"Using GPU: ",dev_id
       endif
       do j=0,1000
         call MPI_BARRIER(MPI_COMM_WORLD,ierr)

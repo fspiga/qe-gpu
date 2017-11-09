@@ -59,6 +59,10 @@ If you use the code for science or any form of scientific and technical dissemin
 * Romero, J., Phillips, E. Fatica, M., Spiga, F., Giannozzi, P.: _A performance study of Quantum ESPRESSO's PWscf code on multi-core and GPU systems_, 8th IEEE International Workshop on Performance Modeling, Benchmarking and Simulation of High Performance Computer Systems (PMBS17), Lecture Notes in Computer Science, Springer, Denver (2017)
 
 
+### Benchmarks
+
+Benchmarks will be collected in a separate [reporitory](https://github.com/fspiga/qe-gpu_benchmarks) 
+
 ### License
 
 All the material included in this distribution is free software; you can
