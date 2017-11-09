@@ -122,7 +122,7 @@ SUBROUTINE addusforce_g (forcenl)
         DO na = 1, nat
            IF ( ityp(na) == nt ) nab = nab + 1
         ENDDO
-        ALLOCATE ( aux1( ngm, na, 3) )
+        ALLOCATE ( aux1( ngm, nab, 3) )
         ALLOCATE ( ddeeq(nij, nab, 3, nspin_mag) )
         !
         DO is = 1, nspin_mag
@@ -303,7 +303,7 @@ SUBROUTINE addusforce_g_gpu (forcenl)
         DO na = 1, nat
            IF ( ityp(na) == nt ) nab = nab + 1
         ENDDO
-        ALLOCATE ( aux1_d( ngm, na, 3) )
+        ALLOCATE ( aux1_d( ngm, nab, 3) )
         ALLOCATE ( ddeeq_d(nij, nab, 3, nspin_mag) )
         !
         DO is = 1, nspin_mag
