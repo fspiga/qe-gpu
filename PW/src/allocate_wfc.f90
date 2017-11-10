@@ -34,8 +34,8 @@ SUBROUTINE allocate_wfc()
   ALLOCATE( evc( npwx*npol, nbnd ) )    
 #ifdef USE_CUDA                                               
   ALLOCATE( evc_d( npwx*npol, nbnd ) )  
-  ALLOCATE( psi_d( npwx, npol, nbndx ) )
-  ALLOCATE( hpsi_d( npwx, npol, nbndx ) )
+  !ALLOCATE( psi_d( npwx, npol, nbndx ) )
+  !ALLOCATE( hpsi_d( npwx, npol, nbndx ) )
   IF(okvan) &
      ALLOCATE( spsi_d( npwx, npol, nbndx ) )
   ALLOCATE( comm_h_c( nbndx, nbndx ) )

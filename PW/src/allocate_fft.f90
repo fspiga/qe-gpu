@@ -34,6 +34,7 @@ SUBROUTINE allocate_fft
   USE wavefunctions_module, ONLY : psic_d, psic_batch_d                     
   USE scf,        ONLY : vltot_d, vrs_d, rho_core_d, rhog_core_d
   USE mpiDeviceUtil, ONLY : dev_id, node_id
+  USE mp_bands, ONLY: nproc_bgrp
 #endif     
   IMPLICIT NONE
  integer :: i
@@ -57,6 +58,16 @@ SUBROUTINE allocate_fft
   IF (dfftp%nnr <= 0) CALL errore ('allocate_fft', 'wrong nnr', 1)
   IF (dffts%nnr<= 0) CALL errore ('allocate_fft', 'wrong smooth nnr', 1)
   IF (nspin<= 0) CALL errore ('allocate_fft', 'wrong nspin', 1)
+
+#ifdef USE_CUDA
+  IF (nproc_bgrp == 1) then
+    WRITE( stdout, '(5x,"Only 1 process per pool detected. Reducing FFT batch sizes...")')
+    dfftp%batchsize = 4
+    dfftp%subbatchsize = 4
+    dffts%batchsize = 4
+    dffts%subbatchsize = 4
+  ENDIF
+#endif
   !
   !     Allocate memory for all kind of stuff.
   !

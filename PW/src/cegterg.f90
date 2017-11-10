@@ -61,6 +61,7 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   USE wvfct,  ONLY : psi_d, hpsi_d, spsi_d, comm_h_c, comm_s_c
   USE wvfct,  ONLY : hc_d, sc_d, vc_d, vc_temp_d, ew_d, conv_d, conv_idx_d              
   USE fft_base,             ONLY : dffts
+  USE mp_bands, ONLY: nproc_bgrp
 !  USE ep_debug, ONLY : compare, MPI_Wtime
 #endif
   !
@@ -1135,8 +1136,11 @@ SUBROUTINE cegterg( npw, npwx, nvec, nvecx, npol, evc,  ethr, &
   DEALLOCATE( psi )
 #endif
 #ifdef USE_CUDA
-!  DEALLOCATE( hpsi_d )
-!  DEALLOCATE( psi_d )
+  IF (nproc_bgrp == 1) THEN
+    ! If using 1 process per pool, deallocate hpsi_d and psi_d allocations to save memory
+    DEALLOCATE( hpsi_d )
+    DEALLOCATE( psi_d )
+  END IF
 !  DEALLOCATE( comm_h_r )
 !  DEALLOCATE( comm_h_c )
 #endif
