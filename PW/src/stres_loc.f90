@@ -62,12 +62,12 @@
   gx = sqrt(gl(igl) * tpiba2)
   mysum = 0.d0
 
-  do ir = tx, mesh, blockDim%x 
+  do ir = tx, msh, blockDim%x
     val = ( r(ir) * vloc_at(ir) + zp * e2 * erf(r(ir) ) ) * &
            (r(ir) * cos (gx * r(ir) ) / gx - sin (gx  * r(ir) ) / gx**2) * &
           rab(ir) 
 
-    if (ir == 1 .or. ir == mesh) then
+    if (ir == 1 .or. ir == msh) then
       mysum = mysum + val
     else if (mod(ir,2)) then
       mysum = mysum + 2.d0*val
