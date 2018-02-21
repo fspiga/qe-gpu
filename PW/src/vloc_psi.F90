@@ -237,7 +237,7 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
 #endif
   INTEGER :: currsize
   !
-  INTEGER :: ibnd, i, j, incr
+  INTEGER :: ibnd, i, j, k, incr
   !
   LOGICAL :: use_tg
   ! Task Groups
@@ -376,12 +376,14 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
 #ifndef USE_GPU
 !$omp parallel do
 #else
+
+k = dffts%nnr
 !$cuf kernel do(1) <<<*,*>>>
 #endif
-        DO j = 1, dffts%nnr
+        DO j = 1, k
           v_tmp = v(j)
           DO i = 0, currsize-1
-           psic_batch (j + i*dffts%nnr) = psic_batch (j + i*dffts%nnr) * v_tmp
+           psic_batch (j + i*k) = psic_batch (j + i*k) * v_tmp
           ENDDO
         ENDDO
 #ifndef USE_GPU
