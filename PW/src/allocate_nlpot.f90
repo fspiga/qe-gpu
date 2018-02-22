@@ -48,6 +48,7 @@ SUBROUTINE allocate_nlpot
   !
   INTEGER, EXTERNAL :: n_plane_waves
   INTEGER :: nwfcm
+  INTEGER :: ierr
   !
   !   calculate number of PWs for all kpoints
   !
@@ -77,16 +78,16 @@ SUBROUTINE allocate_nlpot
   ENDIF
 
 #ifdef USE_CUDA
-  ALLOCATE (indv_d( nhm, nsp))
-  !allocate (nhtol_d(nhm, nsp))
-  ALLOCATE (nhtolm_d(nhm, nsp))
+   ALLOCATE (indv_d( nhm, nsp),stat=ierr)
+   !allocate (nhtol_d(nhm, nsp),stat=ierr)
+   ALLOCATE (nhtolm_d(nhm, nsp),stat=ierr)
+   ALLOCATE(deeq_d, source=deeq,stat=ierr)
   ALLOCATE (indv_ijkb0_d(nat))
-  ALLOCATE(deeq_d, source=deeq)
 #endif
 
   ALLOCATE (qq(   nhm, nhm, nsp))
 #ifdef USE_CUDA
-  allocate(qq_d, source=qq)
+  allocate(qq_d, source=qq,stat=ierr)
 #endif
 
   IF (lspinorb) THEN
@@ -110,12 +111,12 @@ SUBROUTINE allocate_nlpot
   ALLOCATE (vkb( npwx,  nkb))
 #ifdef USE_CUDA
   if (lmaxq > 0) ALLOCATE (qrad_d( nqxq, nbetam*(nbetam+1)/2, lmaxq, nsp))
-  allocate (vkb_d, source=vkb)
+  allocate (vkb_d, source=vkb,stat=ierr)
 #endif
 
   ALLOCATE (becsum( nhm * (nhm + 1)/2, nat, nspin))
 #ifdef USE_CUDA
-  ALLOCATE (becsum_d, source=becsum)
+  ALLOCATE (becsum_d, source=becsum,stat=ierr)
 #endif
 
   !
@@ -126,13 +127,13 @@ SUBROUTINE allocate_nlpot
 
   ALLOCATE (tab( nqx , nbetam , nsp))
 #ifdef USE_CUDA
-  ALLOCATE(tab_d, source=tab)
+  ALLOCATE(tab_d, source=tab,stat=ierr)
 #endif
 
   ! d2y is for the cubic splines
   IF (spline_ps) ALLOCATE (tab_d2y( nqx , nbetam , nsp))
 #ifdef USE_CUDA
-  IF (spline_ps) ALLOCATE(tab_d2y_d, source=tab_d2y)
+  IF (spline_ps) ALLOCATE(tab_d2y_d, source=tab_d2y,stat=ierr)
 #endif
 
   nwfcm = maxval ( upf(1:nsp)%nwfc )

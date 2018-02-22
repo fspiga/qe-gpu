@@ -545,7 +545,8 @@ CONTAINS
          print *,"alloc bec%k_d",nkb,nbnd_siz
 #endif
          ALLOCATE( bec%k_d( nkb, nbnd_siz ), STAT=ierr )
-         IF( ierr /= 0 ) &
+         IF( ierr > 1 ) &
+
             CALL errore( ' allocate_bec_type ', ' cannot allocate bec%k_d ', ABS(ierr) )
          !
        endif
