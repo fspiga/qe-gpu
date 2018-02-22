@@ -67,6 +67,11 @@ subroutine set_rhoc
   rhog_core(:) = 0.0_DP
   rho_core(:)  = 0.0_DP
 
+#ifdef USE_CUDA
+  rho_core_h = rho_core
+  rhog_core_h = rhog_core
+#endif
+
   CALL stop_clock( 'set_rhoc' )
   return
 
