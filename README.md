@@ -61,7 +61,7 @@ If you use the code for science or any form of scientific and technical dissemin
 
 ### Benchmarks
 
-Benchmarks will be collected in a separate [reporitory](https://github.com/fspiga/qe-gpu_benchmarks) 
+Benchmarks will be collected in a separate [repository](https://github.com/romerojosh/qe-gpu-benchmarks) 
 
 ### License
 
