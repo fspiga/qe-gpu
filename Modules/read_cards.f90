@@ -704,7 +704,19 @@ CONTAINS
          IF ( matches( "_C", input_line ) ) kband_plane=.true.
       ELSEIF ( matches( "GAMMA", input_line ) ) THEN
          !  Only Gamma (k=0) is used
+#ifdef USE_CUDA
+        print *,"    Gamma point not yet implemented in the GPU version."
+        print *,"    The code will run with k points {automatic}"
+         k_points = 'automatic'
+         nkstot   = 0
+         nk1=1 ; nk2=1 ; nk3=1; k1=0 ; k2=0 ; k3=0 
+         ALLOCATE ( xk(3,1), wk(1) ) 
+         tkpoints  = .true.
+         tk_inp = .true.
+         return
+#else
          k_points = 'gamma'
+#endif
       ELSE
          !  by default, input k-points are in 2pi/a units
          k_points = 'tpiba'
@@ -868,6 +880,7 @@ CONTAINS
             & // trim(k_points) // ' k points', 1)
 20     CALL errore ('card_kpoints', ' error while reading ' &
             & // trim(k_points) // ' k points', 1)
+
       !
    END SUBROUTINE card_kpoints
    !
