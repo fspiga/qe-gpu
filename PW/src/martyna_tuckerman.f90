@@ -5,7 +5,6 @@
 ! in the root directory of the present distribution,
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
-#undef TESTING
 MODULE martyna_tuckerman
   !
   ! ... The variables needed to the Martyna-Tuckerman method for isolated
@@ -20,6 +19,10 @@ MODULE martyna_tuckerman
   TYPE (ws_type) :: ws
   REAL (DP) :: alpha, beta
   REAL (DP), ALLOCATABLE :: wg_corr(:)
+#ifdef USE_CUDA
+  REAL (DP), ALLOCATABLE, device :: wg_corr_d(:)
+  LOGICAL :: wg_corr_d_is_updated = .FALSE.
+#endif
   LOGICAL :: wg_corr_is_updated = .FALSE.
   LOGICAL :: do_comp_mt = .FALSE.
   LOGICAL :: gamma_only = .FALSE.
@@ -30,14 +33,22 @@ MODULE martyna_tuckerman
   PRIVATE
 
   PUBLIC :: tag_wg_corr_as_obsolete, do_comp_mt, &
-            wg_corr_ewald, wg_corr_loc, wg_corr_h, wg_corr_force
+            wg_corr_ewald, wg_corr_loc, wg_corr_h, wg_corr_force 
+
+#ifdef USE_CUDA
+  PUBLIC :: wg_corr_h_gpu
+#endif
 
 CONTAINS
 !----------------------------------------------------------------------------
   SUBROUTINE tag_wg_corr_as_obsolete
 !----------------------------------------------------------------------------
      wg_corr_is_updated = .FALSE.
+#ifdef USE_CUDA
+     wg_corr_d_is_updated = .FALSE.
+#endif
   END SUBROUTINE tag_wg_corr_as_obsolete
+
 !----------------------------------------------------------------------------
   SUBROUTINE wg_corr_h( omega, ngm, rho, v, eh_corr )
 !----------------------------------------------------------------------------
@@ -64,6 +75,44 @@ CONTAINS
 
   RETURN
   END SUBROUTINE wg_corr_h
+
+#ifdef USE_CUDA
+!----------------------------------------------------------------------------
+  SUBROUTINE wg_corr_h_gpu( omega, ngm, rho, v, eh_corr )
+!----------------------------------------------------------------------------
+  INTEGER, INTENT(IN) :: ngm
+  REAL(DP), INTENT(IN) :: omega
+  COMPLEX(DP), INTENT(IN), device  :: rho(ngm)
+  COMPLEX(DP), INTENT(OUT), device :: v(ngm)
+  REAL(DP), INTENT(OUT) :: eh_corr
+
+  INTEGER :: ig
+
+
+  IF (.NOT.wg_corr_d_is_updated) CALL init_wg_corr_gpu
+
+
+  !v(:) = (0._dp,0._dp)  !This is not needed, all the elements of the array  are updated in the following loop
+
+  eh_corr =  0._dp
+  !$cuf kernel do(1) <<<*,*>>>
+  DO ig = 1,ngm
+     v(ig) = e2 * wg_corr_d(ig) * rho(ig) 
+     eh_corr = eh_corr + ABS(rho(ig))**2 * wg_corr_d(ig)
+  END DO
+  iF (gamma_only) then
+    !$cuf kernel do(1) <<<*,*>>>
+    do ig = gstart,ngm
+     v(ig) = 0.5_dp * v(ig)
+    end do
+  endif
+
+  eh_corr = 0.5_dp * e2 * eh_corr * omega
+
+  RETURN
+  END SUBROUTINE wg_corr_h_gpu
+#endif
+
 !----------------------------------------------------------------------------
   SUBROUTINE wg_corr_loc( omega, ntyp, ngm, zv, strf, v )
 !----------------------------------------------------------------------------
@@ -138,11 +187,6 @@ CONTAINS
   REAL(DP) :: r(3), rws, upperbound, rws2
   COMPLEX (DP), ALLOCATABLE :: aux(:)
   REAL(DP), EXTERNAL :: qe_erfc
-#ifdef TESTING
-  REAL(DP), ALLOCATABLE :: plot(:)
-  CHARACTER (LEN=25) :: filplot
-  LOGICAL, SAVE :: first = .TRUE.
-#endif
 
   IF ( ALLOCATED(wg_corr) ) DEALLOCATE(wg_corr)
   ALLOCATE(wg_corr(ngm))
@@ -186,14 +230,6 @@ CONTAINS
      r(:) = ( at(:,1)/dfftp%nr1*i + at(:,2)/dfftp%nr2*j + at(:,3)/dfftp%nr3*k )
 
      rws = ws_dist(r,ws)
-#ifdef TESTING
-     rws2 = ws_dist_stupid(r,ws)
-     if (abs (rws-rws2) > 1.e-5 ) then
-        write (*,'(4i8)') ir, i,j,k
-        write (*,'(5f14.8)') r(:), rws, rws2
-        stop
-     end if
-#endif
 
      aux(ir) = smooth_coulomb_r( rws*alat )
 
@@ -210,48 +246,96 @@ CONTAINS
 !
   wg_corr_is_updated = .true.
  
-#ifdef TESTING
-  if (first) then
-     ALLOCATE(plot(dfftp%nnr))
-
-     filplot = 'wg_corr_r'
-     CALL invfft ('Dense', aux, dfftp)
-     plot(:) = REAL(aux(:))
-     call  write_wg_on_file(filplot, plot)
-
-     filplot = 'wg_corr_g'
-     aux(:) = (0._dp,0._dp)
-     do ig =1, ngm
-        aux(nl(ig))  = smooth_coulomb_g( tpiba2*gg(ig))/omega
-     end do
-     if (gamma_only) aux(nlm(1:ngm)) = CONJG( aux(nl(1:ngm)) )
-
-     CALL invfft ('Dense', aux, dfftp)
-     plot(:) = REAL(aux(:))
-     call  write_wg_on_file(filplot, plot)
-
-     filplot = 'wg_corr_diff'
-     aux(:) = (0._dp,0._dp)
-     aux(nl(1:ngm)) = wg_corr(1:ngm) / omega
-     if (gamma_only) then
-        aux(:) = 0.5_dp * aux(:) 
-        aux(nlm(1:ngm)) = aux(nlm(1:ngm)) + CONJG( aux(nl(1:ngm)) )
-     end if
-     CALL invfft ('Dense', aux, dfftp)
-     plot(:) = REAL(aux(:))
-     call  write_wg_on_file(filplot, plot)
-
-     DEALLOCATE (plot)
-
-     first = .false.
-  end if
-#endif
-
   DEALLOCATE (aux)
 
   RETURN
 
   END SUBROUTINE init_wg_corr 
+
+#ifdef USE_CUDA
+!----------------------------------------------------------------------------
+  SUBROUTINE init_wg_corr_gpu
+!----------------------------------------------------------------------------
+  USE mp_bands,      ONLY : me_bgrp
+  USE fft_base,      ONLY : dfftp
+  USE fft_interfaces,ONLY : fwfft, invfft
+  USE control_flags, ONLY : gamma_only_ => gamma_only
+  USE gvect,         ONLY : ngm, gg, gstart_ => gstart, nl, nlm, ecutrho
+  USE cell_base,     ONLY : at, alat, tpiba2, omega
+
+  INTEGER :: idx0, idx, ir, i,j,k, ig, nt
+  REAL(DP) :: r(3), rws, upperbound, rws2
+  COMPLEX (DP), ALLOCATABLE :: aux(:)
+  REAL(DP), EXTERNAL :: qe_erfc
+
+  IF ( ALLOCATED(wg_corr) ) DEALLOCATE(wg_corr)
+  ALLOCATE(wg_corr(ngm))
+  IF ( ALLOCATED(wg_corr_d) ) DEALLOCATE(wg_corr_d)
+  ALLOCATE(wg_corr_d(ngm))
+  !
+  ! choose alpha in order to have convergence in the sum over G
+  ! upperbound is a safe upper bound for the error in the sum over G
+  !
+  alpha = 2.9d0
+  upperbound = 1._dp
+  DO WHILE ( upperbound > 1.e-7_dp) 
+     alpha = alpha - 0.1_dp  
+     if (alpha<=0._dp) call errore('init_wg_corr','optimal alpha not found',1)
+     upperbound = e2 * sqrt (2.d0 * alpha / tpi) * &
+                       qe_erfc ( sqrt ( ecutrho / 4.d0 / alpha) )
+  END DO
+  beta = 0.5_dp/alpha ! 1._dp/alpha
+  ! write (*,*) " alpha, beta MT = ", alpha, beta
+  !
+  call ws_init(at,ws)
+  !
+  gstart = gstart_
+  gamma_only = gamma_only_
+  !
+  ! idx0 = starting index of real-space FFT arrays for this processor
+  !
+  idx0 = dfftp%nr1x*dfftp%nr2x * dfftp%ipp(me_bgrp+1)
+  !
+  ALLOCATE (aux(dfftp%nnr))
+  aux = (0._dp,0._dp)
+  DO ir = 1, dfftp%nr1x*dfftp%nr2x * dfftp%npl
+     !
+     ! ... three dimensional indices
+     !
+     idx = idx0 + ir - 1
+     k   = idx / (dfftp%nr1x*dfftp%nr2x)
+     idx = idx - (dfftp%nr1x*dfftp%nr2x)*k
+     j   = idx / dfftp%nr1x
+     idx = idx - dfftp%nr1x*j
+     i   = idx
+
+     r(:) = ( at(:,1)/dfftp%nr1*i + at(:,2)/dfftp%nr2*j + at(:,3)/dfftp%nr3*k )
+
+     rws = ws_dist(r,ws)
+
+     aux(ir) = smooth_coulomb_r( rws*alat )
+
+  END DO
+
+  CALL fwfft ('Dense', aux, dfftp)
+
+  do ig =1, ngm
+     wg_corr(ig) = omega * REAL(aux(nl(ig))) - smooth_coulomb_g( tpiba2*gg(ig))
+  end do
+  wg_corr(:) =  wg_corr(:) * exp(-tpiba2*gg(:)*beta/4._dp)**2
+  !
+  if (gamma_only) wg_corr(gstart:ngm) = 2.d0 * wg_corr(gstart:ngm)
+!
+  wg_corr_d_is_updated = .true.
+ 
+  DEALLOCATE (aux)
+
+  wg_corr_d = wg_corr
+
+  RETURN
+
+  END SUBROUTINE init_wg_corr_gpu
+#endif
 !----------------------------------------------------------------------------
   SUBROUTINE write_wg_on_file(filplot, plot)
 !----------------------------------------------------------------------------

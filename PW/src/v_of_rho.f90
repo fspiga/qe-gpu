@@ -1859,7 +1859,7 @@ SUBROUTINE v_h_gpu( rhog_d, ehart, charge, v_d )
   USE control_flags, ONLY : gamma_only
   USE mp_bands,  ONLY: intra_bgrp_comm
   USE mp,        ONLY: mp_sum
-  USE martyna_tuckerman, ONLY : wg_corr_h, do_comp_mt
+  USE martyna_tuckerman, ONLY : wg_corr_h_gpu, do_comp_mt 
   USE esm,       ONLY: do_comp_esm, esm_hartree, esm_bc
   !
   IMPLICIT NONE
@@ -1873,6 +1873,7 @@ SUBROUTINE v_h_gpu( rhog_d, ehart, charge, v_d )
   REAL(DP)              :: rgtot_re, rgtot_im, eh_corr
   INTEGER               :: is, ig
   COMPLEX(DP), ALLOCATABLE :: rgtot(:), vaux(:)
+  COMPLEX(DP), ALLOCATABLE, device :: rgtot_d(:), vaux_d(:)
   COMPLEX(DP), ALLOCATABLE, DEVICE :: aux_d(:)
   INTEGER               :: nt, i
   complex(DP) :: rhog11, rhog12
@@ -1953,15 +1954,22 @@ SUBROUTINE v_h_gpu( rhog_d, ehart, charge, v_d )
      END IF
      ! 
      if (do_comp_mt) then
-        print*, "v_h_gpu: do_comp_mt not implemented!"; flush(6); stop
-        !ALLOCATE( vaux( ngm ), rgtot(ngm) )
-        !rgtot(:) = rhog(:,1)
-        !if (nspin==2) rgtot(:) = rgtot(:) + rhog(:,2)
-        !CALL wg_corr_h (omega, ngm, rgtot, vaux, eh_corr)
-        !aux1(1,1:ngm) = aux1(1,1:ngm) + REAL( vaux(1:ngm))
-        !aux1(2,1:ngm) = aux1(2,1:ngm) + AIMAG(vaux(1:ngm))
-        !ehart = ehart + eh_corr
-        !DEALLOCATE( rgtot, vaux )
+        ALLOCATE( vaux_d( ngm ), rgtot_d(ngm) )
+        !$cuf kernel do(1) <<<*,*>>>
+        do i=1,ngm
+         rgtot_d(i) = rhog_d(i,1)
+         if (nspin==2) rgtot_d(i) = rgtot_d(i) + rhog_d(i,2)
+        end do
+
+        CALL wg_corr_h_gpu(omega, ngm, rgtot_d, vaux_d, eh_corr)
+
+       !$cuf kernel do(1) <<<*,*>>>
+        do i=1,ngm
+         aux1_d(1,i) = aux1_d(1,i) + REAL( vaux_d(i))
+         aux1_d(2,i) = aux1_d(2,i) + AIMAG(vaux_d(i))
+        end do
+        ehart = ehart + eh_corr
+        DEALLOCATE( rgtot_d, vaux_d )
      end if
      !
      CALL mp_sum(  ehart , intra_bgrp_comm )
