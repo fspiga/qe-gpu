@@ -1199,6 +1199,7 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
              cv = evci * gk2 * gk2 * qm1i
              dot22 = dot22 + work_sum%re * cv%re + work_sum%im * cv%im
 
+             cv = evci * gk3 * gk2 * qm1i
              dot32 = dot32 + work_sum%re * cv%re + work_sum%im * cv%im
 
              cv = evci * gk3 * gk3 * qm1i
@@ -1241,11 +1242,11 @@ SUBROUTINE stres_us_gpu( ik, gk_d, sigmanlc )
 
              DO ih = 1, nhnp
                ikb = ijkb0 + ih
-               gk1 = ps_d(ikb, np)
+               cv = ps_d(ikb, np)
 
-               wsum1 = wsum1 + gk1*dvkb_d(i,ikb,1)
-               wsum2 = wsum2 + gk1*dvkb_d(i,ikb,2)
-               wsum3 = wsum3 + gk1*dvkb_d(i,ikb,3)
+               wsum1 = wsum1 + cv*dvkb_d(i,ikb,1)
+               wsum2 = wsum2 + cv*dvkb_d(i,ikb,2)
+               wsum3 = wsum3 + cv*dvkb_d(i,ikb,3)
              END DO
              
              evci = evc_d(i, ibnd)
