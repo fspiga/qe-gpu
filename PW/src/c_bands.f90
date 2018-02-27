@@ -442,6 +442,9 @@ CONTAINS
        !
        ! ... Conjugate-Gradient diagonalization
        !
+#ifdef USE_CUDA
+       CALL errore( ' c_bands ', ' CG (isolve == 1) not currently supported on GPU!', 1 )
+#endif
        ! ... h_diag is the precondition matrix
        !
        h_diag = 1.D0
