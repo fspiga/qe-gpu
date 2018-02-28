@@ -534,7 +534,7 @@ end subroutine qvan2_gpu
 end module qvan2_gpu_m
 
 !----------------------------------------------------------------------
-SUBROUTINE addusdens_gpu(rho)
+SUBROUTINE addusdens_gpu(rho, rho_h)
   !----------------------------------------------------------------------
   !
   USE realus,               ONLY : addusdens_r
@@ -547,12 +547,16 @@ SUBROUTINE addusdens_gpu(rho)
   !
   !
   REAL(kind=dp), DEVICE, INTENT(inout) :: rho(dfftp%nnr,nspin_mag)
+  REAL(kind=dp), INTENT(inout) :: rho_h(dfftp%nnr,nspin_mag)
   !
   IF ( tqr ) THEN
-    print *,"TQR NOT SUPPTED YET!!! addusdens.f90"
-!     CALL addusdens_r(rho,.true.)
+     ! Falling back to CPU path here. Can port addusdens_r to GPU if needed for performance.
+     rho_h = rho
+     CALL addusdens_r(rho_h,.true.)
+     rho = rho_h
   ELSE
      CALL addusdens_g_gpu(rho)
+     rho_h = rho
   ENDIF
   !
   RETURN

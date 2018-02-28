@@ -1384,8 +1384,8 @@ SUBROUTINE sum_band_gpu()
   !
   ! ... Here we add the Ultrasoft contribution to the charge
   !
-  CALL addusdens_gpu(rho%of_r_d(:,:))
-  rho%of_r(:,:)= rho%of_r_d(:,:)
+  CALL addusdens_gpu(rho%of_r_d(:,:), rho%of_r(:,:))
+  !rho%of_r(:,:)= rho%of_r_d(:,:) copy moved into addusdens_gpu
   !
   IF( okvan )  THEN
      ! bgrp_parallelization is done here but not in subsequent routines
