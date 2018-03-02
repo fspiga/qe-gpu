@@ -256,6 +256,11 @@ subroutine read_ncpp (iunps, np, upf)
   upf%rcut(:) = 0._dp
   upf%rcutus(:) = 0._dp
   !
+#ifdef USE_CUDA
+  ALLOCATE(upf%rho_at_d(upf%mesh), source=upf%rho_at)
+  ALLOCATE(upf%rho_atc_d(upf%mesh), source=upf%rho_atc) 
+  ALLOCATE(upf%vloc_d(upf%mesh), source=upf%vloc)
+#endif
   return
 
 300 call errore ('read_ncpp', 'pseudo file is empty or wrong', abs (np) )
