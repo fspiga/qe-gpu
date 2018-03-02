@@ -153,7 +153,7 @@ kernel_table.o : constants.o
 kernel_table.o : io_files.o
 kernel_table.o : kind.o
 kernel_table.o : wrappers.o
-latgen.o : kind.o
+latgen.o : kind.o constants.o 
 libxc.o : libxc_funcs.o
 linpack.o : kind.o
 lsda_functionals.o : constants.o
