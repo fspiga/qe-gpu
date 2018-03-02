@@ -426,6 +426,14 @@ CONTAINS
        call fit_qrl ( )
        !
     end if
+#ifdef USE_CUDA
+      ALLOCATE(upf%rho_at_d(upf%mesh), source=upf%rho_at)
+      if(upf%nlcc) ALLOCATE(upf%rho_atc_d(upf%mesh), source=upf%rho_atc) 
+      ALLOCATE(upf%vloc_d(upf%mesh), source=upf%vloc)
+      !ALLOCATE(upf%r_d(upf%mesh), source=upf%r)
+      !ALLOCATE(upf%rab_d(upf%mesh), source=upf%rab)
+#endif
+
     !
     !    Here we write on output information on the pseudopotential 
     !
