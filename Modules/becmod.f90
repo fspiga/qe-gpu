@@ -481,13 +481,13 @@ CONTAINS
     !-----------------------------------------------------------------------
     USE mp, ONLY: mp_size, mp_rank, mp_get_comm_null
     IMPLICIT NONE
-    TYPE (bec_type) :: bec
+    TYPE (bec_type), TARGET :: bec
     INTEGER, INTENT (in) :: nkb, nbnd
     INTEGER, INTENT (in), OPTIONAL :: comm
     INTEGER :: ierr, nbnd_siz, i, j
     INTEGER, EXTERNAL :: ldim_block, lind_block, gind_block
 #ifdef USE_CUDA
-    COMPLEX(dp), DEVICE, pointer :: becp_k_d(:,:)
+    COMPLEX(dp), DEVICE, pointer :: bec_k_d(:,:)
 #endif
     !
     nbnd_siz = nbnd
@@ -550,11 +550,11 @@ CONTAINS
             CALL errore( ' allocate_bec_type ', ' cannot allocate bec%k_d ', ABS(ierr) )
          !
        endif
-       becp_k_d => becp%k_d
+       bec_k_d => bec%k_d
 !$cuf kernel do(2) <<<*,*>>>
        DO j = 1, nbnd_siz
           DO i = 1, nkb
-             becp_k_d(i,j)=(0.0D0,0.0D0)
+             bec_k_d(i,j)=(0.0D0,0.0D0)
           ENDDO
        ENDDO
 
