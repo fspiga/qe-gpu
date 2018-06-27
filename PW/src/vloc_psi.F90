@@ -376,7 +376,7 @@ SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
         k = dffts%nnr
 
 #ifndef USE_GPU
-!$omp parallel do
+!$omp parallel do private(v_tmp)
 #else
 !$cuf kernel do(1) <<<*,*>>>
 #endif
