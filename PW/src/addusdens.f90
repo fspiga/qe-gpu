@@ -279,7 +279,7 @@ attributes(global) subroutine ylmr2_gpu_kernel (lmax,lmax2, ng, g, gg, ylm)
   integer, intent(in) :: lmax2, ng
   real(DP), intent(in) :: g (3, ng), gg (ng)
   real(DP), intent(out) :: ylm (ng,lmax2)
-  attributes(device):: g,gg,Q,ylm
+  attributes(device):: g,gg,ylm
   integer:: lmax
   type(dim3):: grid,tBlock
 
