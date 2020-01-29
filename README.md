@@ -10,16 +10,14 @@ This is an open-source custom version of Quantum ESPRESSO with embedded GPU
 support based on CUDA FORTRAN. This product has been made possible thanks to
 the effort of the [NVIDIA](http://www.nvidia.com/page/home.html) HPC Software
 and Benchmarks Group. This version is maintained by
-[Filippo Spiga](https://github.com/fspiga), contributions are encouraged. Partial 
-support was provided by [E4 Computer Engineering SpA](https://www.e4company.com/en/)
-via the European PRACE Pre-Commercial Procurement project (Phase 3). To contribute
-please refer to the guidelines in [CONTRIBUTING.md](CONTRIBUTING.md)
+[Filippo Spiga](https://github.com/fspiga), it is not aligned with main 
+Quantum ESPRESSO development efforts.
 
 
 ### Requirements
 
-The [PGI](http://www.pgroup.com/products) compiler version 17.4 or above is required to use QE-GPU. 
-We suggest the latest community edition 17.10 (freely available from [PGI](http://www.pgroup.com/products/community.htm).
+The [PGI](http://www.pgroup.com/products) compiler version 19.4 or above is required to use QE-GPU. 
+We suggest the latest community edition 19.10 (freely available from [PGI](http://www.pgroup.com/products/community.htm).
 It containes CUDA SDK and pre-built Open MPI for parallel execution (check the
 [PGI Installation Guide](http://www.pgroup.com/doc/pgiinstall174.pdf) how to 
 install it). **No other compilers are supported**
@@ -55,13 +53,10 @@ Quantum ESPRESSO suite or visit the official web site
 ### Citation
 
 If you use the code for science or any form of scientific and technical dissemination activity, we kindly ask to cite the code using the two following references:
-* Romero, J., Phillips, E. Fatica, M., Spiga, F.: GPU-accelerated Quantum ESPRESSO, Version 1.0 (November 2017), http://doi.org/10.5281/zenodo.823200 
+* Romero, J., Phillips, E. Fatica, M., Spiga, F.: GPU-accelerated Quantum ESPRESSO, Version 1.0 (November 2017), https://doi.org/10.5281/zenodo.1041825
+* Romero, J., Phillips, E. Fatica, M., Spiga, F.: GPU-accelerated Quantum ESPRESSO, Version 1.1 (January 2020), http://doi.or    g/10.5281/zenodo.823200 (latest release)
 * Romero, J., Phillips, E. Fatica, M., Spiga, F., Giannozzi, P.: _A performance study of Quantum ESPRESSO's PWscf code on multi-core and GPU systems_, 8th IEEE International Workshop on Performance Modeling, Benchmarking and Simulation of High Performance Computer Systems (PMBS17), Lecture Notes in Computer Science, Springer, Denver (2017)
 
-
-### Benchmarks
-
-Benchmarks will be collected in a separate [repository](https://github.com/romerojosh/qe-gpu-benchmarks) 
 
 ### License
 
